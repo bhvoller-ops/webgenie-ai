@@ -1,6 +1,6 @@
 import type { WebsiteBlueprint } from "@/lib/blueprint/types";
 import type { ContentPackage } from "@/lib/copy/types";
-import type { OrchestrationOutput } from "@/lib/orchestration/types";
+import type { OrchestrationRunOutput } from "@/lib/orchestration/types";
 import type { PromptPackage } from "@/lib/prompts/types";
 import { deliveryTargetProfiles } from "./adapters";
 import type { DeliveryFile, DeliveryPackage, DeliveryTarget } from "./types";
