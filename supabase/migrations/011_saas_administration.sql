@@ -1,1 +1,115 @@
+create type public.subscription_status as enum ('trialing','active','past_due','cancelled','incomplete');
+create type public.billing_interval as enum ('month','year');
+create type public.api_key_status as enum ('active','revoked');
 
+alter table public.organizations
+  add column if not exists plan_key text not null default 'starter',
+  add column if not exists subscription_status public.subscription_status not null default 'trialing',
+  add column if not exists trial_ends_at timestamptz default (now() + interval '14 days'),
+  add column if not exists billing_email text,
+  add column if not exists billing_customer_id text,
+  add column if not exists billing_subscription_id text;
+
+create table public.plan_catalog (
+  key text primary key,
+  name text not null,
+  price_monthly_cents integer not null check (price_monthly_cents >= 0),
+  price_yearly_cents integer not null check (price_yearly_cents >= 0),
+  limits jsonb not null,
+  features jsonb not null default '[]'::jsonb,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+insert into public.plan_catalog(key,name,price_monthly_cents,price_yearly_cents,limits,features) values
+('starter','Starter',2900,29000,'{"projects":5,"analyses":20,"content_packages":20,"prompt_packages":20,"deliveries":10,"members":2,"api_requests":1000}'::jsonb,'["Core intelligence","Blueprints","Prompt exports"]'::jsonb),
+('pro','Pro',9900,99000,'{"projects":50,"analyses":250,"content_packages":250,"prompt_packages":250,"deliveries":100,"members":10,"api_requests":25000}'::jsonb,'["Visual intelligence","Multi-agent review","Builder delivery","API access"]'::jsonb),
+('agency','Agency',24900,249000,'{"projects":500,"analyses":2000,"content_packages":2000,"prompt_packages":2000,"deliveries":1000,"members":50,"api_requests":250000}'::jsonb,'["Agency scale","Priority processing","Advanced administration"]'::jsonb)
+on conflict (key) do update set name=excluded.name, price_monthly_cents=excluded.price_monthly_cents, price_yearly_cents=excluded.price_yearly_cents, limits=excluded.limits, features=excluded.features;
+
+create table public.usage_events (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  metric text not null,
+  quantity integer not null default 1 check (quantity > 0),
+  resource_type text,
+  resource_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default now()
+);
+create index usage_events_org_metric_date_idx on public.usage_events(organization_id,metric,occurred_at desc);
+
+create table public.api_keys (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  name text not null,
+  key_prefix text not null,
+  key_hash text not null unique,
+  status public.api_key_status not null default 'active',
+  scopes text[] not null default array['projects:read'],
+  last_used_at timestamptz,
+  expires_at timestamptz,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create index api_keys_org_idx on public.api_keys(organization_id,created_at desc);
+
+create table public.team_invitations (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  email text not null,
+  role text not null check (role in ('admin','editor','viewer')),
+  token_hash text not null unique,
+  invited_by uuid references auth.users(id) on delete set null,
+  expires_at timestamptz not null default (now() + interval '7 days'),
+  accepted_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique(organization_id,email)
+);
+
+create table public.audit_logs (
+  id bigint generated always as identity primary key,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  target_type text,
+  target_id text,
+  ip_address inet,
+  user_agent text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index audit_logs_org_date_idx on public.audit_logs(organization_id,created_at desc);
+
+create table public.billing_events (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations(id) on delete set null,
+  provider text not null,
+  provider_event_id text not null unique,
+  event_type text not null,
+  payload jsonb not null,
+  processed_at timestamptz,
+  error_message text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.plan_catalog enable row level security;
+alter table public.usage_events enable row level security;
+alter table public.api_keys enable row level security;
+alter table public.team_invitations enable row level security;
+alter table public.audit_logs enable row level security;
+alter table public.billing_events enable row level security;
+
+create policy "authenticated users read plans" on public.plan_catalog for select to authenticated using (is_active);
+create policy "members read usage" on public.usage_events for select using (exists(select 1 from public.organization_members m where m.organization_id=usage_events.organization_id and m.user_id=auth.uid()));
+create policy "admins manage api keys" on public.api_keys for all using (exists(select 1 from public.organization_members m where m.organization_id=api_keys.organization_id and m.user_id=auth.uid() and m.role in ('owner','admin'))) with check (exists(select 1 from public.organization_members m where m.organization_id=api_keys.organization_id and m.user_id=auth.uid() and m.role in ('owner','admin')));
+create policy "admins manage invitations" on public.team_invitations for all using (exists(select 1 from public.organization_members m where m.organization_id=team_invitations.organization_id and m.user_id=auth.uid() and m.role in ('owner','admin'))) with check (exists(select 1 from public.organization_members m where m.organization_id=team_invitations.organization_id and m.user_id=auth.uid() and m.role in ('owner','admin')));
+create policy "members read audit logs" on public.audit_logs for select using (exists(select 1 from public.organization_members m where m.organization_id=audit_logs.organization_id and m.user_id=auth.uid() and m.role in ('owner','admin')));
+
+create or replace function public.current_period_usage(org_id uuid, metric_name text)
+returns integer language sql stable security definer set search_path=public as $$
+  select coalesce(sum(quantity),0)::integer from public.usage_events
+  where organization_id=org_id and metric=metric_name and occurred_at >= date_trunc('month',now());
+$$;
