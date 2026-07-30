@@ -7,8 +7,31 @@ import { inviteTeamMemberAction, revokeApiKeyAction, updateMemberRoleAction } fr
 export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) return null;
-  const {data:membership}=await supabase.from("organization_members").select("organization_id,role").eq("user_id",user.id).limit(1).single();
-  const orgId=membership.organization_id;
+  const { data: membership, error: membershipError } = await supabase
+  .from("organization_members")
+  .select("organization_id,role")
+  .eq("user_id", user.id)
+  .limit(1)
+  .maybeSingle();
+
+if (membershipError) {
+  throw new Error(membershipError.message);
+}
+
+if (!membership) {
+  return (
+    <AppShell>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <h1 className="text-2xl font-semibold">Workspace unavailable</h1>
+        <p className="mt-2 text-slate-400">
+          Your account is not connected to a workspace yet.
+        </p>
+      </div>
+    </AppShell>
+  );
+}
+
+const orgId = membership.organization_id;
   const [{data:organization},{data:members},{data:invitations},{data:keys},{data:usage},{data:audit}]=await Promise.all([
     supabase.from("organizations").select("id,name,plan_key,subscription_status,trial_ends_at,billing_email").eq("id",orgId).single(),
     supabase.from("organization_members").select("user_id,role,created_at").eq("organization_id",orgId).order("created_at"),
