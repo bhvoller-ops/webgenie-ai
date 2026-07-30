@@ -16,7 +16,7 @@ interface DeliveryInput {
   promptPackageId?: string;
   prompts?: PromptPackage;
   orchestrationRunId?: string;
-  orchestration?: OrchestrationOutput;
+  orchestration?: OrchestrationRunOutput;
 }
 
 function jsonFile(path: string, value: unknown, purpose: string): DeliveryFile {
