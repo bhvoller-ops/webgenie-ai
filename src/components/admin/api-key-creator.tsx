@@ -1,0 +1,7 @@
+"use client";
+import { useState } from "react";
+export function ApiKeyCreator() {
+  const [name,setName]=useState("Production API"); const [token,setToken]=useState<string|null>(null); const [error,setError]=useState<string|null>(null); const [loading,setLoading]=useState(false);
+  async function createKey() { setLoading(true); setError(null); setToken(null); const response=await fetch("/api/admin/api-keys",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,scopes:["projects:read"]})}); const body=await response.json(); setLoading(false); if(!response.ok){setError(body.error ?? "Unable to create key.");return;} setToken(body.token); }
+  return <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><label className="text-sm font-medium">Create API key</label><div className="mt-3 flex gap-2"><input value={name} onChange={(e)=>setName(e.target.value)} className="min-w-0 flex-1 rounded-lg px-3 py-2 text-slate-950"/><button type="button" onClick={createKey} disabled={loading} className="rounded-lg bg-indigo-300 px-4 py-2 font-medium text-slate-950 disabled:opacity-50">{loading?"Creating…":"Create"}</button></div>{error?<p className="mt-3 text-sm text-rose-300">{error}</p>:null}{token?<div className="mt-4 rounded-lg border border-amber-700 bg-amber-950/30 p-3"><p className="text-xs font-medium text-amber-200">Copy this key now. It will not be shown again.</p><code className="mt-2 block break-all text-xs text-amber-100">{token}</code></div>:null}</div>;
+}
