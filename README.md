@@ -43,7 +43,7 @@ curl -H "Authorization: Bearer wg_live_REPLACE_ME" \
 ## Current version
 
 `1.0.0`
-
+Trigger fresh Vercel deployment
 ## Production deployment
 
 Deploy the Next.js application to Vercel and deploy `Dockerfile.worker` to a persistent container service. The worker cannot run reliably as a Vercel serverless function because it continuously polls for jobs and launches Chromium. See `docs/DEPLOYMENT_READINESS_REPORT.md`.
