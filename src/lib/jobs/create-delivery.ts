@@ -4,7 +4,7 @@ import type { DeliveryTarget } from "@/lib/delivery/types";
 import type { WebsiteBlueprint } from "@/lib/blueprint/types";
 import type { ContentPackage } from "@/lib/copy/types";
 import type { PromptPackage } from "@/lib/prompts/types";
-import type { OrchestrationOutput } from "@/lib/orchestration/types";
+import type { OrchestrationRunOutput } from "@/lib/orchestration/types";
 
 export async function createProjectDelivery(input: {
   projectId: string;
@@ -48,7 +48,7 @@ export async function createProjectDelivery(input: {
     promptPackageId: promptResult.data?.id,
     prompts: promptResult.data?.package as PromptPackage | undefined,
     orchestrationRunId: reviewResult.data?.id,
-    orchestration: reviewResult.data?.output as OrchestrationOutput | undefined
+    orchestration: reviewResult.data?.output as OrchestrationRunOutput | undefined
   });
 
   const { error: updateError } = await supabase.from("delivery_runs").update({
