@@ -6,3 +6,6 @@ playwright-report
 test-results
 .DS_Store
 *.log
+.vercel
+.env*
+supabase/.temp

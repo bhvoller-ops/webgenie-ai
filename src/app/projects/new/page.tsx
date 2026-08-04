@@ -1,9 +1,9 @@
-import { AppShell } from "@/components/app-shell";
+import { PageShell } from "@/components/shell";
 import { createProject } from "@/app/actions";
 
 export default function NewProjectPage() {
   return (
-    <AppShell>
+    <PageShell>
       <div className="max-w-3xl">
         <h1 className="text-3xl font-semibold">Create project</h1>
         <form action={createProject} className="mt-8 space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -34,6 +34,6 @@ export default function NewProjectPage() {
           </button>
         </form>
       </div>
-    </AppShell>
+    </PageShell>
   );
 }

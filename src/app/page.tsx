@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AppShell } from "@/components/app-shell";
+import { PageShell } from "@/components/shell";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   if (error) throw new Error(error.message);
 
   return (
-    <AppShell>
+    <PageShell>
       <div className="mb-8">
         <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Dashboard</p>
         <h1 className="mt-2 text-4xl font-semibold">Website intelligence projects</h1>
@@ -57,6 +57,6 @@ export default async function DashboardPage() {
           </p>
         </div>
       )}
-    </AppShell>
+    </PageShell>
   );
 }

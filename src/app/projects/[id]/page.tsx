@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
+import { PageShell } from "@/components/shell";
 import { addReference, generateContentPackageAction, generatePromptPackageAction, runOrchestrationAction, startAnalysis, createDeliveryAction } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import { platformProfiles } from "@/lib/prompts/platforms";
@@ -27,7 +27,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const blueprintData = blueprint?.blueprint as any;
   const pages = blueprintData?.pages ?? [];
 
-  return <AppShell><div className="flex flex-col gap-8">
+  return <PageShell><div className="flex flex-col gap-8">
     <section><p className="text-sm uppercase tracking-[0.2em] text-slate-400">Production project</p><h1 className="mt-2 text-4xl font-semibold">{project.name}</h1><p className="mt-3 text-slate-400">{project.industry}</p></section>
 
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
@@ -95,5 +95,5 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       {deliveryRuns?.length ? <div className="mt-8 space-y-3"><h3 className="font-semibold">Delivery history</h3>{deliveryRuns.map((run:any)=><a key={run.id} href={`/projects/${project.id}/delivery/${run.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 px-4 py-3 hover:border-sky-700"><div><p className="font-medium">{deliveryTargetProfiles[run.target as keyof typeof deliveryTargetProfiles]?.label ?? run.target}</p><p className="text-xs text-slate-500">{run.file_count} files · {Math.ceil(Number(run.total_bytes)/1024)} KB</p></div><span className="capitalize text-xs text-sky-300">{run.status} →</span></a>)}</div>:null}
     </section>:null}
 
-  </div></AppShell>;
+  </div></PageShell>;
 }

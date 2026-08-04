@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WebGenie AI — Find out what your website is costing you</title>
+<meta name="description" content="A free website intelligence report. Eleven measures, evidence for every finding, delivered in 24 hours. Built for local businesses who want more enquiries." />
+<meta property="og:title" content="Find out what your website is costing you" />
+<meta property="og:description" content="A free website intelligence report. Eleven measures, evidence for every finding, delivered in 24 hours." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!--
+================================================================================
+  DEPLOY THIS IN 4 MINUTES
+  ------------------------
+  Option A (easiest):  vercel.com/new  →  drag this file in  →  Deploy
+  Option B:            app.netlify.com/drop  →  drag this file in
+  Either gives you a live URL immediately. Add your domain afterwards.
+
+  BEFORE YOU DEPLOY, edit the SETTINGS block at the bottom of this file:
+  your email, your calendar link, and where the form should send leads.
+================================================================================
+-->
+</head>
+<body>
+<style>
+  :root{
+    --void:#05060A; --canvas:#080A11; --surface:#0D1018; --raised:#12161F; --line:#1C212D;
+    --ink:#EAEEF7; --muted:#8E97AC; --faint:#5A6377;
+    --iris:#7C5CFF; --iris-soft:#9B85FF; --neon:#22D3EE; --neon-soft:#67E8F9;
+    --good:#34D399; --warn:#FBBF24; --bad:#F87171;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:var(--void);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1000px 560px at 12% -10%, rgba(124,92,255,.17), transparent 60%),
+      radial-gradient(760px 440px at 90% 2%, rgba(34,211,238,.10), transparent 62%);
+    background-attachment:fixed;
+  }
+  a{color:inherit;text-decoration:none}
+  button,input,select{font-family:inherit;font-size:inherit}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+  .grad{background:linear-gradient(100deg,#fff 6%,#b9a8ff 46%,#67e8f9 96%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  h1{font-size:clamp(2.3rem,5.4vw,4.1rem);line-height:1.02;letter-spacing:-.04em;font-weight:600}
+  h2{font-size:clamp(1.7rem,3.2vw,2.6rem);line-height:1.08;letter-spacing:-.032em;font-weight:600}
+  h3{font-size:16px;font-weight:600}
+  p{color:var(--muted)}
+  section{padding:88px 0;border-top:1px solid var(--line)}
+  .card{border:1px solid var(--line);background:rgba(13,16,24,.6);border-radius:18px;padding:24px}
+  .pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--raised);
+    border-radius:999px;padding:6px 13px;font-size:12px;color:var(--muted)}
+
+  header{position:sticky;top:0;z-index:60;border-bottom:1px solid var(--line);
+    background:rgba(5,6,10,.8);backdrop-filter:blur(20px)}
+  .nav{display:flex;align-items:center;gap:22px;height:66px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+  .mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--iris),#4A2FD6);
+    box-shadow:0 0 0 1px rgba(124,92,255,.35),0 0 46px -12px rgba(124,92,255,.6)}
+  .navlinks{display:flex;gap:4px;margin-left:18px}
+  .navlinks a{padding:8px 12px;border-radius:9px;font-size:14px;color:var(--muted);transition:.18s}
+  .navlinks a:hover{color:var(--ink);background:var(--raised)}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--iris);color:#fff;
+    border:0;border-radius:13px;padding:14px 26px;font-size:15px;font-weight:600;cursor:pointer;
+    box-shadow:0 10px 34px -12px rgba(124,92,255,.9);transition:.2s}
+  .btn:hover{background:var(--iris-soft);transform:translateY(-1px)}
+  .btn.sm{padding:10px 18px;font-size:14px}
+  .btn.ghost{background:var(--raised);border:1px solid var(--line);box-shadow:none;color:var(--ink)}
+  .btn.ghost:hover{border-color:rgba(124,92,255,.5);background:var(--raised)}
+
+  .hero{padding:92px 0 76px;position:relative;overflow:hidden}
+  .heroin{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:60px;align-items:center}
+  .lede{font-size:17px;line-height:1.75;margin-top:24px;max-width:520px}
+
+  form.capture{margin-top:34px;max-width:520px}
+  .fieldrow{display:flex;gap:10px;flex-wrap:wrap}
+  .field{flex:1;min-width:210px;background:var(--canvas);border:1px solid var(--line);
+    border-radius:13px;padding:14px 16px;color:var(--ink);outline:none;transition:.18s}
+  .field::placeholder{color:var(--faint)}
+  .field:focus{border-color:var(--iris);box-shadow:0 0 0 3px rgba(124,92,255,.18)}
+  .microcopy{font-size:12.5px;color:var(--faint);margin-top:14px;line-height:1.6}
+
+  .proofbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}
+
+  /* Report preview mock */
+  .mock{border:1px solid var(--line);background:rgba(13,16,24,.72);border-radius:20px;padding:24px;
+    box-shadow:0 40px 90px -40px rgba(0,0,0,.95);position:relative}
+  .mockhead{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .mockscore{display:flex;align-items:center;gap:16px;margin-top:20px}
+  .ringsm{position:relative;width:96px;height:96px;flex-shrink:0}
+  .ringsm .t{position:absolute;inset:0;display:grid;place-items:center;
+    font-family:"JetBrains Mono",monospace;font-size:26px;font-weight:600;color:var(--warn)}
+  .mocklines{flex:1;min-width:0}
+  .mline{display:flex;align-items:center;gap:10px;margin-top:9px}
+  .mline .n{font-size:11.5px;color:var(--muted);width:78px;flex-shrink:0}
+  .mline .b{flex:1;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+  .mline .b i{display:block;height:100%;border-radius:99px;width:0;transition:width 1s cubic-bezier(.16,1,.3,1)}
+  .mline .v{font-family:"JetBrains Mono",monospace;font-size:11.5px;width:22px;text-align:right}
+  .mockfind{border:1px solid rgba(248,113,113,.28);background:rgba(248,113,113,.07);
+    border-radius:11px;padding:12px 14px;margin-top:18px}
+  .mockfind .t{font-size:12.5px;font-weight:600;color:var(--bad)}
+  .mockfind .d{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.55}
+
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:40px}
+  .step{position:relative;overflow:hidden}
+  .stepnum{position:absolute;right:20px;top:16px;font-family:"JetBrains Mono",monospace;
+    font-size:44px;font-weight:600;line-height:1;color:var(--line)}
+  .ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    border:1px solid rgba(124,92,255,.3);background:rgba(124,92,255,.1)}
+
+  .modgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:36px}
+  .modcell{background:var(--surface);padding:20px}
+  .modcell .n{font-size:14px;font-weight:600;margin-top:4px}
+  .modcell .d{font-size:12px;color:var(--faint);margin-top:6px;line-height:1.55}
+
+  .prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin-top:40px}
+  .price{border:1px solid var(--line);background:rgba(13,16,24,.6);border-radius:20px;padding:28px;
+    display:flex;flex-direction:column;position:relative}
+  .price.hot{border-color:rgba(124,92,255,.5);background:rgba(124,92,255,.06);
+    box-shadow:0 0 50px -20px rgba(124,92,255,.7)}
+  .price.free{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.05)}
+  .tag{position:absolute;top:-11px;left:28px;background:var(--iris);color:#fff;font-size:10px;
+    font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border-radius:99px}
+  .tag.g{background:var(--good);color:#04231A}
+  .amount{font-family:"JetBrains Mono",monospace;font-size:32px;font-weight:600;letter-spacing:-.035em;margin-top:14px}
+  .per{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.12em;margin-top:4px}
+  .price ul{list-style:none;margin-top:20px;flex:1}
+  .price li{font-size:13px;color:var(--muted);line-height:1.6;padding-left:20px;position:relative;margin-top:10px}
+  .price li::before{content:"";position:absolute;left:2px;top:8px;width:7px;height:7px;border-radius:99px;background:var(--iris)}
+  .price.free li::before{background:var(--good)}
+
+  .logos{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px;justify-content:center}
+  .logochip{border:1px solid var(--line);background:var(--raised);border-radius:11px;
+    padding:11px 18px;font-size:13.5px;color:var(--muted)}
+
+  details{border:1px solid var(--line);background:rgba(13,16,24,.55);border-radius:14px;
+    padding:18px 22px;margin-top:12px}
+  details summary{cursor:pointer;font-size:15px;font-weight:500;list-style:none;
+    display:flex;justify-content:space-between;align-items:center;gap:16px}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"+";color:var(--faint);font-size:20px;font-weight:400;flex-shrink:0}
+  details[open] summary::after{content:"−"}
+  details p{font-size:14px;line-height:1.75;margin-top:14px}
+
+  .finalcta{border:1px solid rgba(124,92,255,.32);background:rgba(124,92,255,.07);
+    border-radius:26px;padding:64px 40px;text-align:center;margin-top:20px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 52px}
+  .foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-size:12.5px;color:var(--faint)}
+
+  .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,120%);
+    background:var(--good);color:#04231A;border-radius:13px;padding:14px 22px;font-size:14px;font-weight:600;
+    box-shadow:0 18px 46px -14px rgba(0,0,0,.8);transition:transform .45s cubic-bezier(.16,1,.3,1);z-index:90}
+  .toast.on{transform:translate(-50%,0)}
+
+  @media (max-width:940px){
+    .heroin{grid-template-columns:1fr;gap:44px}
+    .samplegrid{grid-template-columns:1fr!important;gap:34px!important}
+    .navlinks{display:none}
+    .hero{padding:56px 0 48px}
+    section{padding:64px 0}
+    .finalcta{padding:44px 24px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#top">
+      <span class="mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.94 14.06 3 21m9-18 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/></svg></span>
+      WebGenie<span style="color:var(--iris-soft)">&nbsp;AI</span>
+    </a>
+    <nav class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#measure">What we measure</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn sm" href="#top" style="margin-left:auto">Get my free audit</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ================= HERO ================= -->
+  <div class="wrap hero">
+    <div class="heroin">
+      <div>
+        <span class="pill" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.09);color:var(--good)">
+          <span style="width:6px;height:6px;border-radius:99px;background:var(--good);display:inline-block"></span>
+          Free · 3 audits remaining this week
+        </span>
+
+        <h1 style="margin-top:22px">
+          <span class="grad">Your website is losing customers.</span><br />
+          <span>We'll show you exactly where.</span>
+        </h1>
+
+        <p class="lede">
+          A free website intelligence report. Eleven measures, a specific number behind every
+          finding, and a plain-English explanation of what each one is costing you. No sales call
+          required to receive it.
+        </p>
+
+        <form class="capture" id="auditForm">
+          <div class="fieldrow">
+            <input class="field" id="fUrl" type="text" placeholder="yourwebsite.com" required />
+            <input class="field" id="fEmail" type="email" placeholder="you@business.com" required />
+          </div>
+          <div class="fieldrow" style="margin-top:10px">
+            <input class="field" id="fName" type="text" placeholder="Your name" required />
+            <button class="btn" type="submit" style="min-width:180px">
+              Get my free audit
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="microcopy">
+            Delivered within 24 hours as a shareable document. We never sell your details, and one
+            follow-up email is the most you will ever get from us.
+          </div>
+        </form>
+
+        <div class="proofbar">
+          <span class="pill">11-point analysis</span>
+          <span class="pill">Evidence for every finding</span>
+          <span class="pill">24-hour turnaround</span>
+          <span class="pill">No obligation</span>
+        </div>
+      </div>
+
+      <!-- Report preview -->
+      <div class="mock">
+        <div class="mockhead">
+          <div>
+            <div class="eyebrow" style="color:var(--iris-soft)">Sample report</div>
+            <div style="font-size:15px;font-weight:600;margin-top:5px">Meridian Dental Studio</div>
+          </div>
+          <span class="pill" style="border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.1);color:var(--warn)">Needs work</span>
+        </div>
+
+        <div class="mockscore">
+          <div class="ringsm">
+            <svg width="96" height="96" style="transform:rotate(-90deg)">
+              <circle cx="48" cy="48" r="41" fill="none" stroke="#1C212D" stroke-width="9"/>
+              <circle id="mockArc" cx="48" cy="48" r="41" fill="none" stroke="#FBBF24" stroke-width="9"
+                stroke-linecap="round" stroke-dasharray="257.6" stroke-dashoffset="257.6"
+                style="transition:stroke-dashoffset 1.2s cubic-bezier(.16,1,.3,1)"/>
+            </svg>
+            <div class="t">61</div>
+          </div>
+          <div class="mocklines" id="mockLines"></div>
+        </div>
+
+        <div class="mockfind">
+          <div class="t">Critical · Your homepage takes 4.8s to load on a phone</div>
+          <div class="d">A 2.4MB image is being sent at full camera resolution to every visitor. Roughly half leave before it appears.</div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn ghost sm" href="#sample" style="flex:1;min-width:150px">See the full sample</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= HOW ================= -->
+  <section id="how">
+    <div class="wrap">
+      <div class="eyebrow">How it works</div>
+      <h2 style="margin-top:14px;max-width:660px">Three steps. You do almost nothing.</h2>
+      <div class="grid3">
+        <div class="card step">
+          <span class="stepnum">01</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--iris-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg></span>
+          <h3 style="margin-top:16px">You give us a web address</h3>
+          <p style="font-size:13.5px;margin-top:9px">That is the entire ask. We find your competitors ourselves.</p>
+        </div>
+        <div class="card step">
+          <span class="stepnum">02</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--iris-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18M3 12h18"/></svg></span>
+          <h3 style="margin-top:16px">We analyse and compare</h3>
+          <p style="font-size:13.5px;margin-top:9px">Your site and your nearest competitors, scored across eleven measures with a captured screenshot behind every claim.</p>
+        </div>
+        <div class="card step">
+          <span class="stepnum">03</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--iris-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6"/></svg></span>
+          <h3 style="margin-top:16px">You get the report in 24 hours</h3>
+          <p style="font-size:13.5px;margin-top:9px">Yours to keep, share, or hand to your own developer. No call required, no strings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SAMPLE ================= -->
+  <section id="sample">
+    <div class="wrap">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:52px;align-items:center" class="samplegrid">
+        <div>
+          <div class="eyebrow">Nothing hidden</div>
+          <h2 style="margin-top:14px">Read a real report before you give us anything</h2>
+          <p style="margin-top:18px;max-width:520px;font-size:15px;line-height:1.75">
+            Most audit tools email you a generic PDF with a colour-coded grid and no explanation.
+            Ours names the file that is slowing your site down, counts the fields in your booking
+            form, and tells you what each defect is costing in customers rather than in points.
+          </p>
+          <p style="margin-top:16px;max-width:520px;font-size:15px;line-height:1.75">
+            Here is a complete example, unedited. If it is not the most specific thing anyone has
+            ever sent you about your website, do not fill in the form.
+          </p>
+          <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn" href="01-Client-Audit-Report.html" target="_blank" rel="noopener">Open the sample report</a>
+            <a class="btn ghost" href="#pricing">See pricing</a>
+          </div>
+          <div class="microcopy" style="margin-top:16px">
+            Note: upload <span class="mono">01-Client-Audit-Report.html</span> alongside this page when you deploy, so this link resolves.
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:22px 24px;border-bottom:1px solid var(--line)">
+            <div class="eyebrow">What a finding looks like</div>
+          </div>
+          <div style="padding:24px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--bad)">Critical</div>
+            <h3 style="margin-top:9px">Your booking form asks for eleven things</h3>
+            <p style="font-size:13.5px;margin-top:11px;line-height:1.7">
+              To book a first appointment a customer must supply their insurance carrier, member ID,
+              date of birth, and where they heard about you — before the form will submit.
+            </p>
+            <div style="border:1px solid var(--line);background:rgba(8,10,17,.7);border-radius:11px;padding:13px 15px;margin-top:16px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--neon-soft)">How we measured it</div>
+              <p class="mono" style="font-size:12px;margin-top:7px;line-height:1.6">11 input fields, 7 required, no skip path. Submit button obscured by sticky bar at 390px width.</p>
+            </div>
+            <div style="border:1px solid rgba(52,211,153,.25);background:rgba(52,211,153,.06);border-radius:11px;padding:13px 15px;margin-top:11px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--good)">What fixing it takes</div>
+              <p style="font-size:13px;margin-top:7px;line-height:1.65;color:rgba(234,238,247,.86)">Reduce to four fields. Collect the rest by email after the booking is secured. One week.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MEASURE ================= -->
+  <section id="measure">
+    <div class="wrap">
+      <div class="eyebrow">The analysis</div>
+      <h2 style="margin-top:14px;max-width:700px">Eleven measures, scored against your actual competitors</h2>
+      <p style="margin-top:16px;max-width:640px;font-size:15px">Not a checklist. Each measure is scored from your live pages and compared with the businesses your customers consider before choosing you.</p>
+      <div class="modgrid" id="modGrid"></div>
+    </div>
+  </section>
+
+  <!-- ================= BUILDERS ================= -->
+  <section>
+    <div class="wrap" style="text-align:center">
+      <div class="eyebrow">If you have your own developer</div>
+      <h2 style="margin-top:14px;max-width:720px;margin-left:auto;margin-right:auto">The rebuild plan works in any tool they already use</h2>
+      <p style="margin-top:16px;max-width:580px;margin-left:auto;margin-right:auto;font-size:15px">
+        Our blueprint exports as a ready-to-run build package. Hand it to a developer, or paste it
+        straight into the AI builder of your choice.
+      </p>
+      <div class="logos">
+        <span class="logochip">Claude Code</span>
+        <span class="logochip">Cursor</span>
+        <span class="logochip">Bolt</span>
+        <span class="logochip">Lovable</span>
+        <span class="logochip">v0</span>
+        <span class="logochip">Framer</span>
+        <span class="logochip">Windsurf</span>
+        <span class="logochip">Replit</span>
+        <span class="logochip">Next.js</span>
+        <span class="logochip">WordPress</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PRICING ================= -->
+  <section id="pricing">
+    <div class="wrap">
+      <div class="eyebrow">Pricing</div>
+      <h2 style="margin-top:14px;max-width:640px">Start free. Go further only if it is worth it.</h2>
+      <p style="margin-top:16px;max-width:600px;font-size:15px">The audit costs nothing and carries no obligation. Everything beyond it is optional, and the report tells you honestly whether you need it.</p>
+
+      <div class="prices">
+        <div class="price free">
+          <span class="tag g">Start here</span>
+          <h3>Intelligence Audit</h3>
+          <div class="amount" style="color:var(--good)">Free</div>
+          <div class="per">Delivered in 24 hours</div>
+          <ul>
+            <li>Full eleven-measure report</li>
+            <li>Evidence behind every finding</li>
+            <li>Competitor comparison</li>
+            <li>Prioritised list of what to fix</li>
+            <li>Yours to keep, no obligation</li>
+          </ul>
+          <a class="btn ghost" href="#top" style="margin-top:22px">Get my free audit</a>
+        </div>
+
+        <div class="price">
+          <h3>Rebuild Blueprint</h3>
+          <div class="amount">$497</div>
+          <div class="per">One-time</div>
+          <ul>
+            <li>Everything in the audit</li>
+            <li>Page-by-page rebuild plan</li>
+            <li>Complete design system</li>
+            <li>Build package for any developer or AI builder</li>
+            <li>Written copy for every page</li>
+          </ul>
+          <a class="btn ghost" href="#top" style="margin-top:22px">Start with the audit</a>
+        </div>
+
+        <div class="price hot">
+          <span class="tag">Most chosen</span>
+          <h3>Done-For-You Build</h3>
+          <div class="amount">$2,500+</div>
+          <div class="per">Per project</div>
+          <ul>
+            <li>Everything in the Blueprint</li>
+            <li>We build and launch it</li>
+            <li>Every critical defect resolved</li>
+            <li>Speed, accessibility, and AI search fixed</li>
+            <li>30 days of support after launch</li>
+          </ul>
+          <a class="btn" href="#top" style="margin-top:22px">Get my free audit</a>
+        </div>
+      </div>
+
+      <p style="margin-top:26px;font-size:13.5px;max-width:660px">
+        An optional growth retainer ($497–997/month) covers ongoing AI search visibility, review
+        generation, and customer reactivation. We only propose it after a build is live and working.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= FAQ ================= -->
+  <section id="faq">
+    <div class="wrap" style="max-width:820px">
+      <div class="eyebrow">Questions</div>
+      <h2 style="margin-top:14px">Before you ask</h2>
+      <div style="margin-top:30px">
+        <details open>
+          <summary>Is the audit really free, or is it a sales call in disguise?</summary>
+          <p>Really free, and you get the document whether or not you ever speak to us. We ask for one reply telling us whether it was useful. That is the whole deal. Our view is simple: if the report is good, you will want to talk. If it is not, we have not earned the conversation.</p>
+        </details>
+        <details>
+          <summary>How is this different from the free SEO reports I already get emailed?</summary>
+          <p>Those are automated grids of red and green with no explanation and no human involvement. Ours names the specific file slowing your site down, counts the fields in your form, quotes the contrast ratio of your body text, and tells you what each defect costs in customers. A person reviews every report before it goes out.</p>
+        </details>
+        <details>
+          <summary>What is "AI search" and why does it have its own score?</summary>
+          <p>A growing share of people now ask ChatGPT, Claude, or Perplexity for recommendations instead of scrolling Google. Those systems read structured data — machine-readable facts about your business, services, hours, and prices. Most local business websites publish none, which makes them invisible to that entire channel. It is currently the cheapest competitive advantage available, and it will not stay that way.</p>
+        </details>
+        <details>
+          <summary>Do I have to hire you to fix what you find?</summary>
+          <p>No. The report is written so any competent developer can act on it, and plenty of people take it to the developer they already have. We would rather you fix the problems with someone else than not fix them at all.</p>
+        </details>
+        <details>
+          <summary>How long does a rebuild actually take?</summary>
+          <p>Most local business sites take three to five weeks from approval to launch. The critical performance and AI search fixes usually ship in the first week, because those are the ones losing you money right now.</p>
+        </details>
+        <details>
+          <summary>What if my website is genuinely fine?</summary>
+          <p>Then the report will say so, and we will tell you where to spend your money instead. That happens perhaps one time in ten, and we would rather be the people who told you the truth.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FINAL CTA ================= -->
+  <section style="border-top:0">
+    <div class="wrap">
+      <div class="finalcta">
+        <div class="eyebrow" style="color:var(--iris-soft)">No cost, no obligation</div>
+        <h2 style="margin-top:16px;max-width:640px;margin-left:auto;margin-right:auto">
+          Find out what your website is costing you
+        </h2>
+        <p style="margin:18px auto 0;max-width:520px;font-size:15.5px">
+          One web address is all we need. You will have the report within 24 hours.
+        </p>
+        <a class="btn" href="#top" style="margin-top:30px;padding:16px 34px;font-size:16px">
+          Get my free audit
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span id="footLeft"></span>
+    <span>WebGenie AI · Website intelligence for local business</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast">Thank you — your report is on its way.</div>
+
+<script>
+/* ==============================================================================
+   ▼▼▼  SETTINGS — edit these three things before deploying  ▼▼▼
+   ============================================================================== */
+const SETTINGS = {
+
+  agencyName: "VibeLabs Agency",
+  email:      "hello@vibelabs.agency",
+
+  /*
+    WHERE LEADS GO. Two options:
+
+    "mailto"  — zero setup. Submitting opens the visitor's email app with the
+                details pre-filled. Works immediately. Loses some leads because
+                it depends on them having a mail client configured.
+
+    "formspree" — recommended once you are live. Free tier is plenty.
+                  1. Sign up at formspree.io
+                  2. Create a form, copy the endpoint URL
+                  3. Paste it into formspreeUrl below
+                  4. Change mode to "formspree"
+  */
+  mode: "mailto",
+  formspreeUrl: "https://formspree.io/f/YOUR_FORM_ID",
+};
+/* ==============================================================================
+   ▲▲▲  END SETTINGS  ▲▲▲
+   ============================================================================== */
+
+(function(){
+  const $ = s => document.querySelector(s);
+
+  document.getElementById("footLeft").textContent =
+    "© " + new Date().getFullYear() + " " + SETTINGS.agencyName;
+
+  /* Animate the mock report */
+  const MOCK = [
+    ["Conversion",41,"#F87171"],
+    ["AI Search",28,"#F87171"],
+    ["Technical",44,"#F87171"],
+    ["Trust",66,"#60A5FA"],
+    ["SEO",59,"#FBBF24"],
+  ];
+  document.getElementById("mockLines").innerHTML = MOCK.map(([n,v,c])=>`
+    <div class="mline">
+      <span class="n">${n}</span>
+      <span class="b"><i data-w="${v}" style="background:${c}"></i></span>
+      <span class="v" style="color:${c}">${v}</span>
+    </div>`).join("");
+
+  setTimeout(()=>{
+    const a = document.getElementById("mockArc");
+    if(a) a.setAttribute("stroke-dashoffset", String(257.6*(1-61/100)));
+    document.querySelectorAll("[data-w]").forEach(b=>b.style.width=b.getAttribute("data-w")+"%");
+  }, 350);
+
+  /* Modules grid */
+  const MODULES = [
+    ["Design","Hierarchy, spacing, and typographic discipline"],
+    ["Brand","Consistency, voice, and what sets you apart"],
+    ["UX","How easily a visitor gets what they came for"],
+    ["Conversion","The path from arrival to enquiry"],
+    ["Content","Whether you answer the questions buyers ask"],
+    ["SEO","Whether Google can find and rank you"],
+    ["AI Search","Whether ChatGPT and Perplexity can recommend you"],
+    ["Technical","Load speed, stability, and page weight"],
+    ["Accessibility","Whether everyone can actually use your site"],
+    ["Trust","Reviews, credentials, and proof — and where they sit"],
+    ["Revenue","Pricing clarity and how you make money visible"],
+  ];
+  document.getElementById("modGrid").innerHTML = MODULES.map((m,i)=>`
+    <div class="modcell">
+      <span class="mono" style="font-size:11px;color:var(--faint)">${String(i+1).padStart(2,"0")}</span>
+      <div class="n">${m[0]}</div>
+      <div class="d">${m[1]}</div>
+    </div>`).join("");
+
+  /* Form */
+  const form = document.getElementById("auditForm");
+  const toast = document.getElementById("toast");
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    const url   = document.getElementById("fUrl").value.trim();
+    const email = document.getElementById("fEmail").value.trim();
+    const name  = document.getElementById("fName").value.trim();
+    if(!url || !email || !name) return;
+
+    if(SETTINGS.mode === "formspree"){
+      fetch(SETTINGS.formspreeUrl, {
+        method:"POST",
+        headers:{"Accept":"application/json","Content-Type":"application/json"},
+        body: JSON.stringify({ website:url, email:email, name:name })
+      }).then(()=>{ show(); form.reset(); })
+        .catch(()=>{ fallbackMail(name,email,url); });
+    } else {
+      fallbackMail(name,email,url);
+      show(); form.reset();
+    }
+  });
+
+  function fallbackMail(name,email,url){
+    const subject = encodeURIComponent("Free audit request — " + url);
+    const body = encodeURIComponent(
+      "Name: " + name + "\nEmail: " + email + "\nWebsite: " + url +
+      "\n\nPlease send my free website intelligence report."
+    );
+    window.location.href = "mailto:" + SETTINGS.email + "?subject=" + subject + "&body=" + body;
+  }
+
+  function show(){
+    toast.classList.add("on");
+    setTimeout(()=>toast.classList.remove("on"), 4200);
+  }
+})();
+</script>
+</body>
+</html>
