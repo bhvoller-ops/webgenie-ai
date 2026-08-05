@@ -1,48 +1,257 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { PageShell } from "@/components/shell";
-import { createClient } from "@/lib/supabase/server";
-import type { WebsiteIntelligenceOutput } from "@/lib/intelligence/types";
+import { AlertTriangle, Eye, FileDown, Layers } from "lucide-react";
+import { Breadcrumbs, PageShell } from "@/components/shell";
+import { Button, Eyebrow, MetaRow, Panel, Pill, SectionHeading } from "@/components/ui";
+import { ScoreRing } from "@/components/score-ring";
+import { ModuleCard } from "@/components/module-card";
+import { RecommendationCard } from "@/components/recommendation-card";
+import { Tabs } from "@/components/tabs";
+import { EvidenceList } from "@/components/evidence";
+import { getIntelligence, getProject } from "@/lib/data/provider";
+import {
+  MODULE_LABELS,
+  MODULE_ORDER,
+  PRIORITY_ORDER,
+  type ModuleScore,
+  type Recommendation,
+} from "@/lib/intelligence/types";
+import {
+  BAND_LABEL,
+  BAND_TEXT_CLASS,
+  cn,
+  formatDateTime,
+  pct,
+  scoreBand,
+} from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-function scoreLabel(score: number): string {
-  if (score >= 85) return "Excellent";
-  if (score >= 70) return "Strong";
-  if (score >= 55) return "Developing";
-  return "Priority improvement";
+export default async function ReportPage({
+  params,
+}: {
+  params: Promise<{ id: string; jobId: string }>;
+}) {
+  const { id, jobId } = await params;
+  const [project, intelligence] = await Promise.all([
+    getProject(id),
+    getIntelligence(id, jobId),
+  ]);
+  if (!project || !intelligence) notFound();
+
+  const ordered = [...intelligence.moduleScores].sort(
+    (a, b) => MODULE_ORDER.indexOf(a.module) - MODULE_ORDER.indexOf(b.module)
+  );
+  const byScore = [...intelligence.moduleScores].sort((a, b) => a.score - b.score);
+  const allFindings = intelligence.moduleScores
+    .flatMap((m) => m.recommendations)
+    .sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+
+  const criticalCount = allFindings.filter((r) => r.priority === "critical").length;
+
+  return (
+    <PageShell>
+      <Breadcrumbs
+        items={[
+          { label: "Projects", href: "/" },
+          { label: project.name, href: `/projects/${id}` },
+          { label: "Intelligence report" },
+        ]}
+      />
+
+      <Panel className="mt-6 overflow-hidden" padded={false}>
+        <div className="grid gap-10 p-6 sm:p-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div>
+            <Eyebrow className="text-iris-soft">Website Intelligence · schema v{intelligence.schemaVersion}</Eyebrow>
+            <h1 className="mt-4 max-w-xl text-display-md font-semibold text-ink">
+              {project.name} scores{" "}
+              <span className={BAND_TEXT_CLASS[scoreBand(intelligence.overallScore)]}>
+                {intelligence.overallScore}
+              </span>{" "}
+              across eleven modules
+            </h1>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
+              {criticalCount} critical findings block the stated goal —{" "}
+              <span className="text-ink">{project.primaryGoal.toLowerCase()}</span>. The lowest module is{" "}
+              <span className="text-ink">{MODULE_LABELS[byScore[0].module]}</span> at {byScore[0].score}
+              {intelligence.topRecommendations[0] ? (
+                <>
+                  , and the highest-leverage single fix is a{" "}
+                  {intelligence.topRecommendations[0].module.replace("_", " ")} change.
+                </>
+              ) : (
+                "."
+              )}
+            </p>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button href={`/projects/${id}/blueprint`}>
+                <Layers className="h-4 w-4" aria-hidden />
+                View rebuild blueprint
+              </Button>
+              <Button href={`/projects/${id}/prompts`} variant="secondary">
+                <FileDown className="h-4 w-4" aria-hidden />
+                Export prompt package
+              </Button>
+            </div>
+          </div>
+
+          <div className="justify-self-center lg:justify-self-end">
+            <ScoreRing
+              score={intelligence.overallScore}
+              size={230}
+              label="Overall intelligence"
+              sublabel={`Confidence ${pct(intelligence.overallConfidence)} · ${formatDateTime(intelligence.generatedAt)}`}
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-hairline">
+          <MetaRow
+            items={[
+              { label: "Job", value: jobId },
+              {
+                label: "Captures analyzed",
+                value: `${intelligence.sourceSummary.capturesAnalyzed}`,
+              },
+              {
+                label: "References",
+                value: `${intelligence.sourceSummary.referencesAttempted} attempted · ${intelligence.sourceSummary.referencesFailed} failed`,
+              },
+              {
+                label: "Visual model",
+                value: intelligence.visualSummary
+                  ? `${intelligence.visualSummary.model} · ${intelligence.visualSummary.score}`
+                  : "not run",
+              },
+            ]}
+          />
+        </div>
+      </Panel>
+
+      <div className="mt-14">
+        <Tabs
+          items={[
+            {
+              id: "priorities",
+              label: "Priorities",
+              badge: intelligence.topRecommendations.length,
+              content: (
+                <PrioritiesTab
+                  findings={intelligence.topRecommendations}
+                  weakest={byScore.slice(0, 4)}
+                />
+              ),
+            },
+            {
+              id: "modules",
+              label: "Modules",
+              badge: ordered.length,
+              content: (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {ordered.map((m) => (
+                    <ModuleCard key={m.module} moduleScore={m} />
+                  ))}
+                </div>
+              ),
+            },
+            {
+              id: "findings",
+              label: "All findings",
+              badge: allFindings.length,
+              content: (
+                <div className="space-y-3">
+                  {allFindings.map((r, i) => (
+                    <RecommendationCard key={r.id} recommendation={r} index={i} />
+                  ))}
+                </div>
+              ),
+            },
+            {
+              id: "evidence",
+              label: "Evidence",
+              content: <EvidenceTab modules={ordered} />,
+            },
+          ]}
+        />
+      </div>
+    </PageShell>
+  );
 }
 
-export default async function AnalysisReportPage({ params }: { params: Promise<{ id: string; jobId: string }> }) {
-  const { id, jobId } = await params;
-  const supabase = await createClient();
-  const [{ data: project }, { data: job }, { data: visualResults }, { data: captures }] = await Promise.all([
-    supabase.from("projects").select("id,name,industry").eq("id", id).maybeSingle(),
-    supabase.from("analysis_jobs").select("id,status,created_at,completed_at,analysis_outputs(output)").eq("id", jobId).eq("project_id", id).maybeSingle(),
-    supabase.from("visual_analysis_results").select("id,provider,model,overall_score,overall_confidence,result,page_capture_id").eq("analysis_job_id", jobId),
-    supabase.from("page_captures").select("id,source_url,title,screenshot_path,status_code").eq("analysis_job_id", jobId)
-  ]);
-  if (!project || !job) notFound();
-  const row = Array.isArray(job.analysis_outputs) ? job.analysis_outputs[0] : job.analysis_outputs;
-  const report = row?.output as WebsiteIntelligenceOutput & { visualSummary?: any };
-  if (!report) notFound();
+function PrioritiesTab({
+  findings,
+  weakest,
+}: {
+  findings: Recommendation[];
+  weakest: ModuleScore[];
+}) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
+      <div>
+        <SectionHeading
+          eyebrow="Do these first"
+          title="Highest-leverage findings"
+          description="Ranked by impact on the project's stated goal, weighted by confidence and effort."
+        />
+        <div className="mt-6 space-y-3">
+          {findings.map((r, i) => (
+            <RecommendationCard key={r.id} recommendation={r} index={i} defaultOpen={i === 0} />
+          ))}
+        </div>
+      </div>
 
-  return <PageShell><div className="space-y-8">
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div><Link href={`/projects/${id}`} className="text-sm text-indigo-300">← Back to project</Link><p className="mt-5 text-sm uppercase tracking-[0.2em] text-slate-400">Website intelligence report</p><h1 className="mt-2 text-4xl font-semibold">{project.name}</h1><p className="mt-2 text-slate-400">{project.industry} · {new Date(job.created_at).toLocaleDateString("en-US")}</p></div>
-      <div className="rounded-2xl border border-indigo-900 bg-indigo-950/40 px-6 py-5 text-center"><p className="text-5xl font-semibold">{report.overallScore}</p><p className="mt-1 text-sm text-indigo-200">{scoreLabel(report.overallScore)} · {report.overallConfidence}% confidence</p></div>
-    </header>
+      <div className="space-y-4 lg:sticky lg:top-24">
+        <div className="card p-5">
+          <div className="eyebrow mb-4 flex items-center gap-1.5">
+            <AlertTriangle className="h-3 w-3 text-signal-warn" aria-hidden />
+            Weakest modules
+          </div>
+          <ul className="space-y-3.5">
+            {weakest.map((m) => {
+              const band = scoreBand(m.score);
+              return (
+                <li key={m.module} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-ink">{MODULE_LABELS[m.module]}</div>
+                    <div className="text-[11px] text-faint">{BAND_LABEL[band]}</div>
+                  </div>
+                  <span className={cn("font-mono text-lg font-semibold tabular-nums", BAND_TEXT_CLASS[band])}>
+                    {m.score}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
-    <section className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Pages analyzed</p><p className="mt-2 text-3xl font-semibold">{report.sourceSummary.capturesAnalyzed}</p></div>
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Visual score</p><p className="mt-2 text-3xl font-semibold">{report.visualSummary?.score ?? "—"}</p><p className="mt-1 text-xs text-slate-500">{report.visualSummary?.provider ?? "No visual provider"}</p></div>
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Recommendations</p><p className="mt-2 text-3xl font-semibold">{report.topRecommendations.length}</p></div>
-    </section>
+        <div className="card p-5">
+          <div className="eyebrow mb-3 flex items-center gap-1.5">
+            <Eye className="h-3 w-3 text-neon" aria-hidden />
+            Reading this report
+          </div>
+          <p className="text-[13px] leading-relaxed text-muted">
+            Every finding carries the captures that produced it. Expand a card to see the source URL,
+            the signal type, and the weight that signal carried in the score. Nothing here is a
+            model opinion without an artifact behind it.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="text-2xl font-semibold">Intelligence scorecard</h2><div className="mt-6 grid gap-4 md:grid-cols-2">{report.moduleScores.map((module)=><article key={module.module} className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"><div className="flex items-center justify-between"><h3 className="font-medium capitalize">{module.module.replace("_", " ")}</h3><span className="text-lg font-semibold">{module.score}</span></div><div className="mt-3 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-indigo-400" style={{width:`${module.score}%`}}/></div><p className="mt-2 text-xs text-slate-500">Confidence {module.confidence}%</p>{module.weaknesses[0]?<p className="mt-3 text-sm text-slate-300">{module.weaknesses[0]}</p>:null}</article>)}</div></section>
-
-    <section className="rounded-2xl border border-amber-900 bg-amber-950/20 p-6"><h2 className="text-2xl font-semibold">Priority actions</h2><div className="mt-6 space-y-4">{report.topRecommendations.map((item, index)=><article key={item.id} className="rounded-xl border border-amber-900/60 bg-slate-950/50 p-5"><div className="flex flex-wrap items-center gap-3"><span className="text-sm text-slate-500">#{index+1}</span><span className="rounded-full bg-amber-900 px-2 py-1 text-[10px] uppercase">{item.priority}</span><span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] uppercase">{item.module.replace("_", " ")}</span><h3 className="font-semibold">{item.title}</h3></div><p className="mt-3 text-sm text-slate-400">{item.rationale}</p><p className="mt-3 text-sm"><strong>Action:</strong> {item.action}</p></article>)}</div></section>
-
-    {visualResults?.length ? <section className="rounded-2xl border border-violet-900 bg-violet-950/20 p-6"><h2 className="text-2xl font-semibold">Visual intelligence</h2><p className="mt-2 text-sm text-slate-400">Screenshot-level analysis across hierarchy, typography, spacing, color, consistency, credibility, and mobile readiness.</p><div className="mt-6 space-y-5">{visualResults.map((visual:any)=>{const capture=captures?.find((item)=>item.id===visual.page_capture_id);return <article key={visual.id} className="rounded-xl border border-violet-900/60 bg-slate-950/50 p-5"><div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold">{capture?.title ?? capture?.source_url ?? "Captured page"}</h3><p className="text-xs text-slate-500">{visual.provider} · {visual.model}</p></div><p className="text-xl font-semibold">{visual.overall_score} <span className="text-xs font-normal text-slate-500">({visual.overall_confidence}% confidence)</span></p></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(visual.result.metrics).map(([key,value]:any)=><div key={key} className="rounded-lg bg-slate-900 p-3"><div className="flex justify-between"><span className="text-xs capitalize text-slate-400">{key.replace(/([A-Z])/g," $1")}</span><span className="text-sm font-semibold">{value.score}</span></div><p className="mt-2 text-xs text-slate-500">{value.summary}</p></div>)}</div></article>})}</div></section>:null}
-  </div></PageShell>;
+function EvidenceTab({ modules }: { modules: ModuleScore[] }) {
+  return (
+    <div className="space-y-6">
+      {modules.map((m) => (
+        <div key={m.module} className="card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink">{MODULE_LABELS[m.module]}</h3>
+            <Pill>{m.evidence.length} captures</Pill>
+          </div>
+          <EvidenceList items={m.evidence} />
+        </div>
+      ))}
+    </div>
+  );
 }

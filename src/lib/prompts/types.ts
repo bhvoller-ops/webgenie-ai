@@ -69,3 +69,30 @@ export interface PromptPackage {
   validationIssues: ValidationIssue[];
   blueprint: WebsiteBlueprint;
 }
+
+// --- v2 presentation metadata ---
+
+export const PLATFORM_LABELS: Record<PromptPlatform, string> = {
+  claude_code: "Claude Code",
+  bolt: "Bolt",
+  lovable: "Lovable",
+  framer: "Framer",
+  v0: "v0",
+  cursor: "Cursor",
+  windsurf: "Windsurf",
+  emergent: "Emergent",
+  replit: "Replit",
+};
+
+export const DOCUMENT_KIND_LABELS: Record<PromptDocumentKind, string> = {
+  master: "Master brief",
+  ui: "UI & design system",
+  components: "Component library",
+  data: "Data model",
+  auth: "Auth & roles",
+  api: "API surface",
+  seo: "SEO",
+  ai_search: "AI search",
+  testing: "Testing",
+  deployment: "Deployment",
+};
