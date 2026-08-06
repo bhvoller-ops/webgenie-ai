@@ -160,9 +160,13 @@ export function generateSite(
   header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.96);
     backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
   .hd{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
-  .biz{font-size:1.1rem;font-weight:800;color:var(--ink);letter-spacing:-.02em}
-  .bizmeta{font-size:.78rem;color:var(--muted);margin-top:2px}
+  .bizwrap{min-width:0;flex:1 1 auto}
+  .biz{font-size:1.1rem;font-weight:800;color:var(--ink);letter-spacing:-.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bizmeta{font-size:.78rem;color:var(--muted);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rate{color:#F59E0B;font-weight:700}
+  .hd .btn{flex-shrink:0}
 
   /* Hero */
   .hero{position:relative;color:#fff;overflow:hidden;
@@ -259,7 +263,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
 
 <header>
   <div class="wrap hd">
-    <div>
+    <div class="bizwrap">
       <div class="biz">${esc(business.name)}</div>
       <div class="bizmeta">${esc(p.label)} · ${esc(city)}${
         hasRating ? ` · <span class="rate">★ ${business.rating}</span> (${business.reviewCount})` : ""
