@@ -251,13 +251,30 @@ interface PlacesPlace {
   regularOpeningHours?: { weekdayDescriptions?: string[] };
 }
 
-interface Circle {
-  center: { latitude: number; longitude: number };
-  radiusMeters: number;
+interface BoundingBox {
+  low: { latitude: number; longitude: number };
+  high: { latitude: number; longitude: number };
 }
 
-function milesToMeters(miles: number): number {
-  return miles * 1609.34;
+const MILES_PER_DEGREE_LATITUDE = 69.0;
+
+/**
+ * Text Search's locationRestriction only accepts a rectangle (a circle is
+ * only valid for locationBias, which is a soft preference, not a hard cap —
+ * confirmed directly against the API, which rejects {circle} here with a 400).
+ * Approximates the requested radius as a square bounding box around the
+ * center point; corners run slightly past the radius (up to radius * ~1.41),
+ * but it's the closest hard restriction Text Search supports.
+ */
+function boundingBoxForRadius(lat: number, lng: number, radiusMiles: number): BoundingBox {
+  const latDelta = radiusMiles / MILES_PER_DEGREE_LATITUDE;
+  const milesPerDegreeLongitude = MILES_PER_DEGREE_LATITUDE * Math.cos((lat * Math.PI) / 180);
+  const lngDelta = radiusMiles / milesPerDegreeLongitude;
+
+  return {
+    low: { latitude: lat - latDelta, longitude: lng - lngDelta },
+    high: { latitude: lat + latDelta, longitude: lng + lngDelta },
+  };
 }
 
 /**
@@ -286,24 +303,15 @@ async function fetchPlacesPage(
   key: string,
   textQuery: string,
   pageToken?: string,
-  circle?: Circle
+  boundingBox?: BoundingBox
 ): Promise<{ places: PlacesPlace[]; nextPageToken?: string }> {
-  const body: Record<string, unknown> = pageToken
-    ? { textQuery, pageToken }
-    : {
-        textQuery,
-        maxResultCount: 20,
-        ...(circle
-          ? {
-              locationRestriction: {
-                circle: {
-                  center: circle.center,
-                  radius: circle.radiusMeters,
-                },
-              },
-            }
-          : {}),
-      };
+  // Google requires paging requests to repeat the same parameters as the
+  // initial search (textQuery, locationRestriction, etc.) alongside pageToken.
+  const body: Record<string, unknown> = {
+    textQuery,
+    ...(pageToken ? { pageToken } : { maxResultCount: 20 }),
+    ...(boundingBox ? { locationRestriction: { rectangle: boundingBox } } : {}),
+  };
 
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -360,17 +368,14 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
   const textQuery = `${profile.plural} in ${q.city}, ${q.state}`;
 
   try {
-    let circle: Circle | undefined;
+    let boundingBox: BoundingBox | undefined;
     let radiusNotice: string | undefined;
 
     if (q.radiusMiles) {
       const clampedMiles = Math.min(q.radiusMiles, MAX_RADIUS_MILES);
       const coords = await geocodeCity(key, q.city, q.state);
       if (coords) {
-        circle = {
-          center: { latitude: coords.lat, longitude: coords.lng },
-          radiusMeters: milesToMeters(clampedMiles),
-        };
+        boundingBox = boundingBoxForRadius(coords.lat, coords.lng, clampedMiles);
       } else {
         radiusNotice = `Couldn't pin down coordinates for "${q.city}, ${q.state}" to apply a radius — showing Google's own search area instead.`;
       }
@@ -382,7 +387,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
 
     for (let page = 0; page < MAX_PAGES; page++) {
       if (page > 0) await new Promise((resolve) => setTimeout(resolve, PAGE_TOKEN_DELAY_MS));
-      const result = await fetchPlacesPage(key, textQuery, pageToken, circle);
+      const result = await fetchPlacesPage(key, textQuery, pageToken, boundingBox);
       pagesFetched++;
       if (page >= SKIP_LEADING_PAGES) places.push(...result.places);
       if (!result.nextPageToken || result.places.length === 0) break;
