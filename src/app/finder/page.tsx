@@ -9,6 +9,7 @@ import {
   Globe,
   Loader2,
   MapPin,
+  MessageSquare,
   Phone,
   Search,
   Sparkles,
@@ -53,6 +54,13 @@ export default function FinderPage() {
   function parseLocation(v: string) {
     const [c, s] = v.split(",").map((x) => x.trim());
     return { city: c || v.trim(), state: (s || "").toUpperCase() };
+  }
+
+  function smsHref(b: Business) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}${demoSiteUrl(b, { by: agency })}`;
+    const body = `Hi, this is Cassey — here's the site I mentioned for ${b.name}: ${url}`;
+    return `sms:${b.phone.replace(/[^\d+]/g, "")}?body=${encodeURIComponent(body)}`;
   }
 
   async function run() {
@@ -340,6 +348,14 @@ export default function FinderPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
+                        <a
+                          href={smsHref(b)}
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-3 py-1.5 text-[12px] font-medium text-iris-soft transition-colors hover:bg-iris/20"
+                          title="Open your phone's texting app with the link pre-filled"
+                        >
+                          <MessageSquare className="h-3 w-3" aria-hidden />
+                          Text
+                        </a>
                         <a
                           href={demoSiteUrl(b, { by: agency })}
                           target="_blank"
