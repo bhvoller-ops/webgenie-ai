@@ -46,27 +46,15 @@ async function getUserAndOrganization() {
     return { supabase, user, organizationId: membership.organization_id, planKey: organization?.plan_key ?? "starter" };
   }
 
-  const { data: organization, error: organizationError } = await supabase
-    .from("organizations")
-    .insert({ name: "My WebGenie Workspace" })
-    .select("id")
-    .single();
-
-  if (organizationError || !organization) {
-    throw new Error(organizationError?.message ?? "Unable to create workspace.");
+  // Direct authenticated-role inserts into organizations hit an unresolved RLS
+  // rejection despite a correct with-check(true) policy; bootstrap goes
+  // through a SECURITY DEFINER RPC instead. See migration 013.
+  const { data: organizationId, error: bootstrapError } = await supabase.rpc("bootstrap_organization");
+  if (bootstrapError || !organizationId) {
+    throw new Error(bootstrapError?.message ?? "Unable to create workspace.");
   }
 
-  const { error: membershipError } = await supabase
-    .from("organization_members")
-    .insert({
-      organization_id: organization.id,
-      user_id: user.id,
-      role: "owner"
-    });
-
-  if (membershipError) throw new Error(membershipError.message);
-
-  return { supabase, user, organizationId: organization.id, planKey: "starter" };
+  return { supabase, user, organizationId, planKey: "starter" };
 }
 
 export async function createProject(formData: FormData) {
