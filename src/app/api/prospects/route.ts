@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     city,
     state: state || "",
     limit: typeof body.limit === "number" ? Math.min(40, Math.max(1, body.limit)) : 17,
+    radiusMiles: typeof body.radiusMiles === "number" ? body.radiusMiles : undefined,
   });
 
   return NextResponse.json(result);

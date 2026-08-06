@@ -11,6 +11,7 @@ import {
   MapPin,
   MessageSquare,
   Phone,
+  Radar,
   Search,
   Sparkles,
   Star,
@@ -39,9 +40,19 @@ const STAGES = [
   "Generating report",
 ];
 
+const RADIUS_OPTIONS = [
+  { label: "Google's default area", value: "" },
+  { label: "Within 5 miles", value: "5" },
+  { label: "Within 10 miles", value: "10" },
+  { label: "Within 15 miles", value: "15" },
+  { label: "Within 25 miles", value: "25" },
+  { label: "Within 31 miles (max)", value: "31" },
+];
+
 export default function FinderPage() {
   const [industry, setIndustry] = useState<IndustryKey>("plumber");
   const [location, setLocation] = useState("");
+  const [radiusMiles, setRadiusMiles] = useState("");
   const [running, setRunning] = useState(false);
   const [stage, setStage] = useState(-1);
   const [result, setResult] = useState<FinderResponse | null>(null);
@@ -83,7 +94,12 @@ export default function FinderPage() {
         fetch("/api/prospects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ industry, city, state }),
+          body: JSON.stringify({
+            industry,
+            city,
+            state,
+            radiusMiles: radiusMiles ? Number(radiusMiles) : undefined,
+          }),
         }),
         new Promise((r) => setTimeout(r, STAGES.length * 620)),
       ]);
@@ -150,7 +166,7 @@ export default function FinderPage() {
 
           {/* Search */}
           <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <label className="relative block">
                 <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
                 <select
@@ -175,6 +191,21 @@ export default function FinderPage() {
                   placeholder="Atlanta, GA"
                   className="focus-ring w-full rounded-xl border border-hairline bg-surface py-3 pl-10 pr-4 text-sm text-ink placeholder:text-faint transition-colors hover:border-iris/40"
                 />
+              </label>
+
+              <label className="relative block">
+                <Radar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
+                <select
+                  value={radiusMiles}
+                  onChange={(e) => setRadiusMiles(e.target.value)}
+                  className="focus-ring w-full appearance-none rounded-xl border border-hairline bg-surface py-3 pl-10 pr-9 text-left text-sm text-ink transition-colors hover:border-iris/40"
+                >
+                  {RADIUS_OPTIONS.map((r) => (
+                    <option key={r.value} value={r.value} className="bg-surface">
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 

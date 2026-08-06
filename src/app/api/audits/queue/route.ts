@@ -13,7 +13,8 @@ const schema = z.object({
   city: z.string().min(1),
   state: z.string().optional(),
   limit: z.number().min(1).max(20).optional(),
-  reviewTier: z.enum(TIER_KEYS).optional()
+  reviewTier: z.enum(TIER_KEYS).optional(),
+  radiusMiles: z.number().min(1).max(31).optional()
 });
 
 async function getUserAndOrganization(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -91,7 +92,8 @@ export async function POST(request: Request) {
     state: parsed.data.state ?? "",
     limit: 20,
     reviewTier: parsed.data.reviewTier,
-    excludeNormalizedNames
+    excludeNormalizedNames,
+    radiusMiles: parsed.data.radiusMiles
   });
 
   const candidates = found.withWebsite.slice(0, parsed.data.limit ?? 10);

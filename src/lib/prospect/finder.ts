@@ -27,6 +27,9 @@ export const REVIEW_TIERS = [
 
 export type ReviewTierKey = (typeof REVIEW_TIERS)[number]["key"];
 
+/** Google's hard cap for a Places locationRestriction circle. */
+export const MAX_RADIUS_MILES = 31;
+
 export interface FinderQuery {
   industry: IndustryKey;
   city: string;
@@ -36,6 +39,8 @@ export interface FinderQuery {
   reviewTier?: ReviewTierKey;
   /** Normalized business names (see normalizeBusinessName) to leave out — already-queued businesses. */
   excludeNormalizedNames?: Set<string>;
+  /** Hard distance cap from the city center, in miles. Capped at MAX_RADIUS_MILES. Omit for Google's own (uncontrolled) text-based scope. */
+  radiusMiles?: number;
 }
 
 export interface FinderResult {
@@ -246,11 +251,60 @@ interface PlacesPlace {
   regularOpeningHours?: { weekdayDescriptions?: string[] };
 }
 
+interface Circle {
+  center: { latitude: number; longitude: number };
+  radiusMeters: number;
+}
+
+function milesToMeters(miles: number): number {
+  return miles * 1609.34;
+}
+
+/**
+ * Resolves a city/state into coordinates via Google's Geocoding API — needed
+ * because Places Text Search has no notion of "radius" without a center
+ * point. Returns null (rather than throwing) on any failure so the caller
+ * can fall back to Google's own text-based scope.
+ */
+async function geocodeCity(key: string, city: string, state: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const address = encodeURIComponent(state ? `${city}, ${state}` : city);
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${key}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      status?: string;
+      results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }>;
+    };
+    const location = data.results?.[0]?.geometry?.location;
+    return location ? { lat: location.lat, lng: location.lng } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchPlacesPage(
   key: string,
   textQuery: string,
-  pageToken?: string
+  pageToken?: string,
+  circle?: Circle
 ): Promise<{ places: PlacesPlace[]; nextPageToken?: string }> {
+  const body: Record<string, unknown> = pageToken
+    ? { textQuery, pageToken }
+    : {
+        textQuery,
+        maxResultCount: 20,
+        ...(circle
+          ? {
+              locationRestriction: {
+                circle: {
+                  center: circle.center,
+                  radius: circle.radiusMeters,
+                },
+              },
+            }
+          : {}),
+      };
+
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -269,7 +323,7 @@ async function fetchPlacesPage(
         "nextPageToken",
       ].join(","),
     },
-    body: JSON.stringify(pageToken ? { textQuery, pageToken } : { textQuery, maxResultCount: 20 }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -306,13 +360,29 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
   const textQuery = `${profile.plural} in ${q.city}, ${q.state}`;
 
   try {
+    let circle: Circle | undefined;
+    let radiusNotice: string | undefined;
+
+    if (q.radiusMiles) {
+      const clampedMiles = Math.min(q.radiusMiles, MAX_RADIUS_MILES);
+      const coords = await geocodeCity(key, q.city, q.state);
+      if (coords) {
+        circle = {
+          center: { latitude: coords.lat, longitude: coords.lng },
+          radiusMeters: milesToMeters(clampedMiles),
+        };
+      } else {
+        radiusNotice = `Couldn't pin down coordinates for "${q.city}, ${q.state}" to apply a radius — showing Google's own search area instead.`;
+      }
+    }
+
     const places: PlacesPlace[] = [];
     let pageToken: string | undefined;
     let pagesFetched = 0;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       if (page > 0) await new Promise((resolve) => setTimeout(resolve, PAGE_TOKEN_DELAY_MS));
-      const result = await fetchPlacesPage(key, textQuery, pageToken);
+      const result = await fetchPlacesPage(key, textQuery, pageToken, circle);
       pagesFetched++;
       if (page >= SKIP_LEADING_PAGES) places.push(...result.places);
       if (!result.nextPageToken || result.places.length === 0) break;
@@ -320,9 +390,10 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     }
 
     const notice =
-      pagesFetched <= SKIP_LEADING_PAGES
-        ? "Google only returned one page of results for this search, so after skipping page 1 there was nothing left. Try a broader city or a different industry."
-        : undefined;
+      radiusNotice ??
+      (pagesFetched <= SKIP_LEADING_PAGES
+        ? "Google only returned one page of results for this search, so after skipping page 1 there was nothing left. Try a broader city, a wider radius, or a different industry."
+        : undefined);
 
     const all: Business[] = places.map((pl, i) => {
       const full = pl.formattedAddress ?? "";
