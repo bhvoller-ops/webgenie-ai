@@ -103,17 +103,17 @@ export default async function CallsPage() {
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <div className="card p-5">
-          <div className="eyebrow">Total tracked</div>
+          <div className="eyebrow text-ink font-bold">Total tracked</div>
           <div className="mt-3 font-mono text-3xl font-semibold tabular-nums text-ink">{rows.length}</div>
         </div>
         <div className="card p-5">
-          <div className="eyebrow">Follow-ups due</div>
+          <div className="eyebrow text-ink font-bold">Follow-ups due</div>
           <div className={cn("mt-3 font-mono text-3xl font-semibold tabular-nums", dueCount > 0 ? "text-signal-warn" : "text-ink")}>
             {dueCount}
           </div>
         </div>
         <div className="card p-5">
-          <div className="eyebrow">Closed</div>
+          <div className="eyebrow text-ink font-bold">Closed</div>
           <div className="mt-3 font-mono text-3xl font-semibold tabular-nums text-signal-good">
             {rows.filter((r) => r.status === "closed").length}
           </div>
@@ -121,7 +121,7 @@ export default async function CallsPage() {
       </div>
 
       <Panel className="mt-10">
-        <Eyebrow className="mb-4">Add a prospect</Eyebrow>
+        <Eyebrow className="mb-4 text-ink font-bold">Add a prospect</Eyebrow>
         <form action={addCallLogEntryAction} className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
           <input name="businessName" required placeholder="Business name" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 lg:col-span-2" />
           <input name="phone" required placeholder="Phone" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
@@ -138,8 +138,8 @@ export default async function CallsPage() {
       <div className="mt-10 space-y-3">
         {rows.length === 0 ? (
           <div className="rounded-panel border border-dashed border-hairline p-10 text-center">
-            <PhoneCall className="mx-auto h-6 w-6 text-faint" aria-hidden />
-            <p className="mt-3 text-sm text-muted">No prospects tracked yet. Add one above to get started.</p>
+            <PhoneCall className="mx-auto h-6 w-6 text-muted" aria-hidden />
+            <p className="mt-3 text-sm text-ink">No prospects tracked yet. Add one above to get started.</p>
           </div>
         ) : (
           rows.map((row) => {
@@ -166,8 +166,8 @@ export default async function CallsPage() {
                         <Pill tone="neutral">{follow.label}</Pill>
                       ) : null}
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-muted">
-                      <a href={`tel:${row.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-ink">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-ink">
+                      <a href={`tel:${row.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-iris-soft">
                         <Phone className="h-3 w-3" aria-hidden />
                         {row.phone}
                       </a>
@@ -219,7 +219,7 @@ export default async function CallsPage() {
                   </button>
                 </form>
                 {row.last_contacted_at ? (
-                  <p className="mt-2 text-[11px] text-faint">
+                  <p className="mt-2 text-[11px] text-muted">
                     Last contacted {new Date(row.last_contacted_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </p>
                 ) : null}
