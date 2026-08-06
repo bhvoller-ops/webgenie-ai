@@ -272,3 +272,54 @@ export async function revokeApiKeyAction(formData: FormData) {
   await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_user_id: user.id, action: "api_key.revoked", target_type: "api_key", target_id: apiKeyId });
   revalidatePath("/settings");
 }
+
+const callLogStatuses = ["not_called", "no_answer", "not_interested", "agreed_to_see_site", "viewed_site", "closed", "lost"] as const;
+
+export async function addCallLogEntryAction(formData: FormData) {
+  const businessName = z.string().min(1).max(160).parse(formData.get("businessName"));
+  const phone = z.string().min(1).max(40).parse(formData.get("phone"));
+  const industry = z.string().max(80).optional().parse(formData.get("industry")?.toString() || undefined);
+  const city = z.string().max(80).optional().parse(formData.get("city")?.toString() || undefined);
+  const state = z.string().max(20).optional().parse(formData.get("state")?.toString() || undefined);
+  const demoUrl = z.string().url().optional().parse(formData.get("demoUrl")?.toString() || undefined);
+
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  const { error } = await supabase.from("call_log").insert({
+    organization_id: organizationId,
+    business_name: businessName,
+    phone,
+    industry: industry ?? null,
+    city: city ?? null,
+    state: state ?? null,
+    demo_url: demoUrl ?? null,
+    created_by: user.id
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/calls");
+}
+
+export async function updateCallLogEntryAction(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const status = z.enum(callLogStatuses).parse(formData.get("status"));
+  const followUpDays = formData.get("followUpDays")?.toString();
+  const notes = formData.get("notes")?.toString();
+
+  const { supabase, organizationId } = await getUserAndOrganization();
+
+  const update: Record<string, unknown> = {
+    status,
+    last_contacted_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (notes !== undefined) update.notes = notes || null;
+  if (followUpDays === "clear") {
+    update.follow_up_due_at = null;
+  } else if (followUpDays) {
+    const days = z.coerce.number().int().min(1).max(30).parse(followUpDays);
+    update.follow_up_due_at = new Date(Date.now() + days * 86400000).toISOString();
+  }
+
+  const { error } = await supabase.from("call_log").update(update).eq("id", id).eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/calls");
+}
