@@ -21,5 +21,8 @@ export interface IntelligenceCaptureInput {
     images?: Array<{ src: string | null; alt: string | null }>;
     schemaTypes?: string[];
     trustSignals?: string[];
+    hasChatWidget?: boolean;
+    hasBookingWidget?: boolean;
+    hasMobileViewport?: boolean;
   };
 }

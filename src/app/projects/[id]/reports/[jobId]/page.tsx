@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { AlertTriangle, Eye, FileDown, Layers } from "lucide-react";
+import { AlertTriangle, CircleSlash, Eye, FileDown, Layers } from "lucide-react";
 import { Breadcrumbs, PageShell } from "@/components/shell";
 import { Button, Eyebrow, MetaRow, Panel, Pill, SectionHeading } from "@/components/ui";
 import { ScoreRing } from "@/components/score-ring";
@@ -127,6 +127,28 @@ export default async function ReportPage({
           />
         </div>
       </Panel>
+
+      {intelligence.footInTheDoor && intelligence.footInTheDoor.length > 0 ? (
+        <Panel className="mt-8 p-6 sm:p-8">
+          <div className="flex items-center gap-2">
+            <CircleSlash className="h-4 w-4 text-signal-bad" aria-hidden />
+            <Eyebrow className="text-signal-bad">Foot in the door · say this on the call</Eyebrow>
+          </div>
+          <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-muted">
+            Every item below is something you can show the owner in their own browser in ten
+            seconds. Nothing here is a guess.
+          </p>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {intelligence.footInTheDoor.map((item) => (
+              <div key={item.id} className="rounded-panel border border-hairline bg-surface/60 p-4">
+                <div className="text-sm font-semibold text-ink">{item.label}</div>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-faint">{item.detail}</p>
+                <p className="mt-3 text-[13px] leading-relaxed text-ink">&ldquo;{item.pitch}&rdquo;</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <div className="mt-14">
         <Tabs

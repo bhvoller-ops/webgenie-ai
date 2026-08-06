@@ -40,6 +40,13 @@ export interface ModuleScore {
   recommendations: Recommendation[];
 }
 
+export interface FootInTheDoorItem {
+  id: string;
+  label: string;
+  detail: string;
+  pitch: string;
+}
+
 export interface WebsiteIntelligenceOutput {
   schemaVersion: "1.0" | "1.1";
   jobId: string;
@@ -61,6 +68,8 @@ export interface WebsiteIntelligenceOutput {
     score: number;
     confidence: number;
   };
+  /** Verifiable, sellable gaps — present only from schemaVersion 1.1 onward. */
+  footInTheDoor?: FootInTheDoorItem[];
 }
 
 // --- v2 presentation metadata ---

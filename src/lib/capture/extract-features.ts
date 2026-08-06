@@ -9,7 +9,40 @@ export interface ExtractedFeatures {
   images: Array<{ src: string | null; alt: string | null }>;
   schemaTypes: string[];
   trustSignals: string[];
+  hasChatWidget: boolean;
+  hasBookingWidget: boolean;
+  hasMobileViewport: boolean;
 }
+
+// Literal script/embed signatures for widgets that are either present in the
+// page or not — no scoring, no judgment, just "is this string in the HTML".
+const CHAT_WIDGET_SIGNATURES = [
+  "widget.intercom.io",
+  "intercomsettings",
+  "js.driftt.com",
+  "embed.tawk.to",
+  "client.crisp.chat",
+  "code.tidio.co",
+  "cdn.livechatinc.com",
+  "static.zdassets.com",
+  "fb-customerchat",
+  "static.olark.com",
+  "wchat.freshchat.com",
+  "hs-chat"
+];
+
+const BOOKING_WIDGET_SIGNATURES = [
+  "calendly.com",
+  "acuityscheduling.com",
+  "book.squareup.com",
+  "squareup.com/appointments",
+  "booking.setmore.com",
+  "simplybook.me",
+  "vagaro.com",
+  "bookings.housecallpro.com",
+  "schedulicity.com",
+  "10to8.com"
+];
 
 export function extractFeatures(html: string, pageUrl: string): ExtractedFeatures {
   const dom = new JSDOM(html, { url: pageUrl });
@@ -108,6 +141,13 @@ export function extractFeatures(html: string, pageUrl: string): ExtractedFeature
 
   const trustSignals = trustKeywords.filter((keyword) => bodyText.includes(keyword));
 
+  const lowerHtml = html.toLowerCase();
+  const hasChatWidget = CHAT_WIDGET_SIGNATURES.some((signature) => lowerHtml.includes(signature));
+  const hasBookingWidget = BOOKING_WIDGET_SIGNATURES.some((signature) => lowerHtml.includes(signature));
+  const hasMobileViewport = Boolean(
+    document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("width=device-width")
+  );
+
   return {
     headings,
     ctas,
@@ -116,6 +156,9 @@ export function extractFeatures(html: string, pageUrl: string): ExtractedFeature
     externalLinks: [...externalLinks].slice(0, 500),
     images,
     schemaTypes: [...schemaTypes],
-    trustSignals
+    trustSignals,
+    hasChatWidget,
+    hasBookingWidget,
+    hasMobileViewport
   };
 }

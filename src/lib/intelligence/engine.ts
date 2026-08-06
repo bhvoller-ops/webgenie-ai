@@ -15,6 +15,7 @@ import { scoreAiSearch } from "./modules/ai-search";
 import { scoreDesign } from "./modules/design";
 import { scoreBrand } from "./modules/brand";
 import { scoreRevenue } from "./modules/revenue";
+import { deriveFootInTheDoorChecklist } from "./foot-in-the-door";
 
 const moduleWeights: Record<ModuleScore["module"], number> = {
   design: 0.08,
@@ -67,7 +68,7 @@ export function runWebsiteIntelligence(args: {
   ).slice(0, 12);
 
   return {
-    schemaVersion: "1.0",
+    schemaVersion: "1.1",
     jobId: args.jobId,
     projectId: args.projectId,
     generatedAt: new Date().toISOString(),
@@ -79,6 +80,7 @@ export function runWebsiteIntelligence(args: {
       capturesAnalyzed: args.captures.length,
       referencesAttempted: args.referencesAttempted,
       referencesFailed: args.referencesFailed
-    }
+    },
+    footInTheDoor: deriveFootInTheDoorChecklist(args.captures)
   };
 }
