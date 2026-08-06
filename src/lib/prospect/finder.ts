@@ -19,11 +19,23 @@ import { INDUSTRIES } from "@/lib/sitegen/industries";
  * 20 businesses costs a few cents. Set a budget cap before you start.
  */
 
+export const REVIEW_TIERS = [
+  { key: "small", label: "Small (0–299 reviews)", min: 0, max: 299 },
+  { key: "mid", label: "Mid (300–800 reviews)", min: 300, max: 800 },
+  { key: "large", label: "Large (800–1,500 reviews)", min: 800, max: 1500 },
+] as const;
+
+export type ReviewTierKey = (typeof REVIEW_TIERS)[number]["key"];
+
 export interface FinderQuery {
   industry: IndustryKey;
   city: string;
   state: string;
   limit?: number;
+  /** Which review-count bracket to pull from. Defaults to "small". */
+  reviewTier?: ReviewTierKey;
+  /** Normalized business names (see normalizeBusinessName) to leave out — already-queued businesses. */
+  excludeNormalizedNames?: Set<string>;
 }
 
 export interface FinderResult {
@@ -153,17 +165,8 @@ export function sampleSearch(q: FinderQuery): FinderResult {
 }
 
 /* ------------------------------------------------------------------ */
-/* Chain / multi-location filtering                                    */
+/* Chain / multi-location filtering + review-count tiering             */
 /* ------------------------------------------------------------------ */
-
-/**
- * A genuine single-location small business rarely clears this many Google
- * reviews in most metro markets — a regional or national chain (Estes,
- * Coolray, Reliable Heating & Air, etc.) almost always does. These are real
- * businesses, just not good Motion B foot-in-the-door targets: they already
- * have marketing budgets and in-house teams.
- */
-const CHAIN_REVIEW_THRESHOLD = 300;
 
 const NAME_NOISE_WORDS = new Set([
   "heating", "air", "hvac", "plumbing", "electric", "electrical", "conditioning",
@@ -171,7 +174,8 @@ const NAME_NOISE_WORDS = new Set([
   "and", "the", "of", "solutions", "pros", "team", "contractors",
 ]);
 
-function normalizeBusinessName(name: string): string {
+/** Strips generic industry words so "Estes Services" and "Estes Heating & Air" match as the same brand. */
+export function normalizeBusinessName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9\s]+/g, " ")
@@ -182,40 +186,48 @@ function normalizeBusinessName(name: string): string {
 }
 
 /**
- * Splits results into good small-business candidates vs. likely chains.
- * A business is treated as a chain if the same brand name (after stripping
- * generic industry words) appears more than once in this result set — a
- * strong signal of multiple locations — or if its review count is high
- * enough that it's almost certainly an established, multi-location, or
- * long-running regional operator rather than a small independent shop.
+ * Splits results into good candidates vs. multi-location chains, then buckets
+ * the candidates into review-count tiers. A business is always treated as a
+ * chain — regardless of tier — if the same brand name (after stripping
+ * generic industry words) appears more than once in this result set; that's
+ * a direct signal of multiple locations, not a review-count judgment call.
  */
-function partitionChains(all: Business[]): { candidates: Business[]; likelyChains: Business[] } {
+function partitionChains(
+  all: Business[],
+  excludeNormalizedNames?: Set<string>
+): { byTier: Record<ReviewTierKey, Business[]>; likelyChains: Business[] } {
   const nameCounts = new Map<string, number>();
   for (const business of all) {
     const key = normalizeBusinessName(business.name);
     nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
   }
 
-  const candidates: Business[] = [];
+  const byTier: Record<ReviewTierKey, Business[]> = { small: [], mid: [], large: [] };
   const likelyChains: Business[] = [];
 
   for (const business of all) {
     const key = normalizeBusinessName(business.name);
-    const isMultiLocationBrand = key.length > 0 && (nameCounts.get(key) ?? 0) > 1;
-    const isHighVolumeOperator = (business.reviewCount ?? 0) > CHAIN_REVIEW_THRESHOLD;
+    if (excludeNormalizedNames?.has(key)) continue;
 
-    if (isMultiLocationBrand || isHighVolumeOperator) {
+    const isMultiLocationBrand = key.length > 0 && (nameCounts.get(key) ?? 0) > 1;
+    if (isMultiLocationBrand) {
       likelyChains.push(business);
-    } else {
-      candidates.push(business);
+      continue;
     }
+
+    const reviews = business.reviewCount ?? 0;
+    const tier = REVIEW_TIERS.find((t) => reviews >= t.min && reviews <= t.max);
+    if (tier) byTier[tier.key].push(business);
+    else likelyChains.push(business); // outside every defined bracket (0 reviews, or > 1500)
   }
 
-  // Best small-business targets first: fewer reviews reads as more likely to
+  // Best targets first within a tier: fewer reviews reads as more likely to
   // be a genuinely small, single-location operator worth a foot-in-the-door call.
-  candidates.sort((a, b) => (a.reviewCount ?? 0) - (b.reviewCount ?? 0));
+  for (const tier of REVIEW_TIERS) {
+    byTier[tier.key].sort((a, b) => (a.reviewCount ?? 0) - (b.reviewCount ?? 0));
+  }
 
-  return { candidates, likelyChains };
+  return { byTier, likelyChains };
 }
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +246,50 @@ interface PlacesPlace {
   regularOpeningHours?: { weekdayDescriptions?: string[] };
 }
 
+async function fetchPlacesPage(
+  key: string,
+  textQuery: string,
+  pageToken?: string
+): Promise<{ places: PlacesPlace[]; nextPageToken?: string }> {
+  const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.nationalPhoneNumber",
+        "places.rating",
+        "places.userRatingCount",
+        "places.websiteUri",
+        "places.googleMapsUri",
+        "places.regularOpeningHours",
+        "nextPageToken",
+      ].join(","),
+    },
+    body: JSON.stringify(pageToken ? { textQuery, pageToken } : { textQuery, maxResultCount: 20 }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Places API returned ${res.status}. ${detail.slice(0, 160)}`);
+  }
+
+  const data = (await res.json()) as { places?: PlacesPlace[]; nextPageToken?: string };
+  return { places: data.places ?? [], nextPageToken: data.nextPageToken };
+}
+
+/**
+ * A single Text Search call maxes out at 20 results, and those top 20 are
+ * usually dominated by the same handful of highly-reviewed chains — not
+ * enough raw material to fill three review-count tiers or to give a
+ * "refresh" anything new. Page through up to MAX_PAGES to build a real pool.
+ */
+const MAX_PAGES = 3;
+const PAGE_TOKEN_DELAY_MS = 2000; // Google's page token needs a moment to become valid.
+
 export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) {
@@ -244,36 +300,16 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
   const textQuery = `${profile.plural} in ${q.city}, ${q.state}`;
 
   try {
-    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": key,
-        "X-Goog-FieldMask": [
-          "places.id",
-          "places.displayName",
-          "places.formattedAddress",
-          "places.nationalPhoneNumber",
-          "places.rating",
-          "places.userRatingCount",
-          "places.websiteUri",
-          "places.googleMapsUri",
-          "places.regularOpeningHours",
-        ].join(","),
-      },
-      body: JSON.stringify({ textQuery, maxResultCount: q.limit ?? 20 }),
-    });
+    const places: PlacesPlace[] = [];
+    let pageToken: string | undefined;
 
-    if (!res.ok) {
-      const detail = await res.text();
-      return {
-        ...sampleSearch(q),
-        notice: `Places API returned ${res.status}. Showing sample data. ${detail.slice(0, 160)}`,
-      };
+    for (let page = 0; page < MAX_PAGES; page++) {
+      if (page > 0) await new Promise((resolve) => setTimeout(resolve, PAGE_TOKEN_DELAY_MS));
+      const result = await fetchPlacesPage(key, textQuery, pageToken);
+      places.push(...result.places);
+      if (!result.nextPageToken || result.places.length === 0) break;
+      pageToken = result.nextPageToken;
     }
-
-    const data = (await res.json()) as { places?: PlacesPlace[] };
-    const places = data.places ?? [];
 
     const all: Business[] = places.map((pl, i) => {
       const full = pl.formattedAddress ?? "";
@@ -295,7 +331,9 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
       };
     });
 
-    const { candidates, likelyChains } = partitionChains(all);
+    const { byTier, likelyChains } = partitionChains(all, q.excludeNormalizedNames);
+    const tier = q.reviewTier ?? "small";
+    const candidates = byTier[tier];
 
     return {
       provider: "places",

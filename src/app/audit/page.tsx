@@ -14,6 +14,7 @@ import {
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
 import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
 import type { IndustryKey } from "@/lib/sitegen/types";
 
 interface QueueResponse {
@@ -21,6 +22,7 @@ interface QueueResponse {
   queued: Array<{ projectId: string; jobId: string; businessName: string; url: string }>;
   skipped: Array<{ businessName: string; reason: string }>;
   excludedChains: Array<{ businessName: string; reviewCount: number | null }>;
+  reviewTier: ReviewTierKey;
   provider: "sample" | "places";
   notice?: string;
 }
@@ -28,6 +30,7 @@ interface QueueResponse {
 export default function AuditPage() {
   const [industry, setIndustry] = useState<IndustryKey>("plumber");
   const [location, setLocation] = useState("");
+  const [reviewTier, setReviewTier] = useState<ReviewTierKey>("small");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<QueueResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,7 @@ export default function AuditPage() {
       const res = await fetch("/api/audits/queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ industry, city, state, limit: 10 })
+        body: JSON.stringify({ industry, city, state, limit: 10, reviewTier })
       });
 
       if (!res.ok) {
@@ -122,6 +125,27 @@ export default function AuditPage() {
               </label>
             </div>
 
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {REVIEW_TIERS.map((tier) => (
+                <button
+                  key={tier.key}
+                  type="button"
+                  onClick={() => setReviewTier(tier.key)}
+                  className={`focus-ring rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                    reviewTier === tier.key
+                      ? "border-iris bg-iris/10 text-ink"
+                      : "border-hairline bg-surface text-muted hover:border-iris/40"
+                  }`}
+                >
+                  {tier.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-faint">
+              Small is the best foot-in-the-door pool. Mid/Large let you pull more established
+              operators on purpose.
+            </p>
+
             <button
               onClick={run}
               disabled={running || !location.trim()}
@@ -157,6 +181,17 @@ export default function AuditPage() {
           {result.notice ? (
             <div className="mb-6 rounded-xl border border-signal-warn/30 bg-signal-warn/[0.08] px-4 py-3 text-[13px] text-signal-warn">
               {result.notice}
+            </div>
+          ) : null}
+
+          <p className="mb-4 text-[13px] text-muted">
+            Showing <span className="text-ink">{REVIEW_TIERS.find((t) => t.key === result.reviewTier)?.label}</span>
+          </p>
+
+          {result.totalCandidates === 0 ? (
+            <div className="rounded-xl border border-hairline bg-surface/60 px-4 py-3 text-[13px] text-muted">
+              No new businesses in this tier for this industry/city — you've likely already queued
+              everyone available here. Try a different tier, city, or industry.
             </div>
           ) : null}
 
@@ -241,7 +276,7 @@ export default function AuditPage() {
           {result.excludedChains.length ? (
             <div className="mt-8">
               <Eyebrow className="text-faint">
-                Chains excluded — multi-location or high-review operators, not good foot-in-the-door targets
+                Chains excluded — multi-location brands, or over 1,500 reviews (outside every tier)
               </Eyebrow>
               <div className="mt-4 space-y-2">
                 {result.excludedChains.map((c, i) => (

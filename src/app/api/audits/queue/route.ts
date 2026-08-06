@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { findProspects } from "@/lib/prospect/finder";
+import { findProspects, normalizeBusinessName, REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
+
+const TIER_KEYS = REVIEW_TIERS.map((t) => t.key) as [ReviewTierKey, ...ReviewTierKey[]];
 
 const schema = z.object({
   industry: z.string(),
   city: z.string().min(1),
   state: z.string().optional(),
-  limit: z.number().min(1).max(20).optional()
+  limit: z.number().min(1).max(20).optional(),
+  reviewTier: z.enum(TIER_KEYS).optional()
 });
 
 async function getUserAndOrganization(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -69,11 +72,26 @@ export async function POST(request: Request) {
     );
   }
 
+  // Refreshing the same industry/city previously returned the same top results
+  // every time. Excluding businesses already queued for this org+industry
+  // means a repeat search surfaces new ones instead.
+  const { data: alreadyQueued } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("organization_id", organizationId)
+    .eq("industry", INDUSTRIES[industry].label);
+
+  const excludeNormalizedNames = new Set(
+    (alreadyQueued ?? []).map((p) => normalizeBusinessName(p.name))
+  );
+
   const found = await findProspects({
     industry,
     city: parsed.data.city,
     state: parsed.data.state ?? "",
-    limit: 20
+    limit: 20,
+    reviewTier: parsed.data.reviewTier,
+    excludeNormalizedNames
   });
 
   const candidates = found.withWebsite.slice(0, parsed.data.limit ?? 10);
@@ -136,6 +154,7 @@ export async function POST(request: Request) {
     queued,
     skipped,
     excludedChains: found.likelyChains.map((b) => ({ businessName: b.name, reviewCount: b.reviewCount ?? null })),
+    reviewTier: parsed.data.reviewTier ?? "small",
     provider: found.provider,
     notice: found.notice
   });
