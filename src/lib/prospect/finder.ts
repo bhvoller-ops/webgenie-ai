@@ -32,6 +32,8 @@ export interface FinderResult {
   totalFound: number;
   withoutWebsite: Business[];
   withWebsite: Business[];
+  /** Multi-location chains and high-volume operators, held out of the lists above. */
+  likelyChains: Business[];
   ranAt: string;
   /** Present when Places was attempted but unavailable. */
   notice?: string;
@@ -145,8 +147,75 @@ export function sampleSearch(q: FinderQuery): FinderResult {
     totalFound: all.length,
     withoutWebsite: all.filter((b) => !b.website),
     withWebsite: all.filter((b) => b.website),
+    likelyChains: [],
     ranAt: new Date().toISOString(),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Chain / multi-location filtering                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A genuine single-location small business rarely clears this many Google
+ * reviews in most metro markets — a regional or national chain (Estes,
+ * Coolray, Reliable Heating & Air, etc.) almost always does. These are real
+ * businesses, just not good Motion B foot-in-the-door targets: they already
+ * have marketing budgets and in-house teams.
+ */
+const CHAIN_REVIEW_THRESHOLD = 300;
+
+const NAME_NOISE_WORDS = new Set([
+  "heating", "air", "hvac", "plumbing", "electric", "electrical", "conditioning",
+  "cooling", "services", "service", "inc", "llc", "co", "company", "group",
+  "and", "the", "of", "solutions", "pros", "team", "contractors",
+]);
+
+function normalizeBusinessName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .split(/\s+/)
+    .filter((word) => word && !NAME_NOISE_WORDS.has(word))
+    .join(" ")
+    .trim();
+}
+
+/**
+ * Splits results into good small-business candidates vs. likely chains.
+ * A business is treated as a chain if the same brand name (after stripping
+ * generic industry words) appears more than once in this result set — a
+ * strong signal of multiple locations — or if its review count is high
+ * enough that it's almost certainly an established, multi-location, or
+ * long-running regional operator rather than a small independent shop.
+ */
+function partitionChains(all: Business[]): { candidates: Business[]; likelyChains: Business[] } {
+  const nameCounts = new Map<string, number>();
+  for (const business of all) {
+    const key = normalizeBusinessName(business.name);
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+  }
+
+  const candidates: Business[] = [];
+  const likelyChains: Business[] = [];
+
+  for (const business of all) {
+    const key = normalizeBusinessName(business.name);
+    const isMultiLocationBrand = key.length > 0 && (nameCounts.get(key) ?? 0) > 1;
+    const isHighVolumeOperator = (business.reviewCount ?? 0) > CHAIN_REVIEW_THRESHOLD;
+
+    if (isMultiLocationBrand || isHighVolumeOperator) {
+      likelyChains.push(business);
+    } else {
+      candidates.push(business);
+    }
+  }
+
+  // Best small-business targets first: fewer reviews reads as more likely to
+  // be a genuinely small, single-location operator worth a foot-in-the-door call.
+  candidates.sort((a, b) => (a.reviewCount ?? 0) - (b.reviewCount ?? 0));
+
+  return { candidates, likelyChains };
 }
 
 /* ------------------------------------------------------------------ */
@@ -226,13 +295,16 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
       };
     });
 
+    const { candidates, likelyChains } = partitionChains(all);
+
     return {
       provider: "places",
       query: q,
       totalFound: all.length,
       // A business with no phone number cannot be cold-called, so it is not a prospect.
-      withoutWebsite: all.filter((b) => !b.website && b.phone),
-      withWebsite: all.filter((b) => b.website),
+      withoutWebsite: candidates.filter((b) => !b.website && b.phone),
+      withWebsite: candidates.filter((b) => b.website),
+      likelyChains,
       ranAt: new Date().toISOString(),
     };
   } catch (err) {

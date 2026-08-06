@@ -20,6 +20,7 @@ interface QueueResponse {
   totalCandidates: number;
   queued: Array<{ projectId: string; jobId: string; businessName: string; url: string }>;
   skipped: Array<{ businessName: string; reason: string }>;
+  excludedChains: Array<{ businessName: string; reviewCount: number | null }>;
   provider: "sample" | "places";
   notice?: string;
 }
@@ -159,7 +160,7 @@ export default function AuditPage() {
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <div className="card p-5">
               <div className="eyebrow">Candidates found</div>
               <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-ink">
@@ -176,6 +177,12 @@ export default function AuditPage() {
               <div className="eyebrow">Skipped</div>
               <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-signal-warn">
                 {result.skipped.length}
+              </div>
+            </div>
+            <div className="card p-5">
+              <div className="eyebrow">Chains excluded</div>
+              <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-faint">
+                {result.excludedChains.length}
               </div>
             </div>
           </div>
@@ -225,6 +232,24 @@ export default function AuditPage() {
                     <XCircle className="h-3.5 w-3.5 shrink-0 text-signal-bad" aria-hidden />
                     <span className="text-ink">{s.businessName}</span>
                     <span className="text-faint">— {s.reason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {result.excludedChains.length ? (
+            <div className="mt-8">
+              <Eyebrow className="text-faint">
+                Chains excluded — multi-location or high-review operators, not good foot-in-the-door targets
+              </Eyebrow>
+              <div className="mt-4 space-y-2">
+                {result.excludedChains.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[13px] text-muted">
+                    <span className="text-ink">{c.businessName}</span>
+                    {c.reviewCount !== null ? (
+                      <span className="font-mono text-faint">— {c.reviewCount} reviews</span>
+                    ) : null}
                   </div>
                 ))}
               </div>

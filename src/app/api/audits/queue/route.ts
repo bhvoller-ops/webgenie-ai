@@ -135,6 +135,7 @@ export async function POST(request: Request) {
     totalCandidates: candidates.length,
     queued,
     skipped,
+    excludedChains: found.likelyChains.map((b) => ({ businessName: b.name, reviewCount: b.reviewCount ?? null })),
     provider: found.provider,
     notice: found.notice
   });
