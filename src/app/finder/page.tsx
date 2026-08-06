@@ -172,7 +172,7 @@ export default function FinderPage() {
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && run()}
-                  placeholder="Bentonville, AR"
+                  placeholder="Atlanta, GA"
                   className="focus-ring w-full rounded-xl border border-hairline bg-surface py-3 pl-10 pr-4 text-sm text-ink placeholder:text-faint transition-colors hover:border-iris/40"
                 />
               </label>
