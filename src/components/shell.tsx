@@ -27,6 +27,7 @@ export function TopBar() {
         <nav className="hidden items-center gap-1 md:flex">
           {[
             { href: "/finder", label: "Find Clients" },
+            { href: "/audit", label: "Find Audits" },
             { href: "/onboard", label: "Onboard" },
             { href: "/", label: "Projects" },
           ].map((l) => (
