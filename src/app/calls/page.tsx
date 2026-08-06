@@ -123,12 +123,12 @@ export default async function CallsPage() {
       <Panel className="mt-10">
         <Eyebrow className="mb-4">Add a prospect</Eyebrow>
         <form action={addCallLogEntryAction} className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-          <input name="businessName" required placeholder="Business name" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint lg:col-span-2" />
-          <input name="phone" required placeholder="Phone" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint" />
-          <input name="industry" placeholder="Industry" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint" />
-          <input name="city" placeholder="City" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint" />
-          <input name="state" placeholder="State" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint" />
-          <input name="demoUrl" placeholder="Demo site URL (optional)" className="rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-faint lg:col-span-4" />
+          <input name="businessName" required placeholder="Business name" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 lg:col-span-2" />
+          <input name="phone" required placeholder="Phone" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
+          <input name="industry" placeholder="Industry" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
+          <input name="city" placeholder="City" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
+          <input name="state" placeholder="State" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
+          <input name="demoUrl" placeholder="Demo site URL (optional)" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 lg:col-span-4" />
           <button className="focus-ring rounded-lg bg-iris px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-iris-soft lg:col-span-2">
             Add to tracker
           </button>
@@ -190,7 +190,7 @@ export default async function CallsPage() {
                   <select
                     name="status"
                     defaultValue={row.status}
-                    className="rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
+                    className="rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900"
                   >
                     {Object.entries(STATUS_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -202,12 +202,12 @@ export default async function CallsPage() {
                     name="notes"
                     defaultValue={row.notes ?? ""}
                     placeholder="Notes…"
-                    className="rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink placeholder:text-faint"
+                    className="rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
                   />
                   <select
                     name="followUpDays"
                     defaultValue=""
-                    className="rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
+                    className="rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900"
                   >
                     <option value="">No follow-up change</option>
                     <option value="3">Follow up in 3 days</option>
