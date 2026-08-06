@@ -282,12 +282,18 @@ async function fetchPlacesPage(
 }
 
 /**
- * A single Text Search call maxes out at 20 results, and those top 20 are
- * usually dominated by the same handful of highly-reviewed chains — not
- * enough raw material to fill three review-count tiers or to give a
- * "refresh" anything new. Page through up to MAX_PAGES to build a real pool.
+ * Google's page 1 is the same handful of highly-reviewed chains for almost
+ * every search — it's the least useful page for finding foot-in-the-door
+ * targets. Page 1 is still fetched (it's the only way to get the token for
+ * page 2), but its results are discarded; only pages 2 and up are kept.
+ *
+ * Google Places Text Search caps out at 60 total results (pages 1–3) —
+ * nextPageToken stops being returned after that, so page 4/5 rarely exist in
+ * practice. The loop still tries up to MAX_PAGES and simply stops early when
+ * Google runs out.
  */
-const MAX_PAGES = 3;
+const SKIP_LEADING_PAGES = 1;
+const MAX_PAGES = 5;
 const PAGE_TOKEN_DELAY_MS = 2000; // Google's page token needs a moment to become valid.
 
 export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
@@ -302,14 +308,21 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
   try {
     const places: PlacesPlace[] = [];
     let pageToken: string | undefined;
+    let pagesFetched = 0;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       if (page > 0) await new Promise((resolve) => setTimeout(resolve, PAGE_TOKEN_DELAY_MS));
       const result = await fetchPlacesPage(key, textQuery, pageToken);
-      places.push(...result.places);
+      pagesFetched++;
+      if (page >= SKIP_LEADING_PAGES) places.push(...result.places);
       if (!result.nextPageToken || result.places.length === 0) break;
       pageToken = result.nextPageToken;
     }
+
+    const notice =
+      pagesFetched <= SKIP_LEADING_PAGES
+        ? "Google only returned one page of results for this search, so after skipping page 1 there was nothing left. Try a broader city or a different industry."
+        : undefined;
 
     const all: Business[] = places.map((pl, i) => {
       const full = pl.formattedAddress ?? "";
@@ -344,6 +357,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
       withWebsite: candidates.filter((b) => b.website),
       likelyChains,
       ranAt: new Date().toISOString(),
+      notice,
     };
   } catch (err) {
     return {

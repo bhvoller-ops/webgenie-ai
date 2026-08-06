@@ -95,7 +95,14 @@ export async function POST(request: Request) {
   });
 
   const candidates = found.withWebsite.slice(0, parsed.data.limit ?? 10);
-  const queued: Array<{ projectId: string; jobId: string; businessName: string; url: string }> = [];
+  const queued: Array<{
+    projectId: string;
+    jobId: string;
+    businessName: string;
+    url: string;
+    rating: number | null;
+    reviewCount: number | null;
+  }> = [];
   const skipped: Array<{ businessName: string; reason: string }> = [];
 
   for (const business of candidates) {
@@ -140,7 +147,14 @@ export async function POST(request: Request) {
       if (jobError || !job) throw new Error(jobError?.message ?? "Unable to queue analysis.");
       await recordUsage(supabase, organizationId, "analyses", user.id, job.id);
 
-      queued.push({ projectId: project.id, jobId: job.id, businessName: business.name, url: business.website });
+      queued.push({
+        projectId: project.id,
+        jobId: job.id,
+        businessName: business.name,
+        url: business.website,
+        rating: business.rating ?? null,
+        reviewCount: business.reviewCount ?? null
+      });
     } catch (error) {
       skipped.push({
         businessName: business.name,

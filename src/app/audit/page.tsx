@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   Building2,
+  CheckCircle2,
+  Filter,
   Loader2,
   MapPin,
   Radar,
   Search,
+  Star,
   XCircle,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
@@ -16,10 +19,20 @@ import { Eyebrow, Panel, Pill } from "@/components/ui";
 import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
 import { REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
 import type { IndustryKey } from "@/lib/sitegen/types";
+import { cn } from "@/lib/format";
+
+interface QueuedBusiness {
+  projectId: string;
+  jobId: string;
+  businessName: string;
+  url: string;
+  rating: number | null;
+  reviewCount: number | null;
+}
 
 interface QueueResponse {
   totalCandidates: number;
-  queued: Array<{ projectId: string; jobId: string; businessName: string; url: string }>;
+  queued: QueuedBusiness[];
   skipped: Array<{ businessName: string; reason: string }>;
   excludedChains: Array<{ businessName: string; reviewCount: number | null }>;
   reviewTier: ReviewTierKey;
@@ -27,13 +40,23 @@ interface QueueResponse {
   notice?: string;
 }
 
+const STAGES = [
+  "Scanning Google Maps listings",
+  "Filtering out multi-location chains",
+  "Sorting into review-count tiers",
+  "Queuing analysis jobs",
+  "Starting the intelligence scan",
+];
+
 export default function AuditPage() {
   const [industry, setIndustry] = useState<IndustryKey>("plumber");
   const [location, setLocation] = useState("");
   const [reviewTier, setReviewTier] = useState<ReviewTierKey>("small");
   const [running, setRunning] = useState(false);
+  const [stage, setStage] = useState(-1);
   const [result, setResult] = useState<QueueResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   function parseLocation(v: string) {
     const [c, s] = v.split(",").map((x) => x.trim());
@@ -42,18 +65,28 @@ export default function AuditPage() {
 
   async function run() {
     if (!location.trim() || running) return;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
     setRunning(true);
     setError(null);
     setResult(null);
+    setStage(0);
+
+    STAGES.forEach((_, i) => {
+      timers.current.push(setTimeout(() => setStage(i), i * 620));
+    });
 
     const { city, state } = parseLocation(location);
 
     try {
-      const res = await fetch("/api/audits/queue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ industry, city, state, limit: 10, reviewTier })
-      });
+      const [res] = await Promise.all([
+        fetch("/api/audits/queue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ industry, city, state, limit: 10, reviewTier }),
+        }),
+        new Promise((r) => setTimeout(r, STAGES.length * 620)),
+      ]);
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -64,6 +97,7 @@ export default function AuditPage() {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setRunning(false);
+      setStage(-1);
     }
   }
 
@@ -96,6 +130,7 @@ export default function AuditPage() {
             one for a real eleven-module intelligence scan — the same engine, not a guess.
           </p>
 
+          {/* Search */}
           <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="relative block">
@@ -131,11 +166,12 @@ export default function AuditPage() {
                   key={tier.key}
                   type="button"
                   onClick={() => setReviewTier(tier.key)}
-                  className={`focus-ring rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                  className={cn(
+                    "focus-ring rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors",
                     reviewTier === tier.key
-                      ? "border-iris bg-iris/10 text-ink"
-                      : "border-hairline bg-surface text-muted hover:border-iris/40"
-                  }`}
+                      ? "border-neon bg-neon/10 text-ink"
+                      : "border-hairline bg-surface text-muted hover:border-neon/40"
+                  )}
                 >
                   {tier.label}
                 </button>
@@ -154,7 +190,7 @@ export default function AuditPage() {
               {running ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  Queuing analysis…
+                  Processing…
                 </>
               ) : (
                 <>
@@ -168,6 +204,45 @@ export default function AuditPage() {
             </p>
           </div>
 
+          {/* Progress */}
+          {running ? (
+            <div className="mx-auto mt-4 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-5 text-left">
+              <ul className="space-y-2.5">
+                {STAGES.map((s, i) => {
+                  const done = stage > i;
+                  const active = stage === i;
+                  return (
+                    <li key={s} className="flex items-center gap-3">
+                      {done ? (
+                        <span className="grid h-4 w-4 place-items-center rounded-full bg-signal-good/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-signal-good" />
+                        </span>
+                      ) : active ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-neon-soft" aria-hidden />
+                      ) : (
+                        <span className="h-4 w-4 rounded-full border border-hairline" />
+                      )}
+                      <span
+                        className={cn(
+                          "text-[13px]",
+                          done ? "text-muted" : active ? "text-neon-soft" : "text-faint"
+                        )}
+                      >
+                        {s}…
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-4 h-1 overflow-hidden rounded-full bg-hairline">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-neon to-iris transition-all duration-500"
+                  style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
           {error ? (
             <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">
               {error}
@@ -176,6 +251,7 @@ export default function AuditPage() {
         </div>
       </Panel>
 
+      {/* Results */}
       {result ? (
         <div className="mt-10 animate-fade-up">
           {result.notice ? (
@@ -189,47 +265,49 @@ export default function AuditPage() {
           </p>
 
           {result.totalCandidates === 0 ? (
-            <div className="rounded-xl border border-hairline bg-surface/60 px-4 py-3 text-[13px] text-muted">
+            <div className="mb-6 rounded-xl border border-hairline bg-surface/60 px-4 py-3 text-[13px] text-muted">
               No new businesses in this tier for this industry/city — you've likely already queued
               everyone available here. Try a different tier, city, or industry.
             </div>
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-4">
-            <div className="card p-5">
-              <div className="eyebrow">Candidates found</div>
-              <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-ink">
-                {result.totalCandidates}
-              </div>
-            </div>
-            <div className="card p-5">
-              <div className="eyebrow">Queued for analysis</div>
-              <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-signal-good">
-                {result.queued.length}
-              </div>
-            </div>
-            <div className="card p-5">
-              <div className="eyebrow">Skipped</div>
-              <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-signal-warn">
-                {result.skipped.length}
-              </div>
-            </div>
-            <div className="card p-5">
-              <div className="eyebrow">Chains excluded</div>
-              <div className="mt-3 font-mono text-4xl font-semibold tabular-nums text-faint">
-                {result.excludedChains.length}
-              </div>
-            </div>
+            <StatCard
+              icon={<Building2 className="h-4 w-4 text-muted" aria-hidden />}
+              label="Candidates found"
+              value={result.totalCandidates}
+              tone="ink"
+            />
+            <StatCard
+              icon={<CheckCircle2 className="h-4 w-4 text-signal-good" aria-hidden />}
+              label="Queued for analysis"
+              value={result.queued.length}
+              tone="good"
+            />
+            <StatCard
+              icon={<XCircle className="h-4 w-4 text-signal-warn" aria-hidden />}
+              label="Skipped"
+              value={result.skipped.length}
+              tone="warn"
+            />
+            <StatCard
+              icon={<Filter className="h-4 w-4 text-faint" aria-hidden />}
+              label="Chains excluded"
+              value={result.excludedChains.length}
+              tone="faint"
+            />
           </div>
 
           {result.queued.length ? (
-            <div className="mt-10">
-              <div className="flex flex-wrap items-end justify-between gap-4">
+            <>
+              <div className="mt-10 flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <h2 className="text-display-md font-semibold text-ink">Now analyzing</h2>
                   <p className="mt-1.5 text-sm text-muted">
-                    Each one runs through the real capture + 11-module scoring pipeline. Scores
-                    appear on your dashboard as jobs complete — usually a minute or two apart.
+                    {result.queued.length} businesses running through the real capture +
+                    11-module scoring pipeline
+                    {result.provider === "sample" ? " · sample data" : " · live Google data"} —
+                    scores appear on your dashboard a minute or two apart.
                   </p>
                 </div>
                 <Link
@@ -241,21 +319,56 @@ export default function AuditPage() {
                 </Link>
               </div>
 
-              <div className="mt-6 space-y-2">
-                {result.queued.map((q) => (
-                  <div
-                    key={q.jobId}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-surface/60 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-medium text-ink">{q.businessName}</div>
-                      <div className="truncate font-mono text-[11px] text-faint">{q.url}</div>
-                    </div>
-                    <Pill tone="warn">queued</Pill>
-                  </div>
-                ))}
+              <div className="mt-6 overflow-x-auto rounded-panel border border-hairline">
+                <table className="w-full min-w-[720px] text-left">
+                  <thead className="bg-raised">
+                    <tr>
+                      {["Business", "Reviews", "Website", "Status"].map((h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-widest text-faint"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.queued.map((q) => (
+                      <tr key={q.jobId} className="border-t border-hairline transition-colors hover:bg-raised/40">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-neon/30 bg-neon/10 text-[13px] font-semibold text-neon-soft">
+                              {q.businessName.charAt(0)}
+                            </span>
+                            <span className="text-[13px] font-medium text-ink">{q.businessName}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          {typeof q.rating === "number" ? (
+                            <span className="inline-flex items-center gap-1.5 text-[12px]">
+                              <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
+                              <span className="font-mono text-ink">{q.rating}</span>
+                              <span className="text-faint">({q.reviewCount ?? 0})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[12px] text-faint">
+                              {q.reviewCount !== null ? `${q.reviewCount} reviews` : "—"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="truncate font-mono text-[11px] text-faint">{q.url}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <Pill tone="warn">queued</Pill>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </>
           ) : null}
 
           {result.skipped.length ? (
@@ -290,8 +403,50 @@ export default function AuditPage() {
               </div>
             </div>
           ) : null}
+
+          {result.queued.length ? (
+            <div className="mt-6 rounded-panel border border-neon/25 bg-neon/[0.06] p-6">
+              <Eyebrow className="text-neon-soft">What to do next</Eyebrow>
+              <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-muted">
+                Give each job a minute or two, then open its report from the dashboard. The{" "}
+                <span className="text-ink">Foot in the door</span> panel at the top lists only
+                gaps you can show the owner in their own browser in ten seconds — that's your
+                opener on the call.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </PageShell>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  tone: "ink" | "warn" | "good" | "faint";
+}) {
+  const color = {
+    ink: "text-ink",
+    warn: "text-signal-warn",
+    good: "text-signal-good",
+    faint: "text-faint",
+  }[tone];
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between">
+        <span className="eyebrow">{label}</span>
+        {icon}
+      </div>
+      <div className={cn("mt-3 font-mono text-4xl font-semibold tabular-nums tracking-tight", color)}>
+        {value}
+      </div>
+    </div>
   );
 }
