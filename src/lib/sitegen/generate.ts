@@ -170,7 +170,10 @@ export function generateSite(
 
   /* Hero */
   .hero{position:relative;color:#fff;overflow:hidden;
-    background:linear-gradient(135deg,var(--brand-dark) 0%,var(--brand) 55%,var(--brand-dark) 100%)}
+    background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 82%,transparent) 0%,
+      color-mix(in srgb,var(--brand) 68%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 86%,transparent) 100%),
+      url('${p.heroImage}');
+    background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero::before{content:"";position:absolute;inset:0;opacity:.16;
     background-image:radial-gradient(circle at 18% 22%,#fff 0,transparent 42%),
       radial-gradient(circle at 82% 12%,#fff 0,transparent 34%),
@@ -195,6 +198,13 @@ export function generateSite(
   .svcico{width:46px;height:46px;border-radius:11px;display:grid;place-items:center;
     background:color-mix(in srgb,var(--brand) 12%,#fff);color:var(--brand);margin-bottom:16px}
   .svc p{font-size:.93rem;margin-top:9px}
+
+  /* In-action image band */
+  .imgband{position:relative;height:320px;overflow:hidden}
+  .imgband img{width:100%;height:100%;object-fit:cover}
+  .imgband .imgcaption{position:absolute;left:0;right:0;bottom:0;padding:26px 0;
+    background:linear-gradient(0deg,rgba(15,23,42,.75),transparent)}
+  .imgband .imgcaption h3{color:#fff}
 
   /* Trust */
   .soft{background:var(--soft)}
@@ -250,6 +260,7 @@ export function generateSite(
   @media (max-width:820px){
     section{padding:56px 0}
     .heroin{padding:64px 0 72px}
+    .imgband{height:220px}
     .revwrap{grid-template-columns:1fr;gap:24px}
     .revscore{padding-right:0;padding-bottom:24px;border-right:0;border-bottom:1px solid var(--line)}
     .callbar{display:block}
@@ -321,6 +332,15 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
     </div>
   </div>
 </section>
+
+<div class="imgband">
+  <img src="${esc(p.secondaryImage)}" alt="${esc(p.label)} work by ${esc(business.name)} in ${esc(city)}" loading="lazy" />
+  <div class="imgcaption">
+    <div class="wrap">
+      <h3>See our ${esc(p.label.toLowerCase())} work in ${esc(city)}</h3>
+    </div>
+  </div>
+</div>
 
 <section class="soft">
   <div class="wrap">
@@ -460,6 +480,7 @@ ${
       "Header",
       "Hero",
       "Services",
+      "In-action photo",
       "Why choose us",
       ...(hasRating ? ["Reviews"] : []),
       "FAQ",

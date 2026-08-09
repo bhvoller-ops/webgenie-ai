@@ -17,6 +17,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Plumber",
     primary: "#1D4ED8",
     primaryDark: "#1E3A8A",
+    heroImage: "https://images.pexels.com/photos/6419128/pexels-photo-6419128.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/29226620/pexels-photo-29226620.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Fast, reliable plumbing services you can count on. Proudly serving {city} and the surrounding communities.",
     ctaLabel: "Call Now",
@@ -52,6 +54,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HVACBusiness",
     primary: "#0369A1",
     primaryDark: "#075985",
+    heroImage: "https://images.pexels.com/photos/32497161/pexels-photo-32497161.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/33671149/pexels-photo-33671149.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Heating and cooling repair, installation, and maintenance across {city}. Comfortable homes, honest pricing.",
     ctaLabel: "Schedule Service",
@@ -87,6 +91,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Electrician",
     primary: "#B45309",
     primaryDark: "#92400E",
+    heroImage: "https://images.pexels.com/photos/442160/pexels-photo-442160.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/5691590/pexels-photo-5691590.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Safe, code-compliant electrical work for homes and businesses across {city}.",
     ctaLabel: "Request a Quote",
@@ -122,6 +128,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "RoofingContractor",
     primary: "#B91C1C",
     primaryDark: "#7F1D1D",
+    heroImage: "https://images.pexels.com/photos/221525/pexels-photo-221525.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/33404248/pexels-photo-33404248.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Roof repair, replacement, and storm damage restoration across {city}. Free inspections, honest assessments.",
     ctaLabel: "Free Roof Inspection",
@@ -157,6 +165,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "LandscapingBusiness",
     primary: "#15803D",
     primaryDark: "#14532D",
+    heroImage: "https://images.pexels.com/photos/25972319/pexels-photo-25972319.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/6728933/pexels-photo-6728933.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Lawn care, landscape design, and outdoor living spaces across {city}. Reliable crews, tidy work.",
     ctaLabel: "Get a Free Estimate",
@@ -192,6 +202,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "LandscapingBusiness",
     primary: "#166534",
     primaryDark: "#14532D",
+    heroImage: "https://images.pexels.com/photos/35606516/pexels-photo-35606516.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/8820192/pexels-photo-8820192.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Tree removal, trimming, and emergency storm response across {city}. Safe, insured, and tidy.",
     ctaLabel: "Get a Free Quote",
@@ -227,6 +239,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HousePainter",
     primary: "#0D9488",
     primaryDark: "#115E59",
+    heroImage: "https://images.pexels.com/photos/8055825/pexels-photo-8055825.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/28576636/pexels-photo-28576636.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Dependable home and office cleaning across {city}. Bonded, insured, and consistently thorough.",
     ctaLabel: "Get a Free Quote",
@@ -262,6 +276,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "AutoRepair",
     primary: "#374151",
     primaryDark: "#1F2937",
+    heroImage: "https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/8985465/pexels-photo-8985465.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Honest diagnostics and quality repairs in {city}. Certified technicians, fair pricing, work explained.",
     ctaLabel: "Schedule Service",
@@ -297,6 +313,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Dentist",
     primary: "#0E7490",
     primaryDark: "#155E75",
+    heroImage: "https://images.pexels.com/photos/35438269/pexels-photo-35438269.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/6812479/pexels-photo-6812479.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Gentle, modern dentistry in {city}. Same-week appointments and treatment explained before it starts.",
     ctaLabel: "Book an Appointment",
@@ -332,6 +350,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "MedicalClinic",
     primary: "#9333EA",
     primaryDark: "#6B21A8",
+    heroImage: "https://images.pexels.com/photos/35546238/pexels-photo-35546238.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/35884499/pexels-photo-35884499.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Advanced aesthetic treatments in {city}, delivered by licensed medical professionals.",
     ctaLabel: "Book a Consultation",
@@ -367,6 +387,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "MedicalClinic",
     primary: "#0F766E",
     primaryDark: "#115E59",
+    heroImage: "https://images.pexels.com/photos/20669197/pexels-photo-20669197.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/4506169/pexels-photo-4506169.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Relief from back, neck, and joint pain in {city}. Evidence-based care with a clear treatment plan.",
     ctaLabel: "Book a Consultation",
@@ -402,6 +424,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "GeneralContractor",
     primary: "#1E40AF",
     primaryDark: "#1E3A8A",
+    heroImage: "https://images.pexels.com/photos/30250199/pexels-photo-30250199.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/35072802/pexels-photo-35072802.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "24/7 water, fire, and mould restoration across {city}. On site fast, insurance handled.",
     ctaLabel: "Call 24/7 Emergency Line",
@@ -437,6 +461,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "GeneralContractor",
     primary: "#C2410C",
     primaryDark: "#9A3412",
+    heroImage: "https://images.pexels.com/photos/37627682/pexels-photo-37627682.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/14989317/pexels-photo-14989317.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Remodelling and construction across {city}. Clear quotes, realistic timelines, work you can inspect.",
     ctaLabel: "Get a Free Estimate",
@@ -472,6 +498,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HairSalon",
     primary: "#BE185D",
     primaryDark: "#9D174D",
+    heroImage: "https://images.pexels.com/photos/7195805/pexels-photo-7195805.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/23349912/pexels-photo-23349912.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Colour, cuts, and styling in {city}. Skilled stylists and a proper consultation every time.",
     ctaLabel: "Book Now",

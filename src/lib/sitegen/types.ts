@@ -87,6 +87,10 @@ export interface IndustryProfile {
   /** Brand colour for the generated site. */
   primary: string;
   primaryDark: string;
+  /** Full-bleed hero background photo — a real, industry-relevant stock photo. */
+  heroImage: string;
+  /** "In action" photo shown in a band between Services and Trust sections. */
+  secondaryImage: string;
   /** Hero subheadline template. {city} is substituted. */
   heroSub: string;
   /** Primary CTA verb: "Call", "Book", "Get a Quote" */
