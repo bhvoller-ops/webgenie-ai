@@ -105,6 +105,9 @@ export default function AuditPage() {
         new Promise((r) => setTimeout(r, STAGES.length * 620)),
       ]);
 
+      if (res.status === 401) {
+        throw new Error("Your session has expired. Please refresh the page and sign in again.");
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || `Request failed (${res.status})`);
