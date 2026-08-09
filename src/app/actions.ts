@@ -311,3 +311,15 @@ export async function updateCallLogEntryAction(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/calls");
 }
+
+const chatLeadStatuses = ["new", "contacted", "closed", "spam"] as const;
+
+export async function updateChatLeadStatusAction(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const status = z.enum(chatLeadStatuses).parse(formData.get("status"));
+
+  const { supabase, organizationId } = await getUserAndOrganization();
+  const { error } = await supabase.from("chat_leads").update({ status }).eq("id", id).eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/leads");
+}

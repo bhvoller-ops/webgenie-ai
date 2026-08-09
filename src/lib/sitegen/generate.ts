@@ -5,6 +5,7 @@ import type {
   SiteOptions,
 } from "@/lib/sitegen/types";
 import { industryOf } from "@/lib/sitegen/industries";
+import { chatWidgetMarkup, chatWidgetScript, chatWidgetStyles } from "@/lib/sitegen/chat-widget";
 
 /* ------------------------------------------------------------------ */
 /* Icons                                                               */
@@ -249,6 +250,9 @@ export function generateSite(
     background:var(--brand);padding:13px 16px;box-shadow:0 -6px 22px rgba(0,0,0,.2)}
   .callbar a{display:flex;align-items:center;justify-content:center;gap:9px;color:#fff;font-weight:700;font-size:1.02rem}
 
+  /* Chat widget */
+  ${chatWidgetStyles()}
+
   ${
     options.demoBadge
       ? `.demoribbon{position:fixed;top:0;left:0;right:0;z-index:90;background:#0F172A;color:#fff;
@@ -468,6 +472,9 @@ ${
   <a href="${telHref(business.phone)}">${icon("phone", 19, "#fff")} Call ${esc(business.phone)}</a>
 </div>
 
+${chatWidgetMarkup(business)}
+<script>${chatWidgetScript(business, p)}</script>
+
 </body>
 </html>`;
 
@@ -487,6 +494,7 @@ ${
       "Call to action",
       "Footer",
       "Sticky mobile call bar",
+      "AI chat widget",
     ],
   };
 }
