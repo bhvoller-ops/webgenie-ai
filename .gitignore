@@ -10,3 +10,6 @@ test-results
 .env*
 supabase/.temp
 *.tsbuildinfo
+.agents
+.claude
+skills-lock.json

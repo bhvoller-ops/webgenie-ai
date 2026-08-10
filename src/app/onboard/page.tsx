@@ -10,6 +10,7 @@ import {
   Clock,
   ExternalLink,
   Globe,
+  Image as ImageIcon,
   Inbox,
   Loader2,
   MessageSquare,
@@ -60,7 +61,7 @@ const ACTIVE = [
 ];
 
 const MONTHLY_VALUE = ACTIVE.reduce((n, a) => n + a.value, 0);
-const CLIENT_PRICE = 299;
+const CLIENT_PRICE = 297;
 
 /* ------------------------------------------------------------------ */
 /* GMB link parsing                                                    */
@@ -368,6 +369,31 @@ export default function OnboardPage() {
               <Field label="Website" value="No website found" tone="bad" />
             </div>
 
+            <details className="mt-5 rounded-card border border-hairline bg-canvas/60 p-4 [&_summary]:cursor-pointer">
+              <summary className="flex items-center gap-2 text-[13px] font-medium text-muted">
+                <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+                Don&rsquo;t like the default photos? Swap them
+              </summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <ImageOverrideField
+                  label="Header photo URL"
+                  placeholder={profile.heroImage}
+                  value={biz.heroImageOverride ?? ""}
+                  onChange={(v) => setBiz({ ...biz, heroImageOverride: v || undefined })}
+                />
+                <ImageOverrideField
+                  label="In-action photo URL"
+                  placeholder={profile.secondaryImage}
+                  value={biz.secondaryImageOverride ?? ""}
+                  onChange={(v) => setBiz({ ...biz, secondaryImageOverride: v || undefined })}
+                />
+              </div>
+              <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
+                Leave blank to use the default {profile.label.toLowerCase()} photo. Paste any direct
+                image link — a free stock photo (Pexels, Unsplash) or one the business sent you.
+              </p>
+            </details>
+
             <button
               onClick={onboard}
               className="focus-ring mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-signal-warn to-[#F59E0B] py-4 text-sm font-semibold text-[#1A1206] transition-all hover:brightness-105"
@@ -539,6 +565,42 @@ export default function OnboardPage() {
         </div>
       ) : null}
     </PageShell>
+  );
+}
+
+function ImageOverrideField({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block">
+        <span className="text-[11px] font-medium uppercase tracking-widest text-faint">{label}</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="focus-ring mt-1.5 w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[12px] text-ink placeholder:truncate placeholder:text-faint/70"
+        />
+      </label>
+      <div className="mt-2 h-16 w-full overflow-hidden rounded-lg border border-hairline bg-raised">
+        <img
+          src={value || placeholder}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+          }}
+        />
+      </div>
+    </div>
   );
 }
 

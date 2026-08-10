@@ -1,9 +1,25 @@
-import { AlertTriangle, Phone, PhoneCall } from "lucide-react";
+import { AlertTriangle, CreditCard, Phone, PhoneCall } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
-import { addCallLogEntryAction, updateCallLogEntryAction } from "@/app/actions";
+import { addCallLogEntryAction, updateCallLogEntryAction, startClientCheckoutAction } from "@/app/actions";
 import { cn } from "@/lib/format";
+
+const PAYMENT_LABELS: Record<string, string> = {
+  none: "Not billed",
+  pending: "Checkout sent",
+  active: "Paying",
+  past_due: "Past due",
+  canceled: "Canceled",
+};
+
+const PAYMENT_TONE: Record<string, PillTone> = {
+  none: "neutral",
+  pending: "warn",
+  active: "good",
+  past_due: "bad",
+  canceled: "bad",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +55,7 @@ interface CallLogRow {
   last_contacted_at: string | null;
   follow_up_due_at: string | null;
   notes: string | null;
+  payment_status?: string;
 }
 
 async function getOrganizationId() {
@@ -79,13 +96,27 @@ export default async function CallsPage() {
   let rows: CallLogRow[] = [];
   if (organizationId) {
     const supabase = await createClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("call_log")
-      .select("id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes")
+      .select(
+        "id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes,payment_status"
+      )
       .eq("organization_id", organizationId)
       .order("follow_up_due_at", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
-    rows = data ?? [];
+    if (error) {
+      // Migration 017 (payment_status column) may not be applied yet —
+      // fall back so the tracker still works without billing status.
+      const fallback = await supabase
+        .from("call_log")
+        .select("id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes")
+        .eq("organization_id", organizationId)
+        .order("follow_up_due_at", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      rows = fallback.data ?? [];
+    } else {
+      rows = data ?? [];
+    }
   }
 
   const dueCount = rows.filter((r) => {
@@ -157,6 +188,9 @@ export default async function CallsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-ink">{row.business_name}</h3>
                       <Pill tone={STATUS_TONE[row.status]}>{STATUS_LABELS[row.status]}</Pill>
+                      {row.payment_status && row.payment_status !== "none" ? (
+                        <Pill tone={PAYMENT_TONE[row.payment_status]}>{PAYMENT_LABELS[row.payment_status]}</Pill>
+                      ) : null}
                       {follow.urgent ? (
                         <Pill tone={follow.tone}>
                           <AlertTriangle className="h-3 w-3" aria-hidden />
@@ -183,6 +217,18 @@ export default async function CallsPage() {
                       {row.city ? <span>{row.city}{row.state ? `, ${row.state}` : ""}</span> : null}
                     </div>
                   </div>
+                  {row.payment_status !== "active" ? (
+                    <form action={startClientCheckoutAction}>
+                      <input type="hidden" name="callLogId" value={row.id} />
+                      <button
+                        className="focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
+                        title="Open a Stripe checkout link for the $297/mo package"
+                      >
+                        <CreditCard className="h-3 w-3" aria-hidden />
+                        Collect payment
+                      </button>
+                    </form>
+                  ) : null}
                 </div>
 
                 <form action={updateCallLogEntryAction} className="mt-4 grid gap-2.5 md:grid-cols-[160px_1fr_140px_auto] md:items-center">

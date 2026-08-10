@@ -62,7 +62,12 @@ export function generateSite(
   business: Business,
   options: SiteOptions = {}
 ): GeneratedSite {
-  const p = industryOf(business.industry);
+  const industry = industryOf(business.industry);
+  const p = {
+    ...industry,
+    heroImage: business.heroImageOverride || industry.heroImage,
+    secondaryImage: business.secondaryImageOverride || industry.secondaryImage,
+  };
   const city = `${business.city}, ${business.state}`;
   const sub = p.heroSub.replace(/\{city\}/g, city);
   const faq = p.faq.map((f) => ({ q: f.q, a: f.a.replace(/\{city\}/g, city) }));

@@ -20,6 +20,10 @@ export interface Business {
   placeUrl?: string;
   /** Distinguishes real API results from generated sample data. */
   source: "places" | "manual" | "sample";
+  /** Replaces the industry's default hero photo for this business only. */
+  heroImageOverride?: string;
+  /** Replaces the industry's default "in action" photo for this business only. */
+  secondaryImageOverride?: string;
 }
 
 export type IndustryKey =

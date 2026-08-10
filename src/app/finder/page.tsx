@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
   Building2,
   Copy,
   Download,
   ExternalLink,
   Globe,
+  Image as ImageIcon,
   Loader2,
   MapPin,
   MessageSquare,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
-import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { INDUSTRIES, INDUSTRY_LIST } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
@@ -58,9 +59,21 @@ export default function FinderPage() {
   const [result, setResult] = useState<FinderResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<
+    Record<string, { heroImageOverride?: string; secondaryImageOverride?: string }>
+  >({});
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const agency = "VibeLabs Agency";
+
+  function withOverrides(b: Business): Business {
+    return { ...b, ...overrides[b.id] };
+  }
+
+  function setOverride(id: string, patch: { heroImageOverride?: string; secondaryImageOverride?: string }) {
+    setOverrides((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
 
   function parseLocation(v: string) {
     const [c, s] = v.split(",").map((x) => x.trim());
@@ -341,7 +354,8 @@ export default function FinderPage() {
               </thead>
               <tbody>
                 {result.withoutWebsite.map((b) => (
-                  <tr key={b.id} className="border-t border-hairline transition-colors hover:bg-raised/40">
+                  <Fragment key={b.id}>
+                  <tr className="border-t border-hairline transition-colors hover:bg-raised/40">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/30 bg-iris/10 text-[13px] font-semibold text-iris-soft">
@@ -380,7 +394,7 @@ export default function FinderPage() {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <a
-                          href={smsHref(b)}
+                          href={smsHref(withOverrides(b))}
                           className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-3 py-1.5 text-[12px] font-medium text-iris-soft transition-colors hover:bg-iris/20"
                           title="Open your phone's texting app with the link pre-filled"
                         >
@@ -388,7 +402,7 @@ export default function FinderPage() {
                           Text
                         </a>
                         <a
-                          href={demoSiteUrl(b, { by: agency })}
+                          href={demoSiteUrl(withOverrides(b), { by: agency })}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
@@ -397,15 +411,53 @@ export default function FinderPage() {
                           View site
                         </a>
                         <a
-                          href={demoSiteUrl(b, { by: agency, download: true })}
+                          href={demoSiteUrl(withOverrides(b), { by: agency, download: true })}
                           className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-ink"
                           title="Download the HTML file"
                         >
                           <Download className="h-3 w-3" aria-hidden />
                         </a>
+                        <button
+                          onClick={() => setEditingId(editingId === b.id ? null : b.id)}
+                          className={cn(
+                            "focus-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors",
+                            editingId === b.id
+                              ? "border-neon/40 bg-neon/10 text-neon-soft"
+                              : "border-hairline bg-raised text-muted hover:text-ink"
+                          )}
+                          title="Swap the header/in-action photo for this site"
+                        >
+                          <ImageIcon className="h-3 w-3" aria-hidden />
+                        </button>
                       </div>
                     </td>
                   </tr>
+                  {editingId === b.id ? (
+                    <tr className="border-t border-hairline bg-raised/30">
+                      <td colSpan={5} className="px-5 py-5">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <PhotoOverrideInput
+                            label="Header photo URL"
+                            placeholder={INDUSTRIES[b.industry].heroImage}
+                            value={overrides[b.id]?.heroImageOverride ?? ""}
+                            onChange={(v) => setOverride(b.id, { heroImageOverride: v || undefined })}
+                          />
+                          <PhotoOverrideInput
+                            label="In-action photo URL"
+                            placeholder={INDUSTRIES[b.industry].secondaryImage}
+                            value={overrides[b.id]?.secondaryImageOverride ?? ""}
+                            onChange={(v) => setOverride(b.id, { secondaryImageOverride: v || undefined })}
+                          />
+                        </div>
+                        <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
+                          Leave blank to use the default {INDUSTRIES[b.industry].label.toLowerCase()} photo.
+                          Paste any direct image link — free stock (Pexels, Unsplash) or one the business
+                          sent you. The Text and View site links above update immediately.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -426,6 +478,42 @@ export default function FinderPage() {
         </div>
       ) : null}
     </PageShell>
+  );
+}
+
+function PhotoOverrideInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-hairline bg-canvas">
+        <img
+          src={value || placeholder}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+          }}
+        />
+      </div>
+      <label className="block min-w-0 flex-1">
+        <span className="text-[11px] font-medium uppercase tracking-widest text-faint">{label}</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="focus-ring mt-1.5 w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[12px] text-ink placeholder:truncate placeholder:text-faint/70"
+        />
+      </label>
+    </div>
   );
 }
 
