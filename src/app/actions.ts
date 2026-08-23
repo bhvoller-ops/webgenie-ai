@@ -34,7 +34,13 @@ async function getUserAndOrganization() {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("Authentication required.");
+  // A thrown Error here crashes to Next's generic "server-side exception"
+  // page — there's no error boundary anywhere in the app to catch it. This
+  // fires whenever a Supabase session has expired (tokens last ~1hr) while a
+  // tab sat open, which is routine, not exceptional. Redirect instead: every
+  // action in this file goes through here, so this one change covers all of
+  // them rather than patching each call site's crash individually.
+  if (!user) redirect("/login");
 
   const { data: membership } = await supabase
     .from("organization_members")
@@ -252,6 +258,19 @@ export async function updateMemberRoleAction(formData: FormData) {
   revalidatePath("/settings");
 }
 
+export async function deleteMyAccountAction() {
+  const { user } = await getUserAndOrganization();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  // Organization rows, memberships, etc. cascade or are left as orphaned
+  // history depending on each table's FK — this only removes the auth
+  // identity itself, which is what "delete my account" means to the person
+  // clicking it. Sign-out happens implicitly once the session's user is gone.
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) throw new Error(error.message);
+  redirect("/login");
+}
+
 export async function revokeApiKeyAction(formData: FormData) {
   const apiKeyId = z.string().uuid().parse(formData.get("apiKeyId"));
   const { supabase, user, organizationId } = await getUserAndOrganization();
@@ -265,13 +284,27 @@ export async function revokeApiKeyAction(formData: FormData) {
 
 const callLogStatuses = ["not_called", "no_answer", "not_interested", "agreed_to_see_site", "viewed_site", "closed", "lost"] as const;
 
+/**
+ * A prospect's demo URL is convenience metadata, not something worth crashing
+ * the whole call tracker over. Accept a bare domain (add https://), and if
+ * it's still not a usable URL after that, drop it silently rather than throw —
+ * closing a sale should never block on a formatting nitpick in an optional field.
+ */
+function normalizeOptionalUrl(raw: string | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const result = z.string().url().safeParse(withScheme);
+  return result.success ? result.data : undefined;
+}
+
 export async function addCallLogEntryAction(formData: FormData) {
   const businessName = z.string().min(1).max(160).parse(formData.get("businessName"));
   const phone = z.string().min(1).max(40).parse(formData.get("phone"));
   const industry = z.string().max(80).optional().parse(formData.get("industry")?.toString() || undefined);
   const city = z.string().max(80).optional().parse(formData.get("city")?.toString() || undefined);
   const state = z.string().max(20).optional().parse(formData.get("state")?.toString() || undefined);
-  const demoUrl = z.string().url().optional().parse(formData.get("demoUrl")?.toString() || undefined);
+  const demoUrl = normalizeOptionalUrl(formData.get("demoUrl")?.toString());
 
   const { supabase, user, organizationId } = await getUserAndOrganization();
   const { error } = await supabase.from("call_log").insert({
