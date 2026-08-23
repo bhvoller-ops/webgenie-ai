@@ -47,7 +47,7 @@ more per client. Both are real; A is the priority.
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, and a "Collect payment" button |
 | AI intake chat widget | **Built** — added to every generated demo site; leads land in `/leads` (migration `016_chat_leads.sql`) |
-| Stripe billing | **Verified working end to end** in test mode as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a real completed test payment. Only gap: account needs business verification before real (non-test) money can move — see §2a |
+| Stripe billing | **Fully working and activated** as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a completed test payment, and business verification confirmed live (`charges_enabled`/`payouts_enabled` both `true`). Only remaining step is swapping test-mode keys for live-mode ones when there's a real client to bill — see §2a |
 | Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
@@ -119,9 +119,14 @@ where it goes — it does not ask).
    flipped to `"active"` with real `stripe_customer_id` / `stripe_subscription_id`
    / `stripe_checkout_session_id` values populated. Checkout → webhook →
    signature verification → DB write all work end to end.
-3. **Still open:** business verification on the WebGenie sandbox account for
-   real (non-test) payouts — charges/payouts are still disabled until that's
-   done. Test-mode subscriptions like the one above don't move real money.
+3. **Business verification submitted and confirmed live** on 23 Aug — checked
+   directly via the Stripe API: `charges_enabled: true`, `payouts_enabled: true`,
+   `details_submitted: true`, no outstanding `requirements`. Real (non-test)
+   payments will now actually pay out. Nothing technical is left blocking a
+   real sale — switching this account's keys from `sk_test_...`/`pk_test_...`
+   to live mode (`sk_live_...`/`pk_live_...`) is the only remaining step, and
+   that only matters once there's a real client ready to pay (live and test
+   mode have separate products/prices/webhooks — see §7's Stripe section).
 
 **Lesson from how this went wrong the first time:** verify integrations against
 the actual external service (API call, dashboard check) before reporting them
