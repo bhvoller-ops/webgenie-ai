@@ -1,0 +1,47 @@
+import { ExternalLink, Star } from "lucide-react";
+import { PageShell } from "@/components/shell";
+import { Card, SectionHeading } from "@/components/ui";
+import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { demoSiteUrl } from "@/lib/sitegen/encode";
+import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
+
+export const dynamic = "force-static";
+
+export default function SamplesPage() {
+  return (
+    <PageShell>
+      <SectionHeading
+        eyebrow="Reference"
+        title="Sample sites"
+        description="One example per industry, always available — for checking design quality at a glance or pulling up on a call without re-running Finder."
+      />
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {SAMPLE_BUSINESSES.map((business) => {
+          const profile = INDUSTRIES[business.industry];
+          const url = demoSiteUrl(business, { by: "WebGenie AI", badge: false });
+          return (
+            <a key={business.id} href={url} target="_blank" rel="noopener noreferrer" className="group block">
+              <Card className="h-full transition-colors group-hover:border-iris/50">
+                <p className="text-xs font-semibold uppercase tracking-wide text-iris-soft">{profile.label}</p>
+                <h3 className="mt-1.5 flex items-center gap-1.5 text-base font-semibold text-ink">
+                  {business.name}
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-faint transition-colors group-hover:text-iris-soft" aria-hidden />
+                </h3>
+                <p className="mt-1 text-sm text-muted">
+                  {business.city}, {business.state}
+                </p>
+                {business.rating ? (
+                  <p className="mt-3 flex items-center gap-1 text-sm text-muted">
+                    <Star className="h-3.5 w-3.5 fill-current text-amber-400" aria-hidden />
+                    <span className="font-medium text-ink">{business.rating}</span>({business.reviewCount} reviews)
+                  </p>
+                ) : null}
+              </Card>
+            </a>
+          );
+        })}
+      </div>
+    </PageShell>
+  );
+}
