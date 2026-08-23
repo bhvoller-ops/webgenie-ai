@@ -135,6 +135,20 @@ one agency using WebGenie. Threading real attribution through
 `Business`/`generateSite` is a real but deliberately deferred fix — flagged
 twice now, not silently ignored — needed before a second agency signs on.
 
+**Follow-up fix, same day:** the two-column hero shipped with a real spacing
+bug — text sat flush at the true left edge, the form card flush at the true
+right edge, no margin from either. Root cause: `.heroin{padding:80px 0}`'s
+shorthand silently overwrote `.wrap`'s horizontal padding on the same element
+(later rule, same specificity — shorthand replaces all four sides rather than
+merging with an earlier rule's), and `.heroin{max-width:none}` was overriding
+`.wrap`'s 1140px width cap the same way, so the hero would've had no width
+limit at all on a wide monitor. Fixed by giving `.heroin` its own `40px` side
+padding (`24px` on mobile) and dropping the width-cap override so it matches
+the rest of the page. **General lesson for this codebase:** when combining
+`.wrap` with another class on one element, never give the second class a
+`padding`/`margin`/`max-width` shorthand unless it's meant to fully replace
+`.wrap`'s value — it will, silently, rather than adding to it.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -432,6 +446,11 @@ of them produce revenue this month.
   the capture engine for one uncooperative website.
 - **Google Places radius** is implemented as a rectangle, not a circle — Places
   Text Search (New) rejects a circle parameter. Don't "simplify" this back.
+- **Combining `.wrap` with another class on one sitegen element** (e.g.
+  `class="wrap heroin"`) — never give the second class a `padding`/`margin`/
+  `max-width` shorthand unless it's meant to fully replace `.wrap`'s value.
+  It will, silently, same-specificity-later-rule-wins, not merge with it. Bit
+  the two-column hero on 23 Aug — see §2c.
 - **Never log or print `STRIPE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`**,
   including in scripts, curl commands, or debugging output.
 - **There is no error boundary anywhere in this app** (`app/error.tsx` doesn't
