@@ -45,7 +45,7 @@ more per client. Both are real; A is the priority.
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
-| Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, and a "Collect payment" button |
+| Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | AI intake chat widget | **Built** — added to every generated demo site; leads land in `/leads` (migration `016_chat_leads.sql`) |
 | Stripe billing | **Fully working and activated** as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a completed test payment, and business verification confirmed live (`charges_enabled`/`payouts_enabled` both `true`). Only remaining step is swapping test-mode keys for live-mode ones when there's a real client to bill — see §2a |
 | Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
@@ -147,7 +147,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── finder/                 Motion A: prospect finder
 │   │   ├── onboard/                Motion A: client onboarding (10 steps)
 │   │   ├── audit/                  Motion B: audit funnel
-│   │   ├── calls/                  Call tracker + Stripe "Collect payment"
+│   │   ├── calls/                  Call tracker + Stripe "Collect payment" / "Copy payment link"
+│   │   ├── pay/                    Public per-prospect payment link redirect + outcome pages
 │   │   ├── leads/                  Chat-widget leads from generated sites
 │   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
 │   │   ├── login/, auth/           Auth
@@ -245,11 +246,28 @@ rejects a circle parameter, so radius is applied as a rectangle instead — do n
 Free tier is 5,000 Text Search calls/month; one call returns ~20 businesses.
 Realistic usage is ~1% of that. Set a $10 budget cap anyway.
 
-### Stripe — `lib/stripe.ts`, `app/api/billing/`
-$297/mo recurring Price. `/calls` has a "Collect payment" button that creates a
-real Checkout session; a signature-verified webhook updates `call_log.payment_status`
-(`none` / `pending` / `active` / `past_due` / `canceled`). Requires migration `017`
-applied and the Stripe account claimed + activated (§2a) to actually move money.
+### Stripe — `lib/stripe.ts`, `app/api/billing/`, `app/pay/`
+$297/mo recurring Price. Session creation lives in one shared
+`createClientCheckoutSession()` (`lib/stripe.ts`) used by two entry points on
+`/calls`, both per-prospect and both tracked the same way:
+
+- **"Collect payment"** — redirects the agency's own browser straight to
+  Checkout. For paying on the spot, in person or on a call.
+- **"Copy payment link"** — copies `https://<domain>/pay/<call_log_id>` to the
+  clipboard. This is what actually gets texted or emailed to a client. It's a
+  public, unauthenticated route (`app/pay/[callLogId]/route.ts`) — the client
+  has no WebGenie login, so the call_log UUID is the only "auth," same trust
+  model as any emailed magic link. It mints a **fresh** Checkout session on
+  every visit rather than baking one in, so unlike a raw Stripe URL it never
+  expires. Lands on public `/pay/success`, `/pay/cancelled`, or
+  `/pay/already-active` — not `/calls`, which would dead-end an external
+  client at a login screen they don't have an account for.
+
+Either path's completed Checkout fires the same signature-verified webhook,
+which updates `call_log.payment_status` (`none` / `pending` / `active` /
+`past_due` / `canceled`). Requires migration `017` applied and the Stripe
+account claimed + activated (§2a) to actually move money — both confirmed
+done as of 23 Aug.
 
 ### AI intake chat — `app/api/site-chat/`
 Every generated demo site now embeds a real chat widget. Conversations that leave
