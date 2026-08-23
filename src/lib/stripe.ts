@@ -27,12 +27,19 @@ export async function createClientCheckoutSession({
   supabase,
   callLogId,
   organizationId,
-  baseUrl
+  baseUrl,
+  successPath = "/calls?payment=success",
+  cancelPath = "/calls?payment=cancelled"
 }: {
   supabase: SupabaseClient;
   callLogId: string;
   organizationId: string;
   baseUrl: string;
+  /** Override for callers whose visitor isn't a logged-in WebGenie user — the
+   * default lands back on /calls, which is fine for the agency's own device
+   * but would dead-end an external client at a login screen. */
+  successPath?: string;
+  cancelPath?: string;
 }): Promise<string> {
   if (!WEBGENIE_CLIENT_PRICE_ID) {
     throw new Error("Billing isn't configured yet — STRIPE_CLIENT_PRICE_ID is missing.");
@@ -51,8 +58,8 @@ export async function createClientCheckoutSession({
     line_items: [{ price: WEBGENIE_CLIENT_PRICE_ID, quantity: 1 }],
     client_reference_id: callLogId,
     metadata: { call_log_id: callLogId, organization_id: organizationId },
-    success_url: `${baseUrl}/calls?payment=success`,
-    cancel_url: `${baseUrl}/calls?payment=cancelled`,
+    success_url: `${baseUrl}${successPath}`,
+    cancel_url: `${baseUrl}${cancelPath}`,
     integration_identifier: `webgenie_${randomLetters(8)}`
   });
 
