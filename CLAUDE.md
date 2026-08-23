@@ -98,9 +98,10 @@ form on the other) instead of just CTA buttons.
 **Shipped:**
 - Hero is now a two-column grid (`lib/sitegen/generate.ts`): left column keeps
   the existing badge/h1/sub/CTAs/trust chips; right column is a new
-  `quoteform` card (`lib/sitegen/lead-form.ts`) — "How Can We Help?" header,
-  Name/Email/Phone/City/Service-dropdown (populated from that industry's real
-  services)/Message, submit button. Stacks to one column under 820px.
+  `quoteform` card (`lib/sitegen/lead-form.ts`) — "FREE, NO-OBLIGATION QUOTE"
+  header, Name/Email/Phone/Message fields, submit button. Stacks to one column
+  under 820px. (City and a per-industry Service dropdown were in the first
+  version of this card; removed 23 Aug — see the tweak below.)
 - The Google rating badge moved out of the cramped header text and into its
   own high-contrast pill at the bottom-left of the hero (previous version of
   this section documented it as still in the header — that's now stale, see
@@ -148,6 +149,17 @@ the rest of the page. **General lesson for this codebase:** when combining
 `.wrap` with another class on one element, never give the second class a
 `padding`/`margin`/`max-width` shorthand unless it's meant to fully replace
 `.wrap`'s value — it will, silently, rather than adding to it.
+
+**Follow-up tweak, same day:** simplified the quote-form card after seeing it
+rendered — dropped the "How Can We Help?" heading (the eyebrow line is the
+only header text now) and removed the City field and per-industry Service
+dropdown, leaving just Name / Email / Phone / a single message field
+(placeholder "Tell us what's going on."). `leadFormMarkup()` no longer takes
+a `services` param. Also nudged the card itself a little right — `.heroin`'s
+right-side padding went from `40px` to `20px` (left unchanged) — since the
+equal-padding version from the spacing fix above read as too centered. The
+AI chat widget's panel header was retitled too: leads with "How Can We Help
+You" now, business name moved to the smaller subtitle line beneath it.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
@@ -344,7 +356,10 @@ same `/leads` inbox tagged by `source`:
 - **AI intake chat widget** (`lib/sitegen/chat-widget.ts`) — conversational,
   grounded only in that business's real services/FAQ/hours.
 - **Hero quote-request form** (`lib/sitegen/lead-form.ts`, added 23 Aug) —
-  Name/Email/Phone/City/Service/Message, embedded directly in the hero.
+  Name/Email/Phone/Message, embedded directly in the hero. Simplified down
+  from an initial Name/Email/Phone/City/Service/Message version the same day
+  (§2c) — `chat_leads`' `city`/`service_requested` columns from migration
+  `018` exist but neither capture path writes to them anymore.
 
 Both write to `chat_leads` (migrations `016` + `018`) and both call back
 cross-origin to this deployment via `lib/sitegen/cors.ts` — required once a
