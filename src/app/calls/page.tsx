@@ -3,6 +3,7 @@ import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { addCallLogEntryAction, updateCallLogEntryAction, startClientCheckoutAction } from "@/app/actions";
+import { PaymentLinkButton } from "@/components/payment-link-button";
 import { cn } from "@/lib/format";
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -218,16 +219,19 @@ export default async function CallsPage() {
                     </div>
                   </div>
                   {row.payment_status !== "active" ? (
-                    <form action={startClientCheckoutAction}>
-                      <input type="hidden" name="callLogId" value={row.id} />
-                      <button
-                        className="focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
-                        title="Open a Stripe checkout link for the $297/mo package"
-                      >
-                        <CreditCard className="h-3 w-3" aria-hidden />
-                        Collect payment
-                      </button>
-                    </form>
+                    <div className="flex shrink-0 items-start gap-2">
+                      <form action={startClientCheckoutAction}>
+                        <input type="hidden" name="callLogId" value={row.id} />
+                        <button
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
+                          title="Open a Stripe checkout link for the $297/mo package on this device"
+                        >
+                          <CreditCard className="h-3 w-3" aria-hidden />
+                          Collect payment
+                        </button>
+                      </form>
+                      <PaymentLinkButton callLogId={row.id} />
+                    </div>
                   ) : null}
                 </div>
 

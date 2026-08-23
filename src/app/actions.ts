@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, WEBGENIE_CLIENT_PRICE_ID } from "@/lib/stripe";
+import { createClientCheckoutSession } from "@/lib/stripe";
 import { generatePromptsForBlueprint } from "@/lib/jobs/generate-prompts";
 import { promptPlatforms } from "@/lib/prompts/types";
 import { generateContentForBlueprint } from "@/lib/jobs/generate-content";
@@ -354,51 +354,12 @@ async function getBaseUrl() {
   return `${proto}://${host}`;
 }
 
-function randomLetters(n: number) {
-  const chars = "abcdefghijklmnopqrstuvwxyz";
-  return Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
-
 export async function startClientCheckoutAction(formData: FormData) {
   const callLogId = z.string().uuid().parse(formData.get("callLogId"));
   const { supabase, organizationId } = await getUserAndOrganization();
-
-  if (!WEBGENIE_CLIENT_PRICE_ID) {
-    throw new Error("Billing isn't configured yet — STRIPE_CLIENT_PRICE_ID is missing.");
-  }
-
-  const { data: call } = await supabase
-    .from("call_log")
-    .select("id")
-    .eq("id", callLogId)
-    .eq("organization_id", organizationId)
-    .single();
-  if (!call) throw new Error("Prospect not found.");
-
   const baseUrl = await getBaseUrl();
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: WEBGENIE_CLIENT_PRICE_ID, quantity: 1 }],
-    client_reference_id: callLogId,
-    metadata: { call_log_id: callLogId, organization_id: organizationId },
-    success_url: `${baseUrl}/calls?payment=success`,
-    cancel_url: `${baseUrl}/calls?payment=cancelled`,
-    integration_identifier: `webgenie_${randomLetters(8)}`,
-  });
-
-  const { error } = await supabase
-    .from("call_log")
-    .update({ stripe_checkout_session_id: session.id, payment_status: "pending" })
-    .eq("id", callLogId)
-    .eq("organization_id", organizationId);
-  if (error) {
-    // Non-fatal: the checkout still works, it just won't show as "pending"
-    // in the tracker until the webhook confirms payment.
-    console.error("Failed to record checkout session on call_log:", error.message);
-  }
-
-  if (!session.url) throw new Error("Stripe did not return a checkout URL.");
-  redirect(session.url);
+  const url = await createClientCheckoutSession({ supabase, callLogId, organizationId, baseUrl });
+  redirect(url);
 }
 
 const chatLeadStatuses = ["new", "contacted", "closed", "spam"] as const;
