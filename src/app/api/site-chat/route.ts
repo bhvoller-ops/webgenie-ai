@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -67,15 +67,19 @@ Phone: ${business.phone}
 Keep replies short (1-3 sentences), warm, and direct — this is a chat bubble, not an email. If the visitor wants to book, get a quote, or has a question you can't answer from the facts above, ask for their name and phone number so the team can call them back, then call capture_lead once you have both plus a short reason. Don't call capture_lead until you actually have a name and phone number.`;
 }
 
+export function OPTIONS() {
+  return corsPreflight();
+}
+
 export async function POST(request: Request) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
-    return NextResponse.json({ reply: "Chat is temporarily unavailable — please call us directly." });
+    return corsJson({ reply: "Chat is temporarily unavailable — please call us directly." });
   }
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    return corsJson({ error: "Invalid request." }, { status: 400 });
   }
 
   const { business, messages } = parsed.data;
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
     if (!res.ok) {
       const detail = await res.text();
       console.error("OpenAI error:", detail);
-      return NextResponse.json({ reply: "Sorry, something went wrong — please call us directly." });
+      return corsJson({ reply: "Sorry, something went wrong — please call us directly." });
     }
 
     const data = await res.json();
@@ -135,15 +139,15 @@ export async function POST(request: Request) {
         }
       }
 
-      return NextResponse.json({
+      return corsJson({
         reply: `Thanks, ${args.name ?? "there"} — someone from ${business.name} will call you at ${args.phone ?? "the number you gave"} shortly. Anything else I can help with while you wait?`,
         leadCaptured: true
       });
     }
 
-    return NextResponse.json({ reply: choice?.content ?? "Sorry, could you say that again?" });
+    return corsJson({ reply: choice?.content ?? "Sorry, could you say that again?" });
   } catch (error) {
     console.error("Site chat error:", error);
-    return NextResponse.json({ reply: "Sorry, something went wrong — please call us directly." });
+    return corsJson({ reply: "Sorry, something went wrong — please call us directly." });
   }
 }
