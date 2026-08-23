@@ -187,7 +187,7 @@ export function generateSite(
   .hero::after{content:"";position:absolute;inset:0;opacity:.07;
     background-image:linear-gradient(rgba(255,255,255,.9) 1px,transparent 1px),
       linear-gradient(90deg,rgba(255,255,255,.9) 1px,transparent 1px);background-size:44px 44px}
-  .heroin{position:relative;padding:80px 40px;
+  .heroin{position:relative;padding:80px 20px 80px 40px;
     display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:52px;align-items:center}
   .herocol{max-width:640px}
   .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);
@@ -328,7 +328,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
           : ""
       }
     </div>
-    ${leadFormMarkup(p.services)}
+    ${leadFormMarkup()}
   </div>
 </div>
 

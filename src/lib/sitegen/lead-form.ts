@@ -1,4 +1,3 @@
-import type { ServiceSpec } from "@/lib/sitegen/types";
 import { safeJson } from "@/lib/sitegen/chat-widget";
 
 /**
@@ -9,28 +8,18 @@ import { safeJson } from "@/lib/sitegen/chat-widget";
  */
 const LEAD_API_URL = "https://webgenie-ai-sooty.vercel.app/api/site-lead";
 
-const esc = (s: string) =>
-  String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-
 export function leadFormStyles(): string {
   return `
   .quoteform{background:#fff;border-radius:18px;overflow:hidden;
     box-shadow:0 30px 70px -24px rgba(0,0,0,.55);width:100%}
   .quoteform-head{background:var(--brand-dark);color:#fff;padding:22px 26px}
   .qf-eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.82}
-  .quoteform-head h3{color:#fff;font-size:1.24rem;margin-top:5px;line-height:1.25}
   .quoteform-body{padding:22px 26px 26px}
   .qf-field{margin-bottom:11px}
-  .qf-field input,.qf-field select,.qf-field textarea{
+  .qf-field input,.qf-field textarea{
     width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;
-    font-size:.92rem;font-family:inherit;color:var(--ink);background:var(--soft);appearance:none}
-  .qf-field select{background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%2364748B" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>');
-    background-repeat:no-repeat;background-position:right 12px center}
-  .qf-field input:focus,.qf-field select:focus,.qf-field textarea:focus{
+    font-size:.92rem;font-family:inherit;color:var(--ink);background:var(--soft)}
+  .qf-field input:focus,.qf-field textarea:focus{
     outline:2px solid var(--brand);outline-offset:1px;background:#fff}
   .qf-field textarea{resize:vertical;min-height:64px}
   .qf-submit{width:100%;background:var(--brand);color:#fff;border:none;border-radius:10px;padding:14px;
@@ -44,30 +33,17 @@ export function leadFormStyles(): string {
   .qf-msg.err{color:#B91C1C}`;
 }
 
-export function leadFormMarkup(services: ServiceSpec[]): string {
-  const options = services
-    .slice(0, 10)
-    .map((s) => `<option value="${esc(s.name)}">${esc(s.name)}</option>`)
-    .join("");
-
+export function leadFormMarkup(): string {
   return `
 <div class="quoteform">
   <div class="quoteform-head">
     <div class="qf-eyebrow">Free, No-Obligation Quote</div>
-    <h3>How Can We Help?</h3>
   </div>
   <form class="quoteform-body" id="wg-quote-form" novalidate>
-    <div class="qf-field"><input type="text" name="name" placeholder="Full Name *" required maxlength="160" autocomplete="name"></div>
+    <div class="qf-field"><input type="text" name="name" placeholder="Name *" required maxlength="160" autocomplete="name"></div>
     <div class="qf-field"><input type="email" name="email" placeholder="Email" maxlength="200" autocomplete="email"></div>
     <div class="qf-field"><input type="tel" name="phone" placeholder="Phone Number *" required maxlength="40" autocomplete="tel"></div>
-    <div class="qf-field"><input type="text" name="city" placeholder="City" maxlength="100" autocomplete="address-level2"></div>
-    <div class="qf-field">
-      <select name="service">
-        <option value="">Service Needed</option>
-        ${options}
-      </select>
-    </div>
-    <div class="qf-field"><textarea name="message" placeholder="Optional Message / Additional Details" maxlength="600"></textarea></div>
+    <div class="qf-field"><textarea name="message" placeholder="Tell us what's going on." maxlength="600"></textarea></div>
     <button type="submit" class="qf-submit" id="wg-quote-submit">Get My Free Quote</button>
     <p class="qf-note">We respect your privacy. No spam, ever.</p>
     <p class="qf-msg" id="wg-quote-msg" role="status"></p>
@@ -110,8 +86,6 @@ export function leadFormScript(business: { name: string; industryLabel: string; 
         name: name,
         email: (data.get('email') || '').toString().trim(),
         phone: phone,
-        city: (data.get('city') || '').toString().trim(),
-        service: (data.get('service') || '').toString().trim(),
         message: (data.get('message') || '').toString().trim()
       })
     })
