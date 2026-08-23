@@ -1,8 +1,9 @@
 # WebGenie AI — Project Context
 
-> Read this first. It is the handoff from a long planning and design session and
-> contains decisions, verified facts, and traps that are not obvious from the code.
-> Last updated: 3 August 2026.
+> Read this first. It is the handoff from the ongoing build and contains
+> decisions, verified facts, and traps that are not obvious from the code.
+> Last updated: 23 August 2026 (previous update: 3 August 2026 — that version
+> undersold progress; the v2 UI merge and much more happened after it was written).
 
 ---
 
@@ -14,7 +15,7 @@ running it. Two motions share one engine:
 **Motion A — Businesses with NO website (primary, cold outreach).**
 Find them on Google Maps, generate a complete website for each one before making
 contact, then call: *"I noticed you don't have a website, so I built you one.
-Would you like to see it?"* Convert to **$299/mo** covering hosting, AI chat,
+Would you like to see it?"* Convert to **$297/mo** covering hosting, AI chat,
 voice receptionist, review automation, and CRM.
 
 **Motion B — Businesses with a BAD website (warm, higher ticket).**
@@ -35,16 +36,99 @@ more per client. Both are real; A is the priority.
 | Thing | State |
 |---|---|
 | Engine (capture → intelligence → blueprint → prompts → orchestration → delivery) | **Built**, Sprint 10 complete |
-| Database migrations `001`–`011` | **Written**, not yet run against a production Supabase project |
-| Deployed to Vercel | Yes — but against an incomplete backend; the live UI is a prototype |
-| Production Supabase project | **Not created yet.** This is the #1 blocker |
-| Analysis worker | **Not deployed.** Without it, nothing analyses |
-| Front-end design system | **Does not exist in this repo.** `globals.css` is 15 lines, `app-shell.tsx` is 34 |
-| Prospect Finder / Site Generator / Onboarding | Built in a separate folder, **not yet merged** (see §4) |
-| Stripe billing | Webhook boundary exists, not connected. Invoice manually |
+| v2 UI merge (design system, finder, onboard, sitegen, prospect finder) | **Done** — merged into this repo, no longer a separate folder |
+| Data seam (`lib/data/provider.ts`) | **Live on Supabase** (`DATA_MODE = "supabase"`), not fixtures |
+| Database migrations `001`–`017` | Written and committed. **Not confirmed run against production** — verify before trusting `/calls` payment status or `/leads` |
+| Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
+| Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
+| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button |
+| Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
+| Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override |
+| Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
+| Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, and a "Collect payment" button |
+| AI intake chat widget | **Built** — added to every generated demo site; leads land in `/leads` (migration `016_chat_leads.sql`) |
+| Stripe billing | **Verified working end to end** in test mode as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a real completed test payment. Only gap: account needs business verification before real (non-test) money can move — see §2a |
+| Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
 | Transactional email | Invites stored, never sent. Send manually |
+| `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 
-**Nothing has been sold yet. No customer has seen a report.**
+**Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
+
+### 2b. Auth — password login added 23 Aug 2026
+
+`/login` was passwordless (Supabase magic-link OTP) since the original build.
+That hit Supabase's default mailer rate limit during a normal testing session
+and locked out the only real account with no way to recover except waiting —
+unacceptable for a single-operator tool that needs to log in reliably.
+
+**What changed:**
+- `/login` now has email + password sign-in, plus a "Create account" toggle
+- New accounts go through `POST /api/auth/create-account`, which uses the
+  Supabase **admin** client (`email_confirm: true`) to create a pre-confirmed
+  user server-side — no confirmation email is sent, so this can't hit the same
+  rate limit. The client then signs in immediately with the same credentials.
+- `deleteMyAccountAction` (in `actions.ts`) added a confirm-gated "Delete my
+  account" button to `/settings` → Danger zone. Deletes the auth identity only;
+  it does not cascade/export org data first — do that separately if it matters.
+- The existing `wallang@gmail.com` account had a password set directly via the
+  Supabase admin API (`PUT /auth/v1/admin/users/{id}`) to unblock it immediately
+  without waiting out the rate limit.
+
+**Also fixed the same day, same investigation:** `getUserAndOrganization()` in
+`actions.ts` used to `throw new Error("Authentication required.")` on a missing
+session. There is no error boundary anywhere in this app, so that threw all the
+way up to Next's generic "Application error: a server-side exception has
+occurred" page — happens on any expired Supabase session (~1hr token life)
+while a tab sits open, which is routine, not exceptional. Changed to
+`redirect("/login")`. This function is the shared auth check for every server
+action in the file, so the one change covers all of them, not just the one
+that happened to get reported.
+
+**Not done, worth doing before real users show up:** no password-reset flow,
+no rate-limiting on login attempts, delete-account has no data export step.
+Fine for one operator; revisit before onboarding anyone else.
+
+### 2a. Stripe — corrected 22 Aug 2026
+
+The 10 Aug session's claim of "Stripe billing connected" was **not actually
+verified against a real account** — its `STRIPE_SECRET_KEY` pointed to a Stripe
+account nobody could locate on 22 Aug. On investigation, the login `erngone@yahoo.com`
+has five *other* businesses (Cassian Wallang, DPI Lodge LLC, Furnishedfinder,
+"New business", SCAUF) — none of them WebGenie. A first attempt to fix this
+landed the $297 product in the existing **SCAUF** account by accident (whatever
+account is active in Stripe's top-left switcher when you create a product is
+where it goes — it does not ask).
+
+**The real, correct setup as of 22 Aug:**
+- Dedicated Stripe account: **"WebGenie sandbox"** (`acct_1U7QiMCwvOQv0LhT`)
+- Product: `WebGenie AI`, price `price_1U7QvnCwvOQv0LhTzjdR8Ky5`, $297.00/month USD, recurring, active
+- `.env.local` and Vercel (Production, Preview, Development) all updated to this
+  account's keys and redeployed — confirmed live in production as of deploy
+  `dpl_BLakTJtsihiHiUZvKq29ba7sfW2X`
+- **This account is brand new and unverified**: `charges_enabled: false`,
+  `payouts_enabled: false`, `details_submitted: false` (confirmed via the Stripe
+  API `GET /v1/account`, not just assumed). Test-mode Checkout will work today;
+  real money will not move until "Verify your business" (business + bank
+  details) is completed in this specific account.
+
+**Update, same day — the full loop is now verified working, not just wired:**
+1. Migration `017` is confirmed run in production — `call_log` has all four
+   billing columns (checked live via the Supabase REST API).
+2. A real test-mode Checkout was completed on `/calls` and the webhook round
+   trip confirmed by querying `call_log` directly afterward: `payment_status`
+   flipped to `"active"` with real `stripe_customer_id` / `stripe_subscription_id`
+   / `stripe_checkout_session_id` values populated. Checkout → webhook →
+   signature verification → DB write all work end to end.
+3. **Still open:** business verification on the WebGenie sandbox account for
+   real (non-test) payouts — charges/payouts are still disabled until that's
+   done. Test-mode subscriptions like the one above don't move real money.
+
+**Lesson from how this went wrong the first time:** verify integrations against
+the actual external service (API call, dashboard check) before reporting them
+as connected. "The code compiles and calls the SDK" is not the same as "the
+account it's calling exists and is reachable" — and "I ran the migration" isn't
+confirmed until a live query shows the columns. Both gaps surfaced only because
+each claim got checked against the real system instead of taken at face value.
 
 ---
 
@@ -54,7 +138,21 @@ more per client. Both are real; A is the priority.
 C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-ops/webgenie-ai
 ├── CLAUDE.md                       ← you are here
 ├── src/
-│   ├── app/                        Next.js 15 App Router
+│   ├── app/
+│   │   ├── finder/                 Motion A: prospect finder
+│   │   ├── onboard/                Motion A: client onboarding (10 steps)
+│   │   ├── audit/                  Motion B: audit funnel
+│   │   ├── calls/                  Call tracker + Stripe "Collect payment"
+│   │   ├── leads/                  Chat-widget leads from generated sites
+│   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
+│   │   ├── login/, auth/           Auth
+│   │   ├── settings/               Account settings
+│   │   └── api/
+│   │       ├── prospects/, demo-site/   Finder + site-gen routes
+│   │       ├── billing/                 Stripe checkout + webhook
+│   │       ├── site-chat/               AI intake chat widget backend
+│   │       ├── analysis/, audits/, delivery-runs/, orchestration-runs/,
+│   │       │   content-packages/, prompt-packages/, admin/, v1/, health/
 │   ├── lib/
 │   │   ├── capture/                Playwright capture + feature extraction
 │   │   ├── intelligence/           11 scoring modules — the core IP
@@ -63,71 +161,27 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── copy/                   AI copywriter
 │   │   ├── orchestration/          Multi-agent specialist review
 │   │   ├── delivery/               ZIP / GitHub packaging
+│   │   ├── sitegen/                Demo site generator — the Motion A product
+│   │   ├── prospect/               Google Places finder + sample fallback
+│   │   ├── data/provider.ts        The one data seam — now backed by Supabase
+│   │   ├── stripe.ts               Stripe client + billing helpers
+│   │   ├── jobs/, admin/, security/, visual/, format.ts, types.ts
 │   │   └── supabase/               client / server / admin
 │   ├── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
 │   └── middleware.ts               Auth
-├── supabase/migrations/            001–011, run in order
+├── supabase/migrations/            001–017, run in order
 ├── docs/                           Sprint checklists + architecture decisions
+├── Dockerfile.worker               Container for the analysis worker
 └── launch-kit/                     Sales assets (see §9)
-
-C:\Users\User\projects\WebGenieMVP\ ← v2 UI + new features. NOT yet merged. See §4
 ```
 
 **Superseded — do not read, it will mislead you:**
-`C:\Users\User\Documents\SimpleOS Business-in-a-Box\WebGenie Intelligence Engine\WebGenie AI Production Repository v1.0.1\`
-is an older snapshot stopping at Sprint 9 / migration 009. This repo is ahead of it.
+- `C:\Users\User\Documents\SimpleOS Business-in-a-Box\WebGenie Intelligence Engine\WebGenie AI Production Repository v1.0.1\` — older snapshot stopping at Sprint 9.
+- `C:\Users\User\projects\WebGenieMVP\` — this was the source of the v2 UI merge. **It has already been merged into this repo.** Do not re-merge it or treat it as a separate pending task.
 
 ---
 
-## 4. FIRST TASK — merge the v2 UI
-
-Everything below exists and typechecks cleanly (verified, `tsc --noEmit` exit 0),
-but lives in `C:\Users\User\projects\WebGenieMVP` and must be brought in.
-
-### Why it is not already merged
-
-This repo's `tsconfig.json` includes `**/*.ts`. Copying the v2 source in without
-wiring it up breaks the build and stops Vercel deploying. The merge needs a real
-`npm run build` after each step. That is your job.
-
-### What to bring over
-
-| From `WebGenieMVP/src/` | What it is |
-|---|---|
-| `app/globals.css` + `tailwind.config.ts` | The design system. **Start here** |
-| `components/ui.tsx`, `shell.tsx` | Primitives + app chrome |
-| `components/score-ring.tsx`, `module-card.tsx`, `recommendation-card.tsx`, `evidence.tsx`, `tabs.tsx`, `markdown.tsx`, `copy-button.tsx`, `revenue.tsx`, `prompt-explorer.tsx` | Report + blueprint viewers |
-| `lib/format.ts` | `cn`, score bands, formatters |
-| `lib/sitegen/**` | **Demo site generator — the Motion A product** |
-| `lib/prospect/finder.ts` | Google Places + sample fallback |
-| `app/finder/`, `app/onboard/` | The two new product screens |
-| `app/api/prospects/`, `app/api/demo-site/` | Their routes |
-| `lib/data/` | Fixtures + provider seam |
-
-### Order of work
-
-1. `globals.css` + `tailwind.config.ts` first. Build. The existing app will look
-   different but must still compile.
-2. `lib/format.ts`, then `components/ui.tsx` + `shell.tsx`. Replace `app-shell.tsx`
-   with `shell.tsx`, keeping the existing `signOut` server action wired in.
-3. `lib/sitegen/**` + `lib/prospect/**` + the two API routes. Build.
-4. `app/finder` + `app/onboard`. Build. These are self-contained.
-5. Report/blueprint/prompt viewers last — they need the real Supabase data layer
-   swapped in behind `lib/data/provider.ts` (see §6).
-
-**Do not skip the build between steps.** Windows is case-insensitive and Vercel's
-Linux build is not; a wrong-cased import will pass locally and fail in production.
-
-### Type contracts are identical — verified
-
-`lib/intelligence/types.ts` and `WebsiteBlueprint` in `lib/blueprint/types.ts`
-are byte-identical between this repo and the v2 folder. **The engine needs zero
-changes.** Do not "helpfully" refactor these — they are the schema contract for
-stored JSON artifacts.
-
----
-
-## 5. Architecture decisions (do not relitigate)
+## 4. Architecture decisions (do not relitigate)
 
 - **One repo.** Sprints are milestones, not products.
 - **Canonical artifacts.** Website Intelligence, Website Blueprint, and Prompt
@@ -143,31 +197,20 @@ stored JSON artifacts.
 
 ---
 
-## 6. The data seam
+## 5. The data seam
 
-Every v2 page reads through `lib/data/provider.ts` and nothing else. It currently
-returns fixtures. To go live, replace each function body with a Supabase query —
-return types already match the engine's artifacts, so **no component changes**:
+Every page reads through `lib/data/provider.ts` and nothing else. `DATA_MODE` is
+now `"supabase"` — it queries real tables (`website_references`, `analysis_jobs`,
+`analysis_outputs`, blueprints, prompt packages, etc.) instead of fixtures.
+Return types match the engine's canonical artifacts, so components did not need
+to change. **Keep it that way** — do not let a Supabase call leak into a component.
 
-```ts
-export async function getIntelligence(projectId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("website_intelligence")
-    .select("artifact")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-  return (data?.artifact as WebsiteIntelligenceOutput) ?? null;
-}
-```
-
-Keep the seam. Do not let Supabase calls leak into components.
+If something in the UI looks wrong, check first whether the underlying migration
+actually ran in production (§2) before assuming the query logic is broken.
 
 ---
 
-## 7. Design system
+## 6. Design system
 
 Tokens in `tailwind.config.ts`, component classes in `globals.css`.
 
@@ -185,25 +228,40 @@ intentional: the tool reads as technical, the output reads as friendly and local
 
 ---
 
-## 8. Integration points
+## 7. Integration points
 
 ### Google Places — `lib/prospect/finder.ts`
 Set `GOOGLE_PLACES_API_KEY` in `.env.local`. Enable **Places API (New)** — the
 legacy API uses different endpoints and this code targets the new one. Falls back
-to deterministic sample data when absent, so the UI always works.
+to deterministic sample data when absent, so the UI always works. Distance-radius
+control and multi-location-chain filtering are implemented; Places Text Search
+rejects a circle parameter, so radius is applied as a rectangle instead — do not
+"fix" this back to a circle.
 Free tier is 5,000 Text Search calls/month; one call returns ~20 businesses.
 Realistic usage is ~1% of that. Set a $10 budget cap anyway.
 
+### Stripe — `lib/stripe.ts`, `app/api/billing/`
+$297/mo recurring Price. `/calls` has a "Collect payment" button that creates a
+real Checkout session; a signature-verified webhook updates `call_log.payment_status`
+(`none` / `pending` / `active` / `past_due` / `canceled`). Requires migration `017`
+applied and the Stripe account claimed + activated (§2a) to actually move money.
+
+### AI intake chat — `app/api/site-chat/`
+Every generated demo site now embeds a real chat widget. Conversations that leave
+contact info land in `/leads` (backed by migration `016_chat_leads.sql`).
+
 ### GoHighLevel (or equivalent) — `app/onboard`
-The ten provisioning steps are correctly sequenced but currently simulated. Each
-should fire a real API call: create sub-account, import profile, provision voice
-agent, configure review automation, build pipeline. Website generation is already
-real and needs no external service.
+The ten provisioning steps are correctly sequenced but still simulated beyond
+site generation: create sub-account, import profile, provision voice agent,
+configure review automation, build pipeline. Website generation is real and
+needs no external service.
 
 ### Site generator — `lib/sitegen/`
 Pure function: `Business` + `IndustryProfile` → complete standalone HTML.
-14 industries. Every generated site emits `LocalBusiness`-family + `FAQPage` +
-`AggregateRating` JSON-LD. **That schema layer is the sales differentiator** —
+14 industries, each with real hero + in-action photos and a per-client photo
+override (paste an image URL in `/finder` or `/onboard`, blank keeps the
+industry default). Every generated site emits `LocalBusiness`-family + `FAQPage`
++ `AggregateRating` JSON-LD. **That schema layer is the sales differentiator** —
 it means the site is visible to ChatGPT and Perplexity on day one. Do not strip it.
 
 To add an industry: add one entry to `INDUSTRIES` in `lib/sitegen/industries.ts`.
@@ -212,7 +270,7 @@ generated site lives almost entirely in that file.
 
 ---
 
-## 9. Environment variables
+## 8. Environment variables
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
@@ -221,81 +279,116 @@ SUPABASE_SERVICE_ROLE_KEY=        # server + worker only. Bypasses RLS. Never cl
 BILLING_WEBHOOK_SECRET=           # long random string
 VISUAL_AI_PROVIDER=heuristic      # heuristic costs nothing and works
 GOOGLE_PLACES_API_KEY=            # optional; sample data without it
+
+# Stripe (added since the 3 Aug version of this file)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_SECRET_KEY=                # server only. Never client-side, never log it
+STRIPE_CLIENT_PRICE_ID=           # the $297/mo recurring Price
+STRIPE_WEBHOOK_SECRET=            # verifies /api/billing webhook signatures
+STRIPE_MCP_KEY=                   # for the Stripe MCP tool, if used from Claude Code
 ```
+
+All of the above are already populated in `.env.local` as of the last session.
+Confirm the same values (or the correct live-mode equivalents) are set on Vercel
+before assuming production billing works.
 
 ---
 
-## 10. Priorities — what to build and what to refuse
+## 9. Priorities — what to build and what to refuse
 
-The authoritative plan is `launch-kit/00-START-HERE.md` (v2.0). If this section ever
-disagrees with it, that file wins.
+The authoritative sales plan is `launch-kit/00-START-HERE.md` (v2.0). If this
+section ever disagrees with it, that file wins.
 
-**In order:**
-1. **`npm install && npm run build`.** This has never been run. Establish a green
-   baseline before changing anything, or you will not know what the merge broke.
-2. **Merge the v2 UI (§4).** Build between every step.
-3. **`GOOGLE_PLACES_API_KEY` + `npm run dev` → `/finder`.** Generate twenty real
-   sites. Read five of them as a business owner would.
-4. **Fifty cold calls** (`launch-kit/06-Motion-A-Call-Script.md`). Build nothing
-   during this week.
-5. **Then** production Supabase + migrations 001–011 + worker → one end-to-end run
-   with no manual database intervention.
+**In order, right now:**
+1. **Verify, don't assume.** Confirm migrations `012`–`017` actually ran against
+   production Supabase (check `call_log` for `payment_status`, check `chat_leads`
+   exists), confirm the analysis worker is actually deployed and polling
+   somewhere persistent, and confirm Stripe is claimed + activated (§2a). None of
+   this was verified after the last session ended.
+2. **Close the billing loop.** Once verified, do one real `/calls` → Checkout →
+   webhook round trip end to end, in test mode first.
+3. **Keep making Motion A calls** (`launch-kit/06-Motion-A-Call-Script.md`).
+   The finder, site generator, call tracker, and billing are all real now —
+   there is no remaining technical excuse to not be dialing.
+4. **Motion B second.** The audit funnel is built and queues real analysis jobs;
+   use it once the worker is confirmed running.
 
-**Why deployment is fifth, not first.** Motion A — find a business with no website,
-generate them one, call them — is a pure function. No database, no auth, no worker,
-no Vercel. It runs on `npm run dev`. Deployment is required for Motion B (the audit
-funnel) and for being a real product, but it is not required for the first sale.
-Sequencing it first is what kept this project pre-revenue.
+**Why verification is first, not more building.** Every piece Motion A needs
+(finder → generate → call → onboard → bill) now exists in code. The risk at this
+point is not a missing feature, it's an unconfirmed deploy — shipping on top of
+an assumption that turns out false wastes the next session re-diagnosing "why
+isn't this working" instead of selling.
 
 **Actively do not build** unless Cassey asks twice: AI image generation, the
 marketplace, white-label mode, the industry template marketplace, the 21-prompt
-library, Stripe, or Sprint 11. All are documented, all are real, none of them
-produce revenue this month.
+library, or Sprint 11 scope beyond what's listed above. All are documented, none
+of them produce revenue this month.
 
 > The governing rule from the launch plan: **stop adding features and launch.**
 > If a request would add surface area before the first ten customers, say so.
 
 ---
 
-## 11. Known traps
+## 10. Known traps
 
-- **`eslint-config-next` is pinned at `^0.2.4`** — a 2020 package for Next 9, locked
-  in `package-lock.json`. `npm run lint` cannot work and CI lint is failing. Fix with
-  `npm install --save-dev eslint-config-next@^15.5.22 eslint@^9.17.0` so
-  `package.json` and the lockfile update together. Editing one without the other
-  breaks `npm ci`, which both GitHub Actions and `Dockerfile.worker` depend on.
 - **Run exactly one worker replica.** Job claiming is not atomic; two workers will
   claim the same job. Add a Postgres claim function before scaling.
 - **Windows vs Linux case sensitivity.** The most common cause of "builds locally,
-  fails on Vercel".
+  fails on Vercel."
 - **Supabase Auth redirect URLs** must include both production and
   `https://*-your-team.vercel.app`, or login redirects to a blank page.
 - **Migrations must run in order, one at a time.** Out-of-sequence failures produce
-  unhelpful errors.
+  unhelpful errors. As of this update there are six migrations (`012`–`017`)
+  whose production status is unconfirmed — check before adding `018`.
 - **Some sites block headless capture.** Note the URL and move on. Do not rebuild
   the capture engine for one uncooperative website.
+- **Google Places radius** is implemented as a rectangle, not a circle — Places
+  Text Search (New) rejects a circle parameter. Don't "simplify" this back.
+- **Never log or print `STRIPE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`**,
+  including in scripts, curl commands, or debugging output.
+- **There is no error boundary anywhere in this app** (`app/error.tsx` doesn't
+  exist). Any uncaught throw — a Zod validation error, an auth check, anything —
+  surfaces as Next's raw "Application error: a server-side exception has
+  occurred" digest page, not a usable message. Fixed the two known instances of
+  this (missing session in `getUserAndOrganization`, an overly strict
+  `demoUrl` validator in `addCallLogEntryAction`) on 23 Aug, but the
+  underlying gap — no boundary — is still there for the next one. Adding a
+  real `error.tsx` is worth doing before more of these get found by a user
+  clicking around instead of in review.
 
 ---
 
-## 12. Verified vs assumed
+## 11. Verified vs assumed
 
-**Verified in a sandbox on 3 Aug 2026:**
-- `tsc --noEmit` exits 0 across the entire v2 codebase
-- Generated site: 23,848 bytes, balanced tags, both JSON-LD blocks parse as valid
-  JSON (`@type: Plumber`, `@type: FAQPage`), 5 click-to-call links
-- Industry switching works (plumber and dentist both generate correctly)
-- JavaScript in all standalone HTML deliverables parses cleanly
+**Verified from the repo on 22 Aug 2026:**
+- 24 commits landed since the 3 Aug snapshot; `git log` and current `src/`
+  layout confirm the v2 UI merge, worker implementation, Supabase-backed data
+  seam, and Stripe integration are all real code in `main`, not aspirational.
+- `eslint-config-next`/`eslint` versions are current; the lint-config trap from
+  the previous version of this file is fixed.
+- `.env.local` has all Stripe and Supabase variable names populated.
+- Working tree is clean, `main` is up to date with `origin/main`, latest deploy
+  on Vercel is production and "Ready" as of 10 Aug.
 
-**Assumed, never seen rendered:**
-- How any of it *looks*. There was no browser available. Visual QA has not happened.
-- That `npm run build` succeeds. Only `tsc --noEmit` was run — a full Next build
-  was never completed.
+**Assumed, not verified — do this before trusting the state above:**
+- That migrations `012`–`016` and `018+` (whatever comes after `017`) actually
+  executed against the production Supabase project. `017` specifically is
+  **confirmed not run** as of 22 Aug (queried `call_log`'s columns directly).
+- That the analysis worker is deployed and running anywhere persistent (only
+  that the code and Dockerfile exist; the local `.railway/` folder has no
+  linked project config in it).
+- That a live (not just test-mode) Stripe key set will exist — it won't until
+  the WebGenie sandbox account passes business verification (§2a).
+- Whether any customer has actually paid yet.
 
-**Run `npm run build` early and treat the first failure as expected, not alarming.**
+**Run a real end-to-end check (§9, item 1) early and treat a failure there as
+expected, not alarming — it just means the "two things only a human can do"
+from the last session are still open.**
 
 ---
 
-## 13. Working style
+## 12. Working style
 
 Cassey is not a developer and is optimising for speed to revenue. She has been
 burned by long silent work periods with nothing to show.
