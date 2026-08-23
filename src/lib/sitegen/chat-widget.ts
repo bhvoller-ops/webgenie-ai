@@ -8,7 +8,7 @@ import type { IndustryProfile } from "@/lib/sitegen/types";
 const CHAT_API_URL = "https://webgenie-ai-sooty.vercel.app/api/site-chat";
 
 /** Prevents embedded JSON from prematurely closing the surrounding <script> tag. */
-function safeJson(value: unknown): string {
+export function safeJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 

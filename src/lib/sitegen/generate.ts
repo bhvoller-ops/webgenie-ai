@@ -6,6 +6,7 @@ import type {
 } from "@/lib/sitegen/types";
 import { industryOf } from "@/lib/sitegen/industries";
 import { chatWidgetMarkup, chatWidgetScript, chatWidgetStyles } from "@/lib/sitegen/chat-widget";
+import { leadFormMarkup, leadFormScript, leadFormStyles } from "@/lib/sitegen/lead-form";
 
 /* ------------------------------------------------------------------ */
 /* Icons                                                               */
@@ -171,7 +172,6 @@ export function generateSite(
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bizmeta{font-size:.78rem;color:var(--muted);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rate{color:#F59E0B;font-weight:700}
   .hd .btn{flex-shrink:0}
 
   /* Hero */
@@ -187,7 +187,9 @@ export function generateSite(
   .hero::after{content:"";position:absolute;inset:0;opacity:.07;
     background-image:linear-gradient(rgba(255,255,255,.9) 1px,transparent 1px),
       linear-gradient(90deg,rgba(255,255,255,.9) 1px,transparent 1px);background-size:44px 44px}
-  .heroin{position:relative;padding:96px 0 104px;max-width:720px}
+  .heroin{position:relative;padding:80px 0;max-width:none;
+    display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:52px;align-items:center}
+  .herocol{max-width:640px}
   .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);
     border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 15px;
     font-size:.82rem;font-weight:600;margin-bottom:22px}
@@ -196,6 +198,10 @@ export function generateSite(
   .herobtns{display:flex;gap:12px;flex-wrap:wrap;margin-top:34px}
   .chips{display:flex;gap:22px;flex-wrap:wrap;margin-top:34px;font-size:.86rem;color:rgba(255,255,255,.9)}
   .chip{display:inline-flex;align-items:center;gap:7px}
+  .herorating{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:38px;max-width:100%;
+    background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.22);border-radius:999px;
+    padding:9px 18px;font-size:.86rem;font-weight:600;color:#fff;box-shadow:0 8px 24px -12px rgba(0,0,0,.5)}
+  .herorating-count{font-weight:500;color:rgba(255,255,255,.78)}
 
   /* Services */
   .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px;margin-top:46px}
@@ -255,6 +261,9 @@ export function generateSite(
     background:var(--brand);padding:13px 16px;box-shadow:0 -6px 22px rgba(0,0,0,.2)}
   .callbar a{display:flex;align-items:center;justify-content:center;gap:9px;color:#fff;font-weight:700;font-size:1.02rem}
 
+  /* Hero lead-capture form */
+  ${leadFormStyles()}
+
   /* Chat widget */
   ${chatWidgetStyles()}
 
@@ -268,7 +277,9 @@ export function generateSite(
 
   @media (max-width:820px){
     section{padding:56px 0}
-    .heroin{padding:64px 0 72px}
+    .heroin{padding:48px 0 64px;grid-template-columns:1fr;gap:36px}
+    .herocol{max-width:none}
+    .quoteform{max-width:440px}
     .imgband{height:220px}
     .revwrap{grid-template-columns:1fr;gap:24px}
     .revscore{padding-right:0;padding-bottom:24px;border-right:0;border-bottom:1px solid var(--line)}
@@ -285,9 +296,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
   <div class="wrap hd">
     <div class="bizwrap">
       <div class="biz">${esc(business.name)}</div>
-      <div class="bizmeta">${esc(p.label)} · ${esc(city)}${
-        hasRating ? ` · <span class="rate">★ ${business.rating}</span> (${business.reviewCount})` : ""
-      }</div>
+      <div class="bizmeta">${esc(p.label)} · ${esc(city)}</div>
     </div>
     <a class="btn btn-primary" href="${telHref(business.phone)}" style="padding:11px 20px;font-size:.92rem">
       ${icon("phone", 17, "#fff")} Call Now
@@ -297,25 +306,29 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
 
 <div class="hero">
   <div class="wrap heroin">
-    ${
-      hasRating
-        ? `<div class="badge"><span style="color:#FCD34D">★</span> ${business.rating} rated ${esc(
-            p.label.toLowerCase()
-          )} in ${esc(business.city)}</div>`
-        : `<div class="badge">Serving ${esc(city)}</div>`
-    }
-    <h1>${esc(business.name)}</h1>
-    <p class="herosub">${esc(sub)}</p>
-    <div class="herobtns">
-      <a class="btn btn-white" href="${telHref(business.phone)}">${icon("phone", 18)} ${esc(business.phone)}</a>
-      <a class="btn btn-outline" href="#services">View Our Services</a>
+    <div class="herocol">
+      <div class="badge">Serving ${esc(city)}</div>
+      <h1>${esc(business.name)}</h1>
+      <p class="herosub">${esc(sub)}</p>
+      <div class="herobtns">
+        <a class="btn btn-white" href="${telHref(business.phone)}">${icon("phone", 18)} ${esc(business.phone)}</a>
+        <a class="btn btn-outline" href="#services">View Our Services</a>
+      </div>
+      <div class="chips">
+        ${p.trust
+          .slice(0, 3)
+          .map((t) => `<span class="chip">${icon(t.icon, 16, "rgba(255,255,255,.9)")} ${esc(t.title)}</span>`)
+          .join("")}
+      </div>
+      ${
+        hasRating
+          ? `<div class="herorating"><span style="color:#FCD34D;font-size:1.05em">★</span> ${business.rating} rated ${esc(
+              p.label.toLowerCase()
+            )} in ${esc(business.city)} <span class="herorating-count">· ${business.reviewCount} Google reviews</span></div>`
+          : ""
+      }
     </div>
-    <div class="chips">
-      ${p.trust
-        .slice(0, 3)
-        .map((t) => `<span class="chip">${icon(t.icon, 16, "rgba(255,255,255,.9)")} ${esc(t.title)}</span>`)
-        .join("")}
-    </div>
+    ${leadFormMarkup(p.services)}
   </div>
 </div>
 
@@ -479,6 +492,7 @@ ${
 
 ${chatWidgetMarkup(business)}
 <script>${chatWidgetScript(business, p)}</script>
+<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone })}</script>
 
 </body>
 </html>`;
