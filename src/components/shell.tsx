@@ -29,7 +29,8 @@ export function TopBar() {
             { href: "/finder", label: "Find Clients" },
             { href: "/audit", label: "Find Audits" },
             { href: "/calls", label: "Call Tracker" },
-            { href: "/leads", label: "Chat Leads" },
+            { href: "/leads", label: "Leads" },
+            { href: "/samples", label: "Samples" },
             { href: "/onboard", label: "Onboard" },
             { href: "/", label: "Projects" },
           ].map((l) => (

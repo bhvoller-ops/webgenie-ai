@@ -28,10 +28,19 @@ interface ChatLeadRow {
   business_phone: string | null;
   visitor_name: string | null;
   visitor_phone: string | null;
+  visitor_email: string | null;
+  city: string | null;
+  service_requested: string | null;
   reason: string | null;
   status: string;
+  source: string;
   created_at: string;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  chat: "Chat widget",
+  form: "Quote form"
+};
 
 async function getOrganizationId() {
   const supabase = await createClient();
@@ -54,12 +63,25 @@ export default async function LeadsPage() {
   let rows: ChatLeadRow[] = [];
   if (organizationId) {
     const supabase = await createClient();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("chat_leads")
-      .select("id,business_name,business_industry,business_phone,visitor_name,visitor_phone,reason,status,created_at")
+      .select(
+        "id,business_name,business_industry,business_phone,visitor_name,visitor_phone,visitor_email,city,service_requested,reason,status,source,created_at"
+      )
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
-    rows = data ?? [];
+    if (error) {
+      // Migration 018 (source/visitor_email/city/service_requested) may not
+      // be applied yet — fall back so the page still works without it.
+      const fallback = await supabase
+        .from("chat_leads")
+        .select("id,business_name,business_industry,business_phone,visitor_name,visitor_phone,reason,status,created_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false });
+      rows = (fallback.data ?? []).map((r) => ({ ...r, visitor_email: null, city: null, service_requested: null, source: "chat" }));
+    } else {
+      rows = data ?? [];
+    }
   }
 
   const newCount = rows.filter((r) => r.status === "new").length;
@@ -67,9 +89,9 @@ export default async function LeadsPage() {
   return (
     <PageShell>
       <SectionHeading
-        eyebrow="Site chat widget"
-        title="Chat Leads"
-        description="Every generated site now has a live AI intake chat, grounded in that business's real services and FAQ. When a visitor gives a name and number, it lands here."
+        eyebrow="Generated sites"
+        title="Leads"
+        description="Every generated site has both a live AI intake chat and a hero quote-request form. Anyone who leaves contact info through either one lands here."
       />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -96,7 +118,8 @@ export default async function LeadsPage() {
           <div className="rounded-panel border border-dashed border-hairline p-10 text-center">
             <MessageSquare className="mx-auto h-6 w-6 text-muted" aria-hidden />
             <p className="mt-3 text-sm text-ink">
-              No chat leads yet. They'll show up here as soon as a visitor uses the chat widget on a generated site.
+              No leads yet. They'll show up here as soon as a visitor uses the chat widget or submits the quote form
+              on a generated site.
             </p>
           </div>
         ) : (
@@ -107,6 +130,7 @@ export default async function LeadsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-semibold text-ink">{row.visitor_name ?? "Unnamed visitor"}</h3>
                     <Pill tone={STATUS_TONE[row.status]}>{STATUS_LABELS[row.status]}</Pill>
+                    <Pill tone={row.source === "form" ? "neon" : "iris"}>{SOURCE_LABELS[row.source] ?? row.source}</Pill>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-ink">
                     {row.visitor_phone ? (
@@ -115,9 +139,14 @@ export default async function LeadsPage() {
                         {row.visitor_phone}
                       </a>
                     ) : null}
+                    {row.visitor_email ? <span>{row.visitor_email}</span> : null}
+                    {row.city ? <span>{row.city}</span> : null}
                     <span>via {row.business_name}</span>
                     {row.business_industry ? <span>{row.business_industry}</span> : null}
                   </div>
+                  {row.service_requested ? (
+                    <p className="mt-2 text-[13px] font-medium text-ink">Wants: {row.service_requested}</p>
+                  ) : null}
                   {row.reason ? <p className="mt-2 text-[13px] text-muted">{row.reason}</p> : null}
                 </div>
                 <span className="shrink-0 text-[11px] text-faint">
