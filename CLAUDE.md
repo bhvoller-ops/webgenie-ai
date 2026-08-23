@@ -38,15 +38,16 @@ more per client. Both are real; A is the priority.
 | Engine (capture → intelligence → blueprint → prompts → orchestration → delivery) | **Built**, Sprint 10 complete |
 | v2 UI merge (design system, finder, onboard, sitegen, prospect finder) | **Done** — merged into this repo, no longer a separate folder |
 | Data seam (`lib/data/provider.ts`) | **Live on Supabase** (`DATA_MODE = "supabase"`), not fixtures |
-| Database migrations `001`–`017` | Written and committed. **Not confirmed run against production** — verify before trusting `/calls` payment status or `/leads` |
+| Database migrations `001`–`018` | Written and committed. `017` and `018` **confirmed run** against production (checked live via the Supabase API, not assumed) — `012`–`016` still unconfirmed |
 | Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
-| Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override |
+| Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override, two-column hero with an embedded lead-capture form — see §2c |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
-| AI intake chat widget | **Built** — added to every generated demo site; leads land in `/leads` (migration `016_chat_leads.sql`) |
+| Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
+| Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Fully working and activated** as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a completed test payment, and business verification confirmed live (`charges_enabled`/`payouts_enabled` both `true`). Only remaining step is swapping test-mode keys for live-mode ones when there's a real client to bill — see §2a |
 | Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
 | Transactional email | Invites stored, never sent. Send manually |
@@ -87,6 +88,52 @@ that happened to get reported.
 **Not done, worth doing before real users show up:** no password-reset flow,
 no rate-limiting on login attempts, delete-account has no data export step.
 Fine for one operator; revisit before onboarding anyone else.
+
+### 2c. Generated-site hero redesign + lead capture — 23 Aug 2026
+
+Prompted by wanting the hero on generated sites to match a two-column
+lead-capture layout (photo/headline on one side, an embedded quote-request
+form on the other) instead of just CTA buttons.
+
+**Shipped:**
+- Hero is now a two-column grid (`lib/sitegen/generate.ts`): left column keeps
+  the existing badge/h1/sub/CTAs/trust chips; right column is a new
+  `quoteform` card (`lib/sitegen/lead-form.ts`) — "How Can We Help?" header,
+  Name/Email/Phone/City/Service-dropdown (populated from that industry's real
+  services)/Message, submit button. Stacks to one column under 820px.
+- The Google rating badge moved out of the cramped header text and into its
+  own high-contrast pill at the bottom-left of the hero (previous version of
+  this section documented it as still in the header — that's now stale, see
+  the fix below).
+- New `POST /api/site-lead` stores form submissions. Rather than a parallel
+  table, it extends `chat_leads` (migration `018_site_lead_form.sql`: adds
+  `source` / `visitor_email` / `service_requested` / `city`) so chat leads and
+  form leads share **one inbox** — `/leads` (renamed from "Chat Leads") shows
+  both with a Chat/Form badge.
+- New `/samples` page + nav item: one curated fixture business per industry
+  (`lib/sitegen/samples.ts`), linking to the same `/api/demo-site` URLs every
+  generated site uses. For a quick quality check or pulling one up on a call.
+- **Fixed a real bug found while testing this, not hypothetical:** neither
+  `/api/site-chat` nor the new `/api/site-lead` sent CORS headers, and there's
+  no global CORS config. That only "worked" because every generated site so
+  far has been previewed from this same deployment — a site actually deployed
+  to a client's own domain would have the browser silently block the response
+  (or the preflight) on both the chat widget and this form. Fixed via a shared
+  `lib/sitegen/cors.ts` used by both routes.
+
+**Verified, not just built:** rendered the redesigned hero at desktop and
+mobile widths via the browser tool before shipping; after deploying, sent a
+real `POST /api/site-lead` against production and confirmed the row landed in
+`chat_leads` with `source: "form"` and all fields intact, then deleted that
+test row so it wouldn't sit in the real leads inbox.
+
+**Known limitation, carried over from the chat widget and still true:**
+generated sites don't carry which agency (`organization_id`) built them, so
+both lead-capture paths attribute every lead to whichever organization comes
+back first from the database (`select().limit(1).single()`). Harmless with
+one agency using WebGenie. Threading real attribution through
+`Business`/`generateSite` is a real but deliberately deferred fix — flagged
+twice now, not silently ignored — needed before a second agency signs on.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
@@ -149,7 +196,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── audit/                  Motion B: audit funnel
 │   │   ├── calls/                  Call tracker + Stripe "Collect payment" / "Copy payment link"
 │   │   ├── pay/                    Public per-prospect payment link redirect + outcome pages
-│   │   ├── leads/                  Chat-widget leads from generated sites
+│   │   ├── leads/                  All site leads (chat + hero form), one inbox
+│   │   ├── samples/                One curated example site per industry
 │   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
 │   │   ├── login/, auth/           Auth
 │   │   ├── settings/               Account settings
@@ -157,6 +205,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │       ├── prospects/, demo-site/   Finder + site-gen routes
 │   │       ├── billing/                 Stripe checkout + webhook
 │   │       ├── site-chat/               AI intake chat widget backend
+│   │       ├── site-lead/               Hero quote-form backend
+│   │       ├── auth/create-account/     Server-side pre-confirmed signup
 │   │       ├── analysis/, audits/, delivery-runs/, orchestration-runs/,
 │   │       │   content-packages/, prompt-packages/, admin/, v1/, health/
 │   ├── lib/
@@ -168,6 +218,11 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── orchestration/          Multi-agent specialist review
 │   │   ├── delivery/               ZIP / GitHub packaging
 │   │   ├── sitegen/                Demo site generator — the Motion A product
+│   │   │   ├── generate.ts         Hero, services, reviews, FAQ, JSON-LD — the HTML itself
+│   │   │   ├── lead-form.ts        Hero quote-request card (markup/styles/script)
+│   │   │   ├── chat-widget.ts      AI intake chat (markup/styles/script)
+│   │   │   ├── cors.ts             Shared CORS for site-chat + site-lead
+│   │   │   └── samples.ts          Fixture businesses behind /samples
 │   │   ├── prospect/               Google Places finder + sample fallback
 │   │   ├── data/provider.ts        The one data seam — now backed by Supabase
 │   │   ├── stripe.ts               Stripe client + billing helpers
@@ -175,7 +230,7 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   └── supabase/               client / server / admin
 │   ├── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
 │   └── middleware.ts               Auth
-├── supabase/migrations/            001–017, run in order
+├── supabase/migrations/            001–018, run in order
 ├── docs/                           Sprint checklists + architecture decisions
 ├── Dockerfile.worker               Container for the analysis worker
 └── launch-kit/                     Sales assets (see §9)
@@ -269,9 +324,18 @@ which updates `call_log.payment_status` (`none` / `pending` / `active` /
 account claimed + activated (§2a) to actually move money — both confirmed
 done as of 23 Aug.
 
-### AI intake chat — `app/api/site-chat/`
-Every generated demo site now embeds a real chat widget. Conversations that leave
-contact info land in `/leads` (backed by migration `016_chat_leads.sql`).
+### Lead capture on generated sites — `app/api/site-chat/`, `app/api/site-lead/`, `lib/sitegen/cors.ts`
+Two independent capture paths on every generated site, both landing in the
+same `/leads` inbox tagged by `source`:
+- **AI intake chat widget** (`lib/sitegen/chat-widget.ts`) — conversational,
+  grounded only in that business's real services/FAQ/hours.
+- **Hero quote-request form** (`lib/sitegen/lead-form.ts`, added 23 Aug) —
+  Name/Email/Phone/City/Service/Message, embedded directly in the hero.
+
+Both write to `chat_leads` (migrations `016` + `018`) and both call back
+cross-origin to this deployment via `lib/sitegen/cors.ts` — required once a
+site is deployed to a client's own domain, not just previewed here. Neither
+path knows which agency generated the site yet (see §2c's known limitation).
 
 ### GoHighLevel (or equivalent) — `app/onboard`
 The ten provisioning steps are correctly sequenced but still simulated beyond
@@ -324,11 +388,11 @@ The authoritative sales plan is `launch-kit/00-START-HERE.md` (v2.0). If this
 section ever disagrees with it, that file wins.
 
 **In order, right now:**
-1. **Verify, don't assume.** Confirm migrations `012`–`017` actually ran against
-   production Supabase (check `call_log` for `payment_status`, check `chat_leads`
-   exists), confirm the analysis worker is actually deployed and polling
-   somewhere persistent, and confirm Stripe is claimed + activated (§2a). None of
-   this was verified after the last session ended.
+1. **Verify, don't assume.** Migrations `012`–`016` (call tracker, org bootstrap,
+   RLS insert policies, default plan, chat leads) are still unconfirmed against
+   production Supabase — `017` and `018` now are (checked live via the API).
+   Also confirm the analysis worker is actually deployed and polling somewhere
+   persistent — that's still unverified.
 2. **Close the billing loop.** Once verified, do one real `/calls` → Checkout →
    webhook round trip end to end, in test mode first.
 3. **Keep making Motion A calls** (`launch-kit/06-Motion-A-Call-Script.md`).
@@ -362,8 +426,8 @@ of them produce revenue this month.
 - **Supabase Auth redirect URLs** must include both production and
   `https://*-your-team.vercel.app`, or login redirects to a blank page.
 - **Migrations must run in order, one at a time.** Out-of-sequence failures produce
-  unhelpful errors. As of this update there are six migrations (`012`–`017`)
-  whose production status is unconfirmed — check before adding `018`.
+  unhelpful errors. `012`–`016` still have unconfirmed production status —
+  check before adding `019`.
 - **Some sites block headless capture.** Note the URL and move on. Do not rebuild
   the capture engine for one uncooperative website.
 - **Google Places radius** is implemented as a rectangle, not a circle — Places
@@ -384,25 +448,36 @@ of them produce revenue this month.
 
 ## 11. Verified vs assumed
 
-**Verified from the repo on 22 Aug 2026:**
+**Verified from the repo on 22–23 Aug 2026:**
 - 24 commits landed since the 3 Aug snapshot; `git log` and current `src/`
   layout confirm the v2 UI merge, worker implementation, Supabase-backed data
   seam, and Stripe integration are all real code in `main`, not aspirational.
 - `eslint-config-next`/`eslint` versions are current; the lint-config trap from
   the previous version of this file is fixed.
 - `.env.local` has all Stripe and Supabase variable names populated.
+- Migrations `017` and `018` confirmed run against production — queried the
+  live columns directly via the Supabase API rather than assuming.
+- Stripe: real `/calls` → Checkout → webhook round trip completed and confirmed
+  in `call_log`; business verification confirmed live (`charges_enabled`/
+  `payouts_enabled` both `true`) via the Stripe API.
+- Hero redesign + lead form: rendered at desktop and mobile widths via the
+  browser tool, then a real `POST /api/site-lead` against production confirmed
+  landing in `chat_leads` with the right fields before being cleaned up.
 - Working tree is clean, `main` is up to date with `origin/main`, latest deploy
-  on Vercel is production and "Ready" as of 10 Aug.
+  on Vercel is production and "Ready."
 
 **Assumed, not verified — do this before trusting the state above:**
-- That migrations `012`–`016` and `018+` (whatever comes after `017`) actually
-  executed against the production Supabase project. `017` specifically is
-  **confirmed not run** as of 22 Aug (queried `call_log`'s columns directly).
+- That migrations `012`–`016` actually executed against the production
+  Supabase project.
 - That the analysis worker is deployed and running anywhere persistent (only
   that the code and Dockerfile exist; the local `.railway/` folder has no
   linked project config in it).
-- That a live (not just test-mode) Stripe key set will exist — it won't until
-  the WebGenie sandbox account passes business verification (§2a).
+- Stripe is still on **test-mode** keys (`sk_test_`/`pk_test_`) even though the
+  account is activated — real money won't move until those are swapped for
+  live-mode keys, product, price, and webhook (§2a notes this needs redoing
+  in live mode, not just flipping a toggle).
+- That generated-site leads attribute to the correct agency once more than one
+  agency uses WebGenie — known single-tenant limitation, see §2c.
 - Whether any customer has actually paid yet.
 
 **Run a real end-to-end check (§9, item 1) early and treat a failure there as
