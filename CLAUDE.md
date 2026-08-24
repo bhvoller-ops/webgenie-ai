@@ -41,7 +41,7 @@ more per client. Both are real; A is the priority.
 | Database migrations `001`–`018` | Written and committed. `017` and `018` **confirmed run** against production (checked live via the Supabase API, not assumed) — `012`–`016` still unconfirmed |
 | Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
-| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button |
+| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. **Places API is 403ing again as of 23 Aug** (falls back to sample data) — was fixed once already; something's regressed since, check Google Cloud Console |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override, two-column hero with an embedded lead-capture form — see §2c |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
@@ -175,6 +175,64 @@ equal-padding version from the spacing fix above read as too centered. The
 AI chat widget's panel header was retitled too: leads with "How Can We Help
 You" now, business name moved to the smaller subtitle line beneath it.
 
+### 2d. One-click publish to a real Vercel site — 23 Aug 2026
+
+Before this, a generated site had exactly one output: the ephemeral
+`/api/demo-site?b=...` link, which re-renders HTML on every visit and lives
+nowhere permanent. There was no way to hand a client a real, standing,
+hosted site, and **no Vercel integration existed anywhere in the codebase**
+prior to today — checked before building anything.
+
+**Shipped:**
+- `lib/publish/vercel.ts` calls the Vercel REST API directly (no CLI, no SDK)
+  to create a deployment of the generated static HTML, then attaches
+  `<slug>.vibelabsagency.com` as its domain.
+- **Idempotent by design.** The Vercel *project* is keyed off the business's
+  own stable `id` (a real Google Place ID for Places-sourced businesses,
+  `sample_.../manual_...` otherwise) — so publishing the same business again
+  after a photo swap redeploys into the same project and keeps the same URL,
+  rather than creating a duplicate. The *subdomain* is derived from the
+  business name and only changes if it collides with a **different**
+  business's project (retries `-2`, `-3`, ... up to 8 times).
+- `POST /api/publish-site` is **agency-only** — requires a logged-in session,
+  unlike the public `site-chat`/`site-lead` routes, since publishing spends a
+  real Vercel deployment + domain and shouldn't be reachable by a site visitor.
+- `PublishButton` (`components/publish-button.tsx`) on `/finder` turns into a
+  "Live" link once done.
+
+**Why `vibelabsagency.com`:** of the three domains on this Vercel account
+(`vibelabsagency.com`, `promptobook.com`, `simpleonlinesteps.com`), it's the
+one that reads as the agency brand *and* has its nameservers already on
+Vercel (`ns1/ns2.vercel-dns.com`) — confirmed via the Vercel API before
+choosing it, not assumed from the name alone. That means attaching a new
+subdomain needs no manual DNS step; Vercel provisions it instantly since it
+manages the zone.
+
+**Vercel API token:** stored as `VERCEL_API_TOKEN` (`.env.local` + Vercel
+env vars, all three environments). The first token Cassey generated was
+**read-only** — could list projects but not create one or touch domains,
+confirmed by trying both and getting `403 forbidden` back. Vercel's token
+creation UI has a "Read-only" toggle that's easy to leave on by default; the
+working token needed it off. If publishing ever starts failing with a 403
+from Vercel specifically, check that toggle before assuming the code broke.
+
+**Verified, not just built:** called `publishBusinessSite` directly against
+the real Vercel API first (created a project, deployed, attached a domain,
+curled the live URL and got the real page back, deleted the test project) —
+*then*, separately, logged into production, ran a real Finder search, and
+clicked the actual "Publish" button in the actual UI, confirmed the same
+thing end to end. Both test projects removed from Vercel afterward so they
+don't clutter the account.
+
+**Known limitation:** same one flagged twice already in §2c — generated
+sites don't carry which agency built them, so this shares that gap. Not
+relevant yet with one agency using WebGenie.
+
+**Scaling note, not a problem today:** each published business gets its own
+Vercel project. Fine at prospect-list volumes; if this ever runs into
+hundreds of published sites, check Vercel's per-team project limits on
+whatever plan is active before assuming it'll keep scaling silently.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -246,6 +304,7 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │       ├── billing/                 Stripe checkout + webhook
 │   │       ├── site-chat/               AI intake chat widget backend
 │   │       ├── site-lead/               Hero quote-form backend
+│   │       ├── publish-site/            Real Vercel deployment, agency-only
 │   │       ├── auth/create-account/     Server-side pre-confirmed signup
 │   │       ├── analysis/, audits/, delivery-runs/, orchestration-runs/,
 │   │       │   content-packages/, prompt-packages/, admin/, v1/, health/
@@ -263,6 +322,7 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   │   ├── chat-widget.ts      AI intake chat (markup/styles/script)
 │   │   │   ├── cors.ts             Shared CORS for site-chat + site-lead
 │   │   │   └── samples.ts          Fixture businesses behind /samples
+│   │   ├── publish/vercel.ts       Publishes a generated site to a real <slug>.vibelabsagency.com
 │   │   ├── prospect/               Google Places finder + sample fallback
 │   │   ├── data/provider.ts        The one data seam — now backed by Supabase
 │   │   ├── stripe.ts               Stripe client + billing helpers
@@ -380,6 +440,15 @@ cross-origin to this deployment via `lib/sitegen/cors.ts` — required once a
 site is deployed to a client's own domain, not just previewed here. Neither
 path knows which agency generated the site yet (see §2c's known limitation).
 
+### Publish to Vercel — `lib/publish/vercel.ts`, `app/api/publish-site/`
+"Publish" on `/finder` deploys a generated site as a real, permanent site at
+`<slug>.vibelabsagency.com` via the Vercel REST API — not the ephemeral
+`/api/demo-site` link. Idempotent (keyed off the business's stable `id`), so
+re-publishing after an edit updates the same site rather than duplicating it.
+Requires `VERCEL_API_TOKEN` with write access — a read-only token fails with
+403 on both project creation and domain assignment. See §2d for the full
+story, including why this particular domain and how the token issue surfaced.
+
 ### GoHighLevel (or equivalent) — `app/onboard`
 The ten provisioning steps are correctly sequenced but still simulated beyond
 site generation: create sub-account, import profile, provision voice agent,
@@ -417,6 +486,11 @@ STRIPE_SECRET_KEY=                # server only. Never client-side, never log it
 STRIPE_CLIENT_PRICE_ID=           # the $297/mo recurring Price
 STRIPE_WEBHOOK_SECRET=            # verifies /api/billing webhook signatures
 STRIPE_MCP_KEY=                   # for the Stripe MCP tool, if used from Claude Code
+
+# Vercel publishing (added 23 Aug 2026 — see §2d)
+VERCEL_API_TOKEN=                 # must NOT be read-only — check the token's toggle in Vercel if 403s appear
+VERCEL_TEAM_ID=                   # team_fwiYeCiBw0ayQL8dP0F6qSBj
+VERCEL_PUBLISH_DOMAIN=            # vibelabsagency.com — nameservers already on Vercel
 ```
 
 All of the above are already populated in `.env.local` as of the last session.
@@ -480,8 +554,13 @@ of them produce revenue this month.
   `max-width` shorthand unless it's meant to fully replace `.wrap`'s value.
   It will, silently, same-specificity-later-rule-wins, not merge with it. Bit
   the two-column hero on 23 Aug — see §2c.
-- **Never log or print `STRIPE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`**,
-  including in scripts, curl commands, or debugging output.
+- **Never log or print `STRIPE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, or
+  `VERCEL_API_TOKEN`**, including in scripts, curl commands, or debugging output.
+- **A Vercel personal access token can be valid and still do nothing.** Vercel's
+  token creation UI has a "Read-only" toggle that's easy to leave on — such a
+  token authenticates fine and can list projects, but 403s on creating a
+  project or touching a domain. Bit the Vercel-publishing feature on 23 Aug
+  (§2d). If publishing 403s, check that toggle before assuming the code broke.
 - **There is no error boundary anywhere in this app** (`app/error.tsx` doesn't
   exist). Any uncaught throw — a Zod validation error, an auth check, anything —
   surfaces as Next's raw "Application error: a server-side exception has
@@ -511,6 +590,10 @@ of them produce revenue this month.
 - Hero redesign + lead form: rendered at desktop and mobile widths via the
   browser tool, then a real `POST /api/site-lead` against production confirmed
   landing in `chat_leads` with the right fields before being cleaned up.
+- Vercel publishing: called `publishBusinessSite` directly against the real
+  Vercel API (project created, deployed, domain attached, live URL curled and
+  confirmed serving the real page), then separately re-verified through the
+  actual logged-in `/finder` UI end to end. Both test projects deleted after.
 - Working tree is clean, `main` is up to date with `origin/main`, latest deploy
   on Vercel is production and "Ready."
 
