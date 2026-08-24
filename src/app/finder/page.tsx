@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
+import { PublishButton } from "@/components/publish-button";
 import { INDUSTRIES, INDUSTRY_LIST } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
@@ -429,6 +430,7 @@ export default function FinderPage() {
                         >
                           <ImageIcon className="h-3 w-3" aria-hidden />
                         </button>
+                        <PublishButton business={withOverrides(b)} />
                       </div>
                     </td>
                   </tr>
