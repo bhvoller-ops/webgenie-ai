@@ -179,7 +179,8 @@ export function generateSite(
     background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 22%,transparent) 0%,
       color-mix(in srgb,var(--brand) 14%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 25%,transparent) 100%),
       url('${p.heroImage}');
-    background-size:cover;background-position:center;background-repeat:no-repeat}
+    background-size:cover;background-position:center;background-repeat:no-repeat;
+    filter:brightness(1.15) saturate(1.08)}
   .hero::before{content:"";position:absolute;inset:0;opacity:.16;
     background-image:radial-gradient(circle at 18% 22%,#fff 0,transparent 42%),
       radial-gradient(circle at 82% 12%,#fff 0,transparent 34%),

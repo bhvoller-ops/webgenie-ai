@@ -17,7 +17,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Plumber",
     primary: "#1D4ED8",
     primaryDark: "#1E3A8A",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/plumber.jpg",
+    heroImage: "https://images.pexels.com/photos/6419128/pexels-photo-6419128.jpeg?auto=compress&cs=tinysrgb&w=1600",
     secondaryImage: "https://images.pexels.com/photos/29226620/pexels-photo-29226620.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Fast, reliable plumbing services you can count on. Proudly serving {city} and the surrounding communities.",
@@ -202,7 +202,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "LandscapingBusiness",
     primary: "#166534",
     primaryDark: "#14532D",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/tree-care.jpg",
+    heroImage: "https://images.pexels.com/photos/35606516/pexels-photo-35606516.jpeg?auto=compress&cs=tinysrgb&w=1600",
     secondaryImage: "https://images.pexels.com/photos/8820192/pexels-photo-8820192.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Tree removal, trimming, and emergency storm response across {city}. Safe, insured, and tidy.",
@@ -424,7 +424,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "GeneralContractor",
     primary: "#1E40AF",
     primaryDark: "#1E3A8A",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/restoration.jpg",
+    heroImage: "https://images.pexels.com/photos/30250199/pexels-photo-30250199.jpeg?auto=compress&cs=tinysrgb&w=1600",
     secondaryImage: "https://images.pexels.com/photos/35072802/pexels-photo-35072802.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "24/7 water, fire, and mould restoration across {city}. On site fast, insurance handled.",
@@ -498,7 +498,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HairSalon",
     primary: "#BE185D",
     primaryDark: "#9D174D",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/salon.jpg",
+    heroImage: "https://images.pexels.com/photos/7195805/pexels-photo-7195805.jpeg?auto=compress&cs=tinysrgb&w=1600",
     secondaryImage: "https://images.pexels.com/photos/23349912/pexels-photo-23349912.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Colour, cuts, and styling in {city}. Skilled stylists and a proper consultation every time.",
