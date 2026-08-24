@@ -126,7 +126,21 @@ form on the other) instead of just CTA buttons.
 mobile widths via the browser tool before shipping; after deploying, sent a
 real `POST /api/site-lead` against production and confirmed the row landed in
 `chat_leads` with `source: "form"` and all fields intact, then deleted that
-test row so it wouldn't sit in the real leads inbox.
+test row so it wouldn't sit in the real leads inbox. Re-verified again after
+the follow-up tweak below (simplified fields, retitled headers) — filled and
+submitted the actual live form on production at
+`https://webgenie-ai-sooty.vercel.app/api/demo-site?...`, confirmed the
+"Thanks — we'll be in touch shortly!" message, confirmed the row in
+`chat_leads` with the new Name/Email/Phone/message shape, deleted it after.
+
+**Browser-tool quirk worth knowing for next time:** the sandboxed preview
+pane's simulated mouse click sometimes doesn't land on the actual button
+element even at a ref's correct coordinates (confirmed by checking the DOM
+directly — nothing fired). Calling `element.click()` via the JS console tool
+instead still exercises the real production code path (same event handler,
+same fetch), just not the synthetic mouse event itself — good enough to prove
+the feature works, not a substitute for an actual human click if the click
+*handler wiring itself* were ever in question.
 
 **Known limitation, carried over from the chat widget and still true:**
 generated sites don't carry which agency (`organization_id`) built them, so
