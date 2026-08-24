@@ -55,6 +55,23 @@ function stars(rating: number) {
   return "★".repeat(Math.min(5, full)) + "☆".repeat(Math.max(0, 5 - full));
 }
 
+/**
+ * "How It Works" — one shared, industry-agnostic process, not 14 bespoke
+ * versions. The process a local service business actually follows (get
+ * contacted, quote, schedule, do the work, get paid) is the same shape
+ * whether it's a plumber or a dentist; only step 4's wording takes the
+ * industry label, everything else reads naturally as-is for any of them.
+ */
+function howItWorksSteps(industryLabel: string): { icon: IconKey; title: string; blurb: string }[] {
+  return [
+    { icon: "phone", title: "Reach Out", blurb: "Call, text, or fill out the form below. Tell us what you need." },
+    { icon: "award", title: "Get a Clear Quote", blurb: "Upfront, honest pricing before any work begins. No surprises." },
+    { icon: "calendar", title: "Schedule a Time", blurb: "Pick a time that works for you. We show up when we say we will." },
+    { icon: "wrench", title: "We Do The Work", blurb: `Careful, quality work from a ${industryLabel.toLowerCase()} you can trust.` },
+    { icon: "thumbsUp", title: "You're Taken Care Of", blurb: "Simple payment and a follow-up to make sure you're satisfied." }
+  ];
+}
+
 /* ------------------------------------------------------------------ */
 /* Generator                                                           */
 /* ------------------------------------------------------------------ */
@@ -221,6 +238,16 @@ export function generateSite(
     background:linear-gradient(0deg,rgba(15,23,42,.75),transparent)}
   .imgband .imgcaption h3{color:#fff}
 
+  /* How it works */
+  .howgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:30px;margin-top:46px}
+  .how{text-align:center}
+  .howstep{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--brand);margin-bottom:12px}
+  .howico{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;
+    background:color-mix(in srgb,var(--brand) 12%,#fff);color:var(--brand)}
+  .how h3{font-size:1rem}
+  .how p{font-size:.87rem;margin-top:8px;color:var(--muted)}
+
   /* Trust */
   .soft{background:var(--soft)}
   .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:30px;margin-top:46px}
@@ -366,6 +393,27 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
     </div>
   </div>
 </div>
+
+<section>
+  <div class="wrap">
+    <div class="center">
+      <div class="eyebrow">How It Works</div>
+      <h2 style="margin-top:12px">Getting Started Is Simple</h2>
+    </div>
+    <div class="howgrid">
+      ${howItWorksSteps(p.label)
+        .map(
+          (s, i) => `<div class="how">
+        <div class="howstep">Step ${i + 1}</div>
+        <div class="howico">${icon(s.icon, 24)}</div>
+        <h3>${esc(s.title)}</h3>
+        <p>${esc(s.blurb)}</p>
+      </div>`
+        )
+        .join("")}
+    </div>
+  </div>
+</section>
 
 <section class="soft">
   <div class="wrap">

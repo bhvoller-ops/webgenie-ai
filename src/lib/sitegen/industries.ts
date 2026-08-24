@@ -17,8 +17,8 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Plumber",
     primary: "#1D4ED8",
     primaryDark: "#1E3A8A",
-    heroImage: "https://images.pexels.com/photos/6419128/pexels-photo-6419128.jpeg?auto=compress&cs=tinysrgb&w=1600",
-    secondaryImage: "https://images.pexels.com/photos/29226620/pexels-photo-29226620.jpeg?auto=compress&cs=tinysrgb&w=1400",
+    heroImage: "https://images.pexels.com/photos/8486928/pexels-photo-8486928.jpeg?auto=compress&cs=tinysrgb&w=1600",
+    secondaryImage: "https://images.pexels.com/photos/16509869/pexels-photo-16509869.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Fast, reliable plumbing services you can count on. Proudly serving {city} and the surrounding communities.",
     ctaLabel: "Call Now",
