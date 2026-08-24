@@ -43,7 +43,7 @@ more per client. Both are real; A is the priority.
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
-| Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override, two-column hero with an embedded lead-capture form — see §2c |
+| Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form — see §2c. **12 of 14 have a real curated hero photo** (Roofer/Landscaper/4 others still on generic stock — see §2e) |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
@@ -233,6 +233,66 @@ Vercel project. Fine at prospect-list volumes; if this ever runs into
 hundreds of published sites, check Vercel's per-team project limits on
 whatever plan is active before assuming it'll keep scaling silently.
 
+### 2e. Real per-industry hero photos — 24 Aug 2026
+
+Every industry used the same generic Pexels stock photo regardless of trade —
+didn't read as specific to the business. Cassey sourced real candidate photos
+per industry (14 total) over several rounds; this tracks what actually landed
+in `industries.ts` vs. what's still open.
+
+**Wired in — 12 of 14 industries have a real, curated hero photo:**
+Plumber, HVAC, Electrician, Tree Care, Cleaning, Auto Repair, Dentist,
+Med Spa, Chiropractor, Restoration, Contractor, Salon. Most are self-hosted
+from `public/industry-photos/` (resized to 1600px wide, mozjpeg quality 78 —
+one source file was 9.9MB, now 87KB) and referenced by **absolute URL**
+(`https://webgenie-ai-sooty.vercel.app/industry-photos/<file>.jpg`), the same
+pattern as the chat widget and lead form, since a published site (§2d) can
+live on a different domain than this deployment. Auto Repair links directly
+to Pexels' own CDN since the confirmed photo turned out to already be one of
+theirs (matched by checksum against the exact file Cassey sent).
+
+**Still on the original generic stock photo, unresolved:**
+- **Roofer, Landscaper** — every candidate offered for these two was a
+  screenshot of another real company's actual live website (their own logo
+  and copy baked into the pixels), not usable as a generic background.
+  Waiting on either a self-cropped clean photo or a different source photo.
+- **Plumber, Tree Care, Restoration, Salon** — see the watermark issue below;
+  these briefly had a real photo, then got reverted back to the original
+  stock default.
+
+**Real defect found and fixed: a "Magnific" AI-upscaling watermark (crown
+logo + tiled repeated text) was baked into 4 of the 11 self-hosted photos** —
+Plumber, Tree Care, Restoration, Salon. Cassey caught it as "strange text" on
+the plumber banner; checking all 11 images directly found 3 more instances
+she hadn't flagged yet. All 4 reverted back to the original Pexels default
+and the watermarked files deleted from `public/` so they can't get
+referenced again by accident. **Any other not-yet-wired candidate sitting in
+the gitignored `industry-photos/` folder (barber, accountant, handyman, the
+alternate dentist/auto-repair shots) needs the same visual check before use**
+— this "Magnific" tool appears to be a common source across the batch Cassey
+collected, not a one-off.
+
+**Also fixed, same investigation — the hero's own overlay was making every
+photo (new and old) hard to see:** `.hero`'s `color-mix` gradient was up to
+86% opaque solid brand color sitting on top of the photo — the image showed
+through at as little as 14% strength. Took two rounds of feedback to land
+right:
+1. 82/68/86% → 45/30/48% — Cassey: still looks opaque.
+2. 45/30/48% → 22/14/25%, plus added `text-shadow` to the h1/herosub/trust-chip
+   text (since a tint that light no longer does much for legibility on its
+   own) — Cassey: cleared up, but could be brighter.
+3. Added `filter:brightness(1.15) saturate(1.08)` to `.hero` itself rather
+   than cutting the overlay a third time (already fairly minimal at 22-25%).
+
+**Verification gap worth naming honestly:** the sandboxed browser preview
+pane was unavailable for most of this work (tool-side issue, tried repeatedly,
+never recovered this session). Every change was confirmed by curling the
+production HTML and checking the actual CSS/URLs that shipped, not by a
+pixel screenshot — real verification, but a different kind than the visual
+check this project normally does on design changes. The two overlay
+adjustments above exist specifically because that gap meant relying on
+Cassey's own eyes for the visual call instead of catching it beforehand.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -332,9 +392,15 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   └── middleware.ts               Auth
 ├── supabase/migrations/            001–018, run in order
 ├── docs/                           Sprint checklists + architecture decisions
+├── public/industry-photos/         Self-hosted hero photos referenced by absolute URL — see §2e
 ├── Dockerfile.worker               Container for the analysis worker
 └── launch-kit/                     Sales assets (see §9)
 ```
+
+`industry-photos/` also exists at the **repo root** (gitignored) — raw, unprocessed
+source photos Cassey drops in for review before they're resized into
+`public/industry-photos/`. Don't confuse the two; only the `public/` one is
+ever deployed or referenced from code.
 
 **Superseded — do not read, it will mislead you:**
 - `C:\Users\User\Documents\SimpleOS Business-in-a-Box\WebGenie Intelligence Engine\WebGenie AI Production Repository v1.0.1\` — older snapshot stopping at Sprint 9.
@@ -554,6 +620,16 @@ of them produce revenue this month.
 
 ## 10. Known traps
 
+- **Any new hero photo candidate must be visually checked for a baked-in
+  watermark before wiring it into `industries.ts`.** 4 of 11 photos in the
+  23-24 Aug batch had a tiled "Magnific" AI-upscaling watermark that wasn't
+  obvious until a site was actually rendered — see §2e. Read the image file
+  directly and look, don't assume a "clean" filename means a clean photo.
+- **`heroImage`/`secondaryImage` in `industries.ts` must be an absolute URL**,
+  never a relative path like `/industry-photos/x.jpg` — a published site
+  (§2d) or a client's own deployed domain isn't served from this app's
+  origin, so a relative path silently 404s there even though it works fine
+  when previewed from this deployment.
 - **Run exactly one worker replica.** Job claiming is not atomic; two workers will
   claim the same job. Add a Postgres claim function before scaling.
 - **Windows vs Linux case sensitivity.** The most common cause of "builds locally,
