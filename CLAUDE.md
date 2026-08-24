@@ -41,7 +41,7 @@ more per client. Both are real; A is the priority.
 | Database migrations `001`–`018` | Written and committed. `017` and `018` **confirmed run** against production (checked live via the Supabase API, not assumed) — `012`–`016` still unconfirmed |
 | Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
-| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. **Places API is 403ing again as of 23 Aug** (falls back to sample data) — was fixed once already; something's regressed since, check Google Cloud Console |
+| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, real hero/in-action photos, per-client photo override, two-column hero with an embedded lead-capture form — see §2c |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
@@ -401,6 +401,20 @@ rejects a circle parameter, so radius is applied as a rectangle instead — do n
 Free tier is 5,000 Text Search calls/month; one call returns ~20 businesses.
 Realistic usage is ~1% of that. Set a $10 budget cap anyway.
 
+**403 PERMISSION_DENIED, twice now — actual cause found the second time.**
+The key had "Websites" selected as its restriction type in Google Cloud
+Console. That restricts calls by the request's browser Referer header — since
+this app calls Places API (New) **server-side** (a Vercel function, no
+browser, no Referer), every call was silently blocked despite the API itself
+being correctly enabled. Fixed by changing the key's restriction type to
+**"API restriction"** and scoping it to **"Places API (New)"** specifically —
+the correct restriction for a server-only key, since it doesn't care about
+request origin at all. Confirmed via a direct `curl` to
+`https://places.googleapis.com/v1/places:searchText` before and after: real
+403 before, real results after. **If this key ever 403s again, check the
+restriction type first** — "Websites" or "IP addresses" will both break a
+server-side caller; only "API restriction" (or no restriction) works here.
+
 ### Stripe — `lib/stripe.ts`, `app/api/billing/`, `app/pay/`
 $297/mo recurring Price. Session creation lives in one shared
 `createClientCheckoutSession()` (`lib/stripe.ts`) used by two entry points on
@@ -549,6 +563,11 @@ of them produce revenue this month.
   the capture engine for one uncooperative website.
 - **Google Places radius** is implemented as a rectangle, not a circle — Places
   Text Search (New) rejects a circle parameter. Don't "simplify" this back.
+- **`GOOGLE_PLACES_API_KEY` must have restriction type "API restriction"**
+  (scoped to Places API (New)), never "Websites" or "IP addresses" — this key
+  is only ever called server-side, and both of those restriction types 403
+  every server call while leaving the key looking otherwise fine. Bit this
+  twice already (23 Aug) before the actual cause was found — see §7.
 - **Combining `.wrap` with another class on one sitegen element** (e.g.
   `class="wrap heroin"`) — never give the second class a `padding`/`margin`/
   `max-width` shorthand unless it's meant to fully replace `.wrap`'s value.
