@@ -411,9 +411,13 @@ being correctly enabled. Fixed by changing the key's restriction type to
 the correct restriction for a server-only key, since it doesn't care about
 request origin at all. Confirmed via a direct `curl` to
 `https://places.googleapis.com/v1/places:searchText` before and after: real
-403 before, real results after. **If this key ever 403s again, check the
-restriction type first** — "Websites" or "IP addresses" will both break a
-server-side caller; only "API restriction" (or no restriction) works here.
+403 before, real results after. Then confirmed again through the actual app —
+logged into production, ran a real `/finder` search, got "8 prospects ready
+for outreach · **live Google data**" with real Atlanta businesses (real
+addresses, phones, review counts), no sample-data fallback banner. **If this
+key ever 403s again, check the restriction type first** — "Websites" or "IP
+addresses" will both break a server-side caller; only "API restriction" (or
+no restriction) works here.
 
 ### Stripe — `lib/stripe.ts`, `app/api/billing/`, `app/pay/`
 $297/mo recurring Price. Session creation lives in one shared
@@ -613,6 +617,9 @@ of them produce revenue this month.
   Vercel API (project created, deployed, domain attached, live URL curled and
   confirmed serving the real page), then separately re-verified through the
   actual logged-in `/finder` UI end to end. Both test projects deleted after.
+- Google Places 403 fix: curled the API directly before/after the key's
+  restriction-type change, then confirmed again through a real logged-in
+  `/finder` search returning live Google data instead of the sample fallback.
 - Working tree is clean, `main` is up to date with `origin/main`, latest deploy
   on Vercel is production and "Ready."
 
