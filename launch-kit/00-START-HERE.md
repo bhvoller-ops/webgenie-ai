@@ -28,7 +28,7 @@ Then call:
 > *"I was looking for a plumber in Bentonville and found you, but noticed you don't
 > have a website — so I went ahead and built you one. Would you like to see it?"*
 
-Convert to **$299/month** covering the site, AI chat, voice receptionist,
+Convert to **$297/month** covering the site, AI chat, voice receptionist,
 missed-call text-back, review automation, booking, and CRM.
 
 **Why this is primary:**
@@ -61,7 +61,7 @@ ranges. That ends here.
 
 | Offer | Price | Motion |
 |---|---|---|
-| **Website + AI services** | **$299/mo** | A |
+| **Website + AI services** | **$297/mo** | A |
 | Setup fee (optional — drop it to close) | $0–297 one-time | A |
 | Intelligence Audit | **Free** | B |
 | Rebuild Blueprint | **$497** one-time | B |
@@ -82,15 +82,15 @@ $297 once you have closed ten and know the pitch works.
 
 ## 4. Unit economics — the honest version
 
-**Per client at $299/mo:**
+**Per client at $297/mo:**
 
 | Line | Monthly |
 |---|---|
-| Revenue | $299 |
+| Revenue | $297 |
 | Voice AI usage | ~$25 |
 | Phone number + SMS | ~$12 |
 | Site hosting | ~$2 |
-| **Contribution** | **~$260** |
+| **Contribution** | **~$258** |
 
 **Fixed cost:** GoHighLevel agency tier ~$297/mo (unlimited sub-accounts).
 Google Places will be free at your volume.
@@ -232,7 +232,7 @@ behind full production deployment.
    Giving someone a finished website beats telling them theirs is broken — no
    competition for attention, no criticism, and the pitch is one sentence.
 3. **Recurring from day one.** v1.0's first sale was a $497 one-off. v2.0's first
-   sale is $299/month.
+   sale is $297/month.
 
 The audit funnel is not cancelled. It is sequenced second, where it belongs — the
 higher-ticket motion, funded by the platform Motion A pays for.

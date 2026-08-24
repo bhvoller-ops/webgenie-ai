@@ -1,6 +1,6 @@
 /**
  * One-off setup: creates the Stripe Product + recurring Price for the
- * $299/mo client package (CLAUDE.md's locked Motion A pricing) if they
+ * $297/mo client package (CLAUDE.md's locked Motion A pricing) if they
  * don't already exist, and prints the Price ID to put in
  * STRIPE_CLIENT_PRICE_ID.
  *

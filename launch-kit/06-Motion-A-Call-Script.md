@@ -103,7 +103,7 @@ two of positive reaction:
 
 Then:
 
-> "It's $299 a month. That covers the site being live and hosted, an AI chat
+> "It's $297 a month. That covers the site being live and hosted, an AI chat
 > widget that answers questions and books jobs, a voice AI that picks up when
 > you can't, automatic texts when you miss a call, review requests going out after
 > every job, and a simple CRM so you're not running leads off scraps of paper.
