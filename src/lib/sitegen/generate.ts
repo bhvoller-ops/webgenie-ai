@@ -176,8 +176,8 @@ export function generateSite(
 
   /* Hero */
   .hero{position:relative;color:#fff;overflow:hidden;
-    background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 82%,transparent) 0%,
-      color-mix(in srgb,var(--brand) 68%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 86%,transparent) 100%),
+    background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 45%,transparent) 0%,
+      color-mix(in srgb,var(--brand) 30%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 48%,transparent) 100%),
       url('${p.heroImage}');
     background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero::before{content:"";position:absolute;inset:0;opacity:.16;
