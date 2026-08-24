@@ -43,7 +43,7 @@ more per client. Both are real; A is the priority.
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
-| Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form — see §2c. **12 of 14 have a real curated hero photo** (Roofer/Landscaper/4 others still on generic stock — see §2e) |
+| Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form (§2c), a shared "How It Works" 5-step section on every site (§2e). **9 of 14 have a real curated hero photo** (Roofer/Landscaper/Tree Care/Restoration/Salon still on generic stock — see §2e) |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
@@ -267,11 +267,10 @@ theirs (matched by checksum against the exact file Cassey sent).
   usable-but-different option (every other industry uses a real photo of the
   trade in action; this would've been an abstract graphic showing nothing
   plumbing-specific, and would look inconsistent next to the others in
-  `/samples`). **Cassey's call: hold off, keep the current stock photo** —
-  don't revisit this unless a genuinely plumbing-specific photo shows up.
-  The secondary image offered alongside it (a 3-panel service collage with
-  its own headline and tag overlays) has the same not-a-single-clean-photo
-  problem as the hero screenshots, with no fallback offered for that one yet.
+  `/samples`). **Cassey's call at the time: hold off, keep the current stock
+  photo** — don't revisit unless a genuinely plumbing-specific photo shows up.
+  **Resolved the next day, different source (see below): Plumber now has a
+  real hero + secondary photo, both plain Pexels links.**
 
 **Real defect found and fixed: a "Magnific" AI-upscaling watermark (crown
 logo + tiled repeated text) was baked into 4 of the 11 self-hosted photos** —
@@ -305,6 +304,41 @@ pixel screenshot — real verification, but a different kind than the visual
 check this project normally does on design changes. The two overlay
 adjustments above exist specifically because that gap meant relying on
 Cassey's own eyes for the visual call instead of catching it beforehand.
+
+**Plumber resolved, and a real cross-industry improvement came out of it —
+25 Aug.** Cassey sent a full Bolt.new-generated plumber site (`WebGenie-
+Plumber-project-bolt-sb1-gfi8hn7p.zip`) asking if it could be used. It
+couldn't, directly — a Vite/React SPA with its own separate Supabase
+backend, a completely different architecture from this app's single-file
+static-HTML generator; "using" it would mean rebuilding it inside this
+system, not plugging it in. But it was itself built entirely from real
+Pexels stock photos, and mining it turned up two clean, genuinely
+plumbing-specific ones (a hero — person in hardhat/vest holding a pipe
+wrench — and a secondary — hands fitting a valve under a sink), both linked
+directly from Pexels' CDN like Auto Repair already was, so no watermark risk.
+**Plumber is done.**
+
+That Bolt site also had a well-written 5-step "How It Works" process this
+template didn't have. Added it as **one shared section in `generate.ts`**
+(`howItWorksSteps()`) rather than 14 bespoke content blocks — the process
+(reach out → quote → schedule → do the work → get paid) is the same shape
+for any local service business. Only step 4's line takes the industry label
+("...from a licensed plumber you can trust" / "...from a dental practice you
+can trust"); the other four needed no per-industry variation. Checked the
+parameterized wording actually reads naturally across a deliberately
+mismatched pair (Plumber, Dentist) before shipping, not just the trade it
+was written for. **This section now appears on every generated site across
+all 14 industries**, between the in-action photo band and the trust grid.
+
+Going forward, Cassey's standing instruction: **source new industry photos
+directly from Pexels** rather than unknown AI tools, to avoid repeating the
+Magnific watermark class of bug. The 7 already-clean self-hosted photos
+(HVAC, Electrician, Cleaning, Dentist, Med Spa, Chiropractor, Contractor)
+don't need redoing — they're confirmed watermark-free already, sourced
+directly from Cassey rather than through a Bolt/Magnific pipeline.
+
+**Still open, unchanged:** Roofer, Landscaper, Tree Care, Restoration, Salon
+are on generic stock photos, waiting on clean sources.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
@@ -554,15 +588,18 @@ needs no external service.
 
 ### Site generator — `lib/sitegen/`
 Pure function: `Business` + `IndustryProfile` → complete standalone HTML.
-14 industries, each with real hero + in-action photos and a per-client photo
-override (paste an image URL in `/finder` or `/onboard`, blank keeps the
-industry default). Every generated site emits `LocalBusiness`-family + `FAQPage`
+14 industries, a per-client photo override (paste an image URL in `/finder`
+or `/onboard`, blank keeps the industry default), and a shared "How It
+Works" 5-step section (`howItWorksSteps()` in `generate.ts`) on every site —
+see §2e for which industries have a real curated hero/secondary photo vs.
+generic stock. Every generated site emits `LocalBusiness`-family + `FAQPage`
 + `AggregateRating` JSON-LD. **That schema layer is the sales differentiator** —
 it means the site is visible to ChatGPT and Perplexity on day one. Do not strip it.
 
 To add an industry: add one entry to `INDUSTRIES` in `lib/sitegen/industries.ts`.
 Write the services, trust points, and FAQ answers *properly* — the quality of the
-generated site lives almost entirely in that file.
+generated site lives almost entirely in that file. Source any new photo directly
+from Pexels, not an unverified AI tool — see §2e's watermark incident.
 
 ---
 
