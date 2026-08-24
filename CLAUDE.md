@@ -259,6 +259,19 @@ theirs (matched by checksum against the exact file Cassey sent).
 - **Plumber, Tree Care, Restoration, Salon** — see the watermark issue below;
   these briefly had a real photo, then got reverted back to the original
   stock default.
+- **Plumber specifically — decided, not just pending:** a second hero
+  candidate (a "Plumbmate" Framer-template screenshot) had the same
+  third-party-branding problem as Roofer/Landscaper, but this time came with
+  a clean, brandless fallback — the template's plain abstract-blue-lines
+  background graphic, with no plumber content baked in. Offered it as a
+  usable-but-different option (every other industry uses a real photo of the
+  trade in action; this would've been an abstract graphic showing nothing
+  plumbing-specific, and would look inconsistent next to the others in
+  `/samples`). **Cassey's call: hold off, keep the current stock photo** —
+  don't revisit this unless a genuinely plumbing-specific photo shows up.
+  The secondary image offered alongside it (a 3-panel service collage with
+  its own headline and tag overlays) has the same not-a-single-clean-photo
+  problem as the hero screenshots, with no fallback offered for that one yet.
 
 **Real defect found and fixed: a "Magnific" AI-upscaling watermark (crown
 logo + tiled repeated text) was baked into 4 of the 11 self-hosted photos** —
