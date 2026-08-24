@@ -176,8 +176,8 @@ export function generateSite(
 
   /* Hero */
   .hero{position:relative;color:#fff;overflow:hidden;
-    background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 45%,transparent) 0%,
-      color-mix(in srgb,var(--brand) 30%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 48%,transparent) 100%),
+    background-image:linear-gradient(135deg,color-mix(in srgb,var(--brand-dark) 22%,transparent) 0%,
+      color-mix(in srgb,var(--brand) 14%,transparent) 55%,color-mix(in srgb,var(--brand-dark) 25%,transparent) 100%),
       url('${p.heroImage}');
     background-size:cover;background-position:center;background-repeat:no-repeat}
   .hero::before{content:"";position:absolute;inset:0;opacity:.16;
@@ -193,10 +193,12 @@ export function generateSite(
   .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);
     border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 15px;
     font-size:.82rem;font-weight:600;margin-bottom:22px}
-  .hero h1{color:#fff}
-  .herosub{font-size:1.14rem;line-height:1.65;color:rgba(255,255,255,.93);margin-top:20px;max-width:560px}
+  .hero h1{color:#fff;text-shadow:0 2px 16px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.5)}
+  .herosub{font-size:1.14rem;line-height:1.65;color:rgba(255,255,255,.93);margin-top:20px;max-width:560px;
+    text-shadow:0 1px 8px rgba(0,0,0,.5)}
   .herobtns{display:flex;gap:12px;flex-wrap:wrap;margin-top:34px}
-  .chips{display:flex;gap:22px;flex-wrap:wrap;margin-top:34px;font-size:.86rem;color:rgba(255,255,255,.9)}
+  .chips{display:flex;gap:22px;flex-wrap:wrap;margin-top:34px;font-size:.86rem;color:rgba(255,255,255,.9);
+    text-shadow:0 1px 6px rgba(0,0,0,.55)}
   .chip{display:inline-flex;align-items:center;gap:7px}
   .herorating{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:38px;max-width:100%;
     background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.22);border-radius:999px;
