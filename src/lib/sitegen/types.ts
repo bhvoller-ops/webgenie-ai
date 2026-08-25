@@ -16,6 +16,8 @@ export interface Business {
   rating?: number;
   reviewCount?: number;
   hours?: string;
+  /** True only when Google Places' hours data shows the business open 24 hours every day. */
+  open24Hours?: boolean;
   website?: string | null;
   placeUrl?: string;
   /** Distinguishes real API results from generated sample data. */

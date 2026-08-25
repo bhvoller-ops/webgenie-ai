@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     url: string;
     rating: number | null;
     reviewCount: number | null;
+    open24Hours: boolean;
   }> = [];
   const skipped: Array<{ businessName: string; reason: string }> = [];
 
@@ -155,7 +156,8 @@ export async function POST(request: Request) {
         businessName: business.name,
         url: business.website,
         rating: business.rating ?? null,
-        reviewCount: business.reviewCount ?? null
+        reviewCount: business.reviewCount ?? null,
+        open24Hours: business.open24Hours ?? false
       });
     } catch (error) {
       skipped.push({

@@ -180,6 +180,18 @@ const NAME_NOISE_WORDS = new Set([
 ]);
 
 /** Strips generic industry words so "Estes Services" and "Estes Heating & Air" match as the same brand. */
+/**
+ * Google Places (New) writes "Open 24 hours" as the literal description for
+ * a day the place never closes. True only if that's the case every day —
+ * one 24-hour day (e.g. a Saturday-only late shift) doesn't make a business
+ * actually round-the-clock, which is the distinction the "no 24/7 coverage"
+ * pitch point depends on.
+ */
+export function isOpen24Hours(weekdayDescriptions?: string[]): boolean {
+  if (!weekdayDescriptions || weekdayDescriptions.length < 7) return false;
+  return weekdayDescriptions.every((d) => /open 24 hours/i.test(d));
+}
+
 export function normalizeBusinessName(name: string): string {
   return name
     .toLowerCase()
@@ -414,6 +426,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
         rating: pl.rating,
         reviewCount: pl.userRatingCount,
         hours: pl.regularOpeningHours?.weekdayDescriptions?.[0],
+        open24Hours: isOpen24Hours(pl.regularOpeningHours?.weekdayDescriptions),
         website: pl.websiteUri ?? null,
         placeUrl: pl.googleMapsUri,
         source: "places",

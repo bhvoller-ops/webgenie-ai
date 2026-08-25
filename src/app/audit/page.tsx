@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Clock,
   Filter,
   Loader2,
   MapPin,
@@ -28,6 +29,7 @@ interface QueuedBusiness {
   url: string;
   rating: number | null;
   reviewCount: number | null;
+  open24Hours: boolean;
 }
 
 interface QueueResponse {
@@ -372,11 +374,24 @@ export default function AuditPage() {
                     {result.queued.map((q) => (
                       <tr key={q.jobId} className="border-t border-hairline transition-colors hover:bg-raised/40">
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-start gap-3">
                             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-neon/30 bg-neon/10 text-[13px] font-semibold text-neon-soft">
                               {q.businessName.charAt(0)}
                             </span>
-                            <span className="text-[13px] font-medium text-ink">{q.businessName}</span>
+                            <div className="min-w-0">
+                              <span className="text-[13px] font-medium text-ink">{q.businessName}</span>
+                              {!q.open24Hours ? (
+                                <div className="mt-1.5">
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-signal-warn"
+                                    title="No 24/7 coverage — a real gap this package fills"
+                                  >
+                                    <Clock className="h-2.5 w-2.5" aria-hidden />
+                                    No 24/7 Coverage
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </td>
                         <td className="px-5 py-4">

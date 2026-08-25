@@ -2,7 +2,9 @@
 
 import { Fragment, useMemo, useRef, useState } from "react";
 import {
+  Bot,
   Building2,
+  Clock,
   Copy,
   Download,
   ExternalLink,
@@ -358,11 +360,14 @@ export default function FinderPage() {
                   <Fragment key={b.id}>
                   <tr className="border-t border-hairline transition-colors hover:bg-raised/40">
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-start gap-3">
                         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/30 bg-iris/10 text-[13px] font-semibold text-iris-soft">
                           {b.name.charAt(0)}
                         </span>
-                        <span className="text-[13px] font-medium text-ink">{b.name}</span>
+                        <div className="min-w-0">
+                          <span className="text-[13px] font-medium text-ink">{b.name}</span>
+                          <PitchBadges open24Hours={b.open24Hours} />
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -540,6 +545,31 @@ function StatCard({
       <div className={cn("mt-3 font-mono text-4xl font-semibold tabular-nums tracking-tight", color)}>
         {value}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Talking points to lead with on the call, surfaced before you dial instead
+ * of something you have to remember to check. Every row here already has no
+ * website (that's why it's in this list), so "no AI receptionist" is always
+ * true by definition — nothing to detect, it just needs saying out loud.
+ * "No 24/7 coverage" comes from Places' own hours data (see isOpen24Hours in
+ * lib/prospect/finder.ts) and is genuinely conditional, not assumed.
+ */
+function PitchBadges({ open24Hours }: { open24Hours?: boolean }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-signal-warn">
+        <Bot className="h-2.5 w-2.5" aria-hidden />
+        No AI Receptionist
+      </span>
+      {!open24Hours ? (
+        <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[10.5px] font-medium text-signal-warn">
+          <Clock className="h-2.5 w-2.5" aria-hidden />
+          No 24/7 Coverage
+        </span>
+      ) : null}
     </div>
   );
 }
