@@ -41,7 +41,7 @@ more per client. Both are real; A is the priority.
 | Database migrations `001`–`018` | Written and committed. `017` and `018` **confirmed run** against production (checked live via the Supabase API, not assumed) — `012`–`016` still unconfirmed |
 | Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
-| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause |
+| Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause. "No AI Receptionist" / "No 24/7 Coverage" pitch badges on every result (`/audit` too) — see §2f |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form (§2c), a shared "How It Works" 5-step section on every site (§2e). **9 of 14 have a real curated hero photo** (Roofer/Landscaper/Tree Care/Restoration/Salon still on generic stock — see §2e) |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
@@ -340,6 +340,46 @@ directly from Cassey rather than through a Bolt/Magnific pipeline.
 **Still open, unchanged:** Roofer, Landscaper, Tree Care, Restoration, Salon
 are on generic stock photos, waiting on clean sources.
 
+### 2f. "No AI Receptionist" / "No 24/7 Coverage" pitch badges — 25 Aug 2026
+
+Cassey's idea: surface the gap between what a prospect has today and what
+the $297/mo package adds directly on the results list — a reminder to lead
+with before the call, not something to remember mid-pitch. "Easier to show
+them than tell," in her words.
+
+**"No AI Receptionist"** — shown on every `/finder` no-website result.
+Not detected, just stated: a business with no website has no chat widget by
+definition, so there's nothing to check for Motion A. (For Motion B/`/audit`,
+whether a business's *existing* site has a chat widget was already a real,
+separate check — `lib/intelligence/foot-in-the-door.ts`'s `hasChatWidget`
+finding, built earlier, untouched by this work. It only runs after a full
+capture, so it can't appear on `/audit`'s pre-analysis results list, only in
+the finished report.)
+
+**"No 24/7 Coverage"** — genuinely conditional, not assumed. Google Places'
+`regularOpeningHours` data was already being fetched (in the field mask
+since before this change) but only its first weekday description was ever
+used, for display. Added `isOpen24Hours()` in `lib/prospect/finder.ts`,
+checking that **all seven** weekday descriptions say "Open 24 hours" — one
+late night doesn't make a business round-the-clock. New `Business.open24Hours`
+field carries the result through to both `/finder`'s results and `/audit`'s
+queued list (threaded through `/api/audits/queue` too).
+
+**A literal "AI answers their phone" check was explicitly ruled out** —
+not detectable by any scraping or API call; the only way to know is to
+actually call the business and see who picks up, which isn't something to
+automate at prospect-list scale.
+
+**Verified against a real live search, not just typechecked:** an Atlanta
+plumber search showed "No AI Receptionist" on all 7 results (correct) and
+"No 24/7 Coverage" on only 2 of 7 (also correct — confirmed the other 5
+genuinely do list 24-hour availability on Google, the check isn't just
+defaulting to true). The equivalent live test on `/audit` was **not** run —
+unlike `/finder`'s read-only search, "Find & Queue Audits" creates real
+database rows and spends a real analysis-job usage credit, so the already-
+proven `open24Hours` logic and identical badge JSX were judged sufficient
+without spending one just to re-confirm the same thing.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -513,6 +553,8 @@ rejects a circle parameter, so radius is applied as a rectangle instead — do n
 "fix" this back to a circle.
 Free tier is 5,000 Text Search calls/month; one call returns ~20 businesses.
 Realistic usage is ~1% of that. Set a $10 budget cap anyway.
+`regularOpeningHours` is in the field mask and feeds `isOpen24Hours()` — see
+§2f — for the "No 24/7 Coverage" pitch badge on `/finder` and `/audit`.
 
 **403 PERMISSION_DENIED, twice now — actual cause found the second time.**
 The key had "Websites" selected as its restriction type in Google Cloud
