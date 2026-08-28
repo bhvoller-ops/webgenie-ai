@@ -305,6 +305,7 @@ export async function addCallLogEntryAction(formData: FormData) {
   const city = z.string().max(80).optional().parse(formData.get("city")?.toString() || undefined);
   const state = z.string().max(20).optional().parse(formData.get("state")?.toString() || undefined);
   const demoUrl = normalizeOptionalUrl(formData.get("demoUrl")?.toString());
+  const partnerId = z.string().uuid().optional().parse(formData.get("partnerId")?.toString() || undefined);
 
   const { supabase, user, organizationId } = await getUserAndOrganization();
   const { error } = await supabase.from("call_log").insert({
@@ -315,6 +316,7 @@ export async function addCallLogEntryAction(formData: FormData) {
     city: city ?? null,
     state: state ?? null,
     demo_url: demoUrl ?? null,
+    partner_id: partnerId ?? null,
     created_by: user.id
   });
   if (error) throw new Error(error.message);
@@ -326,6 +328,7 @@ export async function updateCallLogEntryAction(formData: FormData) {
   const status = z.enum(callLogStatuses).parse(formData.get("status"));
   const followUpDays = formData.get("followUpDays")?.toString();
   const notes = formData.get("notes")?.toString();
+  const partnerIdRaw = formData.get("partnerId")?.toString();
 
   const { supabase, organizationId } = await getUserAndOrganization();
 
@@ -341,10 +344,86 @@ export async function updateCallLogEntryAction(formData: FormData) {
     const days = z.coerce.number().int().min(1).max(30).parse(followUpDays);
     update.follow_up_due_at = new Date(Date.now() + days * 86400000).toISOString();
   }
+  // "" from the "No change" option leaves the existing partner alone; only a
+  // real uuid or the explicit "none" sentinel touches partner_id.
+  if (partnerIdRaw === "none") {
+    update.partner_id = null;
+  } else if (partnerIdRaw) {
+    update.partner_id = z.string().uuid().parse(partnerIdRaw);
+  }
 
   const { error } = await supabase.from("call_log").update(update).eq("id", id).eq("organization_id", organizationId);
   if (error) throw new Error(error.message);
   revalidatePath("/calls");
+  revalidatePath("/partners");
+}
+
+const partnerStatuses = ["active", "inactive"] as const;
+
+export async function addPartnerAction(formData: FormData) {
+  const name = z.string().min(1).max(160).parse(formData.get("name"));
+  const contactEmail = z.string().email().or(z.literal("")).parse(formData.get("contactEmail")?.toString() ?? "");
+  const contactPhone = z.string().max(40).optional().parse(formData.get("contactPhone")?.toString() || undefined);
+  const flatFee = z.coerce.number().min(0).max(100000).parse(formData.get("flatFee") || 100);
+  const notes = z.string().max(2000).optional().parse(formData.get("notes")?.toString() || undefined);
+  const rawCode = formData.get("referralCode")?.toString().trim();
+  const referralCode = (rawCode && rawCode.length > 0
+    ? rawCode
+    : name
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || `partner-${Date.now()}`;
+
+  const { supabase, organizationId } = await getUserAndOrganization();
+  const { error } = await supabase.from("partners").insert({
+    organization_id: organizationId,
+    name,
+    contact_email: contactEmail || null,
+    contact_phone: contactPhone ?? null,
+    referral_code: referralCode,
+    flat_fee: flatFee,
+    notes: notes ?? null
+  });
+  if (error) {
+    // Unique (organization_id, referral_code) violation — the auto-slugified
+    // code collided with an existing partner. Surface something actionable
+    // rather than a raw Postgres constraint message.
+    if (error.message.toLowerCase().includes("duplicate")) {
+      throw new Error(`Referral code "${referralCode}" is already in use by another partner — pick a different one.`);
+    }
+    throw new Error(error.message);
+  }
+  revalidatePath("/partners");
+}
+
+export async function updatePartnerAction(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const flatFee = z.coerce.number().min(0).max(100000).parse(formData.get("flatFee"));
+  const status = z.enum(partnerStatuses).parse(formData.get("status"));
+  const notes = formData.get("notes")?.toString();
+
+  const { supabase, organizationId } = await getUserAndOrganization();
+  const update: Record<string, unknown> = { flat_fee: flatFee, status };
+  if (notes !== undefined) update.notes = notes || null;
+
+  const { error } = await supabase.from("partners").update(update).eq("id", id).eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/partners");
+}
+
+export async function markCommissionPaidAction(formData: FormData) {
+  const callLogId = z.string().uuid().parse(formData.get("callLogId"));
+  const { supabase, organizationId } = await getUserAndOrganization();
+  const { error } = await supabase
+    .from("call_log")
+    .update({ commission_status: "paid" })
+    .eq("id", callLogId)
+    .eq("organization_id", organizationId)
+    .eq("commission_status", "owed"); // only a real owed commission can be marked paid
+  if (error) throw new Error(error.message);
+  revalidatePath("/partners");
 }
 
 async function getBaseUrl() {

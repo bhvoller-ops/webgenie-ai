@@ -56,6 +56,31 @@ export async function POST(request: Request) {
               typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
           })
           .eq("id", callLogId);
+
+        // Partner program: a deal referred by a partner earns them a flat
+        // fee the moment it converts to a real paying customer. Only fires
+        // on the initial checkout (commission_status still "none") — a
+        // later renewal/subscription-update webhook must never re-trigger
+        // this, since the commission is per-signup, not per-billing-cycle.
+        const { data: deal } = await supabase
+          .from("call_log")
+          .select("partner_id, commission_status")
+          .eq("id", callLogId)
+          .maybeSingle();
+        if (deal?.partner_id && deal.commission_status === "none") {
+          const { data: partner } = await supabase
+            .from("partners")
+            .select("flat_fee")
+            .eq("id", deal.partner_id)
+            .maybeSingle();
+          if (partner) {
+            await supabase
+              .from("call_log")
+              .update({ commission_status: "owed", commission_amount: partner.flat_fee })
+              .eq("id", callLogId)
+              .eq("commission_status", "none");
+          }
+        }
       }
       break;
     }

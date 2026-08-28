@@ -57,6 +57,12 @@ interface CallLogRow {
   follow_up_due_at: string | null;
   notes: string | null;
   payment_status?: string;
+  partner_id?: string | null;
+}
+
+interface PartnerOption {
+  id: string;
+  name: string;
 }
 
 async function getOrganizationId() {
@@ -95,19 +101,20 @@ export default async function CallsPage() {
   const organizationId = await getOrganizationId();
 
   let rows: CallLogRow[] = [];
+  let partners: PartnerOption[] = [];
   if (organizationId) {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("call_log")
       .select(
-        "id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes,payment_status"
+        "id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes,payment_status,partner_id"
       )
       .eq("organization_id", organizationId)
       .order("follow_up_due_at", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) {
-      // Migration 017 (payment_status column) may not be applied yet —
-      // fall back so the tracker still works without billing status.
+      // Migrations 017 (payment_status) / 020 (partner_id) may not be applied
+      // yet — fall back so the tracker still works without those columns.
       const fallback = await supabase
         .from("call_log")
         .select("id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes")
@@ -118,6 +125,14 @@ export default async function CallsPage() {
     } else {
       rows = data ?? [];
     }
+
+    const { data: partnerData } = await supabase
+      .from("partners")
+      .select("id,name")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .order("name", { ascending: true });
+    partners = partnerData ?? [];
   }
 
   const dueCount = rows.filter((r) => {
@@ -160,7 +175,17 @@ export default async function CallsPage() {
           <input name="industry" placeholder="Industry" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
           <input name="city" placeholder="City" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
           <input name="state" placeholder="State" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400" />
-          <input name="demoUrl" placeholder="Demo site URL (optional)" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 lg:col-span-4" />
+          <input name="demoUrl" placeholder="Demo site URL (optional)" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 lg:col-span-3" />
+          {partners.length > 0 ? (
+            <select name="partnerId" defaultValue="" className="rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-slate-900 lg:col-span-1">
+              <option value="">No referral</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Ref: {p.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button className="focus-ring rounded-lg bg-iris px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-iris-soft lg:col-span-2">
             Add to tracker
           </button>
@@ -267,6 +292,21 @@ export default async function CallsPage() {
                   <button className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-ink transition-colors hover:border-iris/50">
                     Save
                   </button>
+                  {partners.length > 0 ? (
+                    <select
+                      name="partnerId"
+                      defaultValue=""
+                      className="rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 md:col-span-4"
+                    >
+                      <option value="">Referral: no change{row.partner_id ? " (currently tagged)" : ""}</option>
+                      <option value="none">No referral</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          Ref: {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                 </form>
                 {row.last_contacted_at ? (
                   <p className="mt-2 text-[11px] text-muted">
