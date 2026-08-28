@@ -58,6 +58,9 @@ interface CallLogRow {
   notes: string | null;
   payment_status?: string;
   partner_id?: string | null;
+  source?: string | null;
+  contact_name?: string | null;
+  email?: string | null;
 }
 
 interface PartnerOption {
@@ -107,14 +110,14 @@ export default async function CallsPage() {
     const { data, error } = await supabase
       .from("call_log")
       .select(
-        "id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes,payment_status,partner_id"
+        "id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes,payment_status,partner_id,source,contact_name,email"
       )
       .eq("organization_id", organizationId)
       .order("follow_up_due_at", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (error) {
-      // Migrations 017 (payment_status) / 020 (partner_id) may not be applied
-      // yet — fall back so the tracker still works without those columns.
+      // Migrations 017 (payment_status) / 020 (partner_id) / 021 (source) may
+      // not be applied yet — fall back so the tracker still works without them.
       const fallback = await supabase
         .from("call_log")
         .select("id,business_name,phone,industry,city,state,demo_url,status,last_contacted_at,follow_up_due_at,notes")
@@ -214,6 +217,7 @@ export default async function CallsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-ink">{row.business_name}</h3>
                       <Pill tone={STATUS_TONE[row.status]}>{STATUS_LABELS[row.status]}</Pill>
+                      {row.source === "self_serve" ? <Pill tone="iris">Self-serve</Pill> : null}
                       {row.payment_status && row.payment_status !== "none" ? (
                         <Pill tone={PAYMENT_TONE[row.payment_status]}>{PAYMENT_LABELS[row.payment_status]}</Pill>
                       ) : null}
@@ -241,6 +245,8 @@ export default async function CallsPage() {
                       ) : null}
                       {row.industry ? <span>{row.industry}</span> : null}
                       {row.city ? <span>{row.city}{row.state ? `, ${row.state}` : ""}</span> : null}
+                      {row.contact_name ? <span>Contact: {row.contact_name}</span> : null}
+                      {row.email ? <span>{row.email}</span> : null}
                     </div>
                   </div>
                   {row.payment_status !== "active" ? (
