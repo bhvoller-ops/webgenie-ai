@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifySignup } from "@/lib/notify";
 
 /**
  * Public self-serve intake for word-of-mouth / webinar leads — someone who
@@ -58,20 +59,38 @@ export async function POST(request: Request) {
       partnerId = partner?.id ?? null;
     }
 
-    const { error } = await supabase.from("call_log").insert({
-      organization_id: org.id,
-      business_name: businessName,
-      contact_name: contactName || null,
-      phone,
-      email: email || null,
-      industry: industry || null,
-      city: city || null,
-      state: state || null,
-      notes: message || null,
-      source: "self_serve",
-      partner_id: partnerId
-    });
+    const { data: row, error } = await supabase
+      .from("call_log")
+      .insert({
+        organization_id: org.id,
+        business_name: businessName,
+        contact_name: contactName || null,
+        phone,
+        email: email || null,
+        industry: industry || null,
+        city: city || null,
+        state: state || null,
+        notes: message || null,
+        source: "self_serve",
+        partner_id: partnerId
+      })
+      .select("id")
+      .single();
     if (error) throw error;
+
+    // Awaited deliberately, not fire-and-forget: a serverless function can
+    // freeze the instant the response is returned, which would kill an
+    // in-flight Resend request before it completes. notifySignup never
+    // throws (it logs and swallows its own errors), so this can't turn an
+    // email failure into a failed signup — it only adds one API round trip.
+    await notifySignup({
+      kind: "lead",
+      name: businessName,
+      contactEmail: email || null,
+      contactPhone: phone,
+      detailUrl: "https://webgenie-ai-sooty.vercel.app/calls",
+      idempotencyKey: `lead-signup/${row.id}`
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

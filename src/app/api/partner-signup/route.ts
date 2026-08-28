@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReferralCode } from "@/lib/partners";
+import { notifySignup } from "@/lib/notify";
 
 /**
  * Public self-serve partner signup. Same-origin only, no CORS needed — see
@@ -40,34 +41,60 @@ export async function POST(request: Request) {
     }
 
     const referralCode = buildReferralCode(name);
-    const { error } = await supabase.from("partners").insert({
-      organization_id: org.id,
-      name,
-      contact_email: contactEmail,
-      contact_phone: contactPhone || null,
-      referral_code: referralCode,
-      notes: message || null,
-      status: "inactive"
-    });
+    const { data: row, error } = await supabase
+      .from("partners")
+      .insert({
+        organization_id: org.id,
+        name,
+        contact_email: contactEmail,
+        contact_phone: contactPhone || null,
+        referral_code: referralCode,
+        notes: message || null,
+        status: "inactive"
+      })
+      .select("id")
+      .single();
     if (error) {
       // Extremely unlikely (two different signups slugifying to the same
       // code), but retry once with a suffix rather than fail the signup.
       if (error.message.toLowerCase().includes("duplicate")) {
         const retryCode = `${referralCode}-${Math.floor(Math.random() * 1000)}`;
-        const retry = await supabase.from("partners").insert({
-          organization_id: org.id,
-          name,
-          contact_email: contactEmail,
-          contact_phone: contactPhone || null,
-          referral_code: retryCode,
-          notes: message || null,
-          status: "inactive"
-        });
+        const retry = await supabase
+          .from("partners")
+          .insert({
+            organization_id: org.id,
+            name,
+            contact_email: contactEmail,
+            contact_phone: contactPhone || null,
+            referral_code: retryCode,
+            notes: message || null,
+            status: "inactive"
+          })
+          .select("id")
+          .single();
         if (retry.error) throw retry.error;
+        await notifySignup({
+          kind: "partner",
+          name,
+          contactEmail,
+          contactPhone: contactPhone || null,
+          detailUrl: "https://webgenie-ai-sooty.vercel.app/partners",
+          idempotencyKey: `partner-signup/${retry.data.id}`
+        });
         return NextResponse.json({ ok: true, referralCode: retryCode });
       }
       throw error;
     }
+
+    // See /api/get-started for why this is awaited rather than fire-and-forget.
+    await notifySignup({
+      kind: "partner",
+      name,
+      contactEmail,
+      contactPhone: contactPhone || null,
+      detailUrl: "https://webgenie-ai-sooty.vercel.app/partners",
+      idempotencyKey: `partner-signup/${row.id}`
+    });
 
     return NextResponse.json({ ok: true, referralCode });
   } catch (err) {
