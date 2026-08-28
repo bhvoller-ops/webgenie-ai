@@ -14,6 +14,7 @@ import { runProjectOrchestration } from "@/lib/jobs/run-orchestration";
 import { createProjectDelivery } from "@/lib/jobs/create-delivery";
 import { deliveryTargets } from "@/lib/delivery/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
+import { buildReferralCode } from "@/lib/partners";
 
 const projectSchema = z.object({
   name: z.string().min(2).max(120),
@@ -366,15 +367,7 @@ export async function addPartnerAction(formData: FormData) {
   const contactPhone = z.string().max(40).optional().parse(formData.get("contactPhone")?.toString() || undefined);
   const flatFee = z.coerce.number().min(0).max(100000).parse(formData.get("flatFee") || 100);
   const notes = z.string().max(2000).optional().parse(formData.get("notes")?.toString() || undefined);
-  const rawCode = formData.get("referralCode")?.toString().trim();
-  const referralCode = (rawCode && rawCode.length > 0
-    ? rawCode
-    : name
-  )
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || `partner-${Date.now()}`;
+  const referralCode = buildReferralCode(name, formData.get("referralCode")?.toString());
 
   const { supabase, organizationId } = await getUserAndOrganization();
   const { error } = await supabase.from("partners").insert({

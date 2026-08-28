@@ -116,6 +116,12 @@ export default async function PartnersPage() {
             Add partner
           </button>
         </form>
+        <p className="mt-4 text-[12px] text-faint">
+          Or send people to <span className="font-mono text-muted">/partner-signup</span> to sign
+          themselves up — they land here as <span className="font-medium text-ink">inactive</span> until
+          you flip them to Active, so nothing pays out before you've actually seen who signed up.
+          No email notifies you when someone does — check back here.
+        </p>
       </Panel>
 
       <div className="mt-10 space-y-4">
