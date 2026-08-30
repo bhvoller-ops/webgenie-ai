@@ -48,10 +48,10 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
-| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j |
+| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -780,6 +780,134 @@ any of them (every relevant page is now gated), so the realistic exposure
 is a crafted direct request, not normal use. Worth a dedicated pass later,
 not urgent for a single-operator app today.
 
+### 2k. Password reset, invite/member management, mobile nav, pagination — 30 Aug 2026
+
+Cassey: "What else do we need in the dashboard to make it fully functional
+for the partners as well as for Admins? Check the system end to end and
+tell me next steps." Then: "start building, password reset first and in
+the order from 1-6 including the lower priority" — a prioritized punch
+list from that review, in order: password reset, then six Admin-dashboard
+gaps, then mobile nav + pagination.
+
+**Password reset — the highest-priority item, and the one with the most
+real problems found while building it.** Removing public self-serve
+signup (§2j) closed the accidental recovery path that used to exist — a
+locked-out account (yours or a partner's) had zero way back in without a
+developer manually resetting it via the Supabase admin API. New
+`/forgot-password` → `/reset-password` flow, deliberately **not** using
+Supabase's own password-reset email sending (Auth → SMTP settings) — that
+mailer's rate limit is the entire reason this app has email+password auth
+in the first place (§2b). Instead: `admin.auth.generateLink({ type:
+"recovery" })` creates a real, secure, single-use Supabase recovery link
+(their own auth machinery, not a hand-rolled token table), delivered via
+the already-working Resend integration (`lib/auth/reset-email.ts`) rather
+than Supabase's mailer.
+
+**Two real bugs found and fixed only by testing the actual live click-through,
+not by build/lint passing:**
+1. **Supabase's redirect-URL allowlist didn't include the real domain.**
+   Confirmed empirically, not assumed: generating a real recovery link with
+   `redirectTo: "https://app.vibelabsagency.com/reset-password"` came back
+   silently rewritten to `https://webgenie-ai-sooty.vercel.app` (no path) —
+   Supabase falls back to its configured Site URL when the requested
+   redirect isn't allowlisted, without erroring. Cassey added
+   `https://app.vibelabsagency.com/reset-password` to Authentication → URL
+   Configuration → Redirect URLs in the Supabase dashboard; re-tested
+   afterward and confirmed the real domain is now honored.
+2. **`/reset-password` never actually established a session, even with a
+   valid link and a correctly-configured redirect.** The recovery link's
+   access token was confirmed genuinely valid (verified directly against
+   Supabase's `/auth/v1/user` endpoint outside the app entirely), but the
+   page still showed "invalid or expired" every time. Root cause:
+   `admin.auth.generateLink({ type: "recovery" })` produces the older
+   implicit-flow link shape — session tokens land in the URL's
+   `#access_token=...&refresh_token=...` hash fragment. `createBrowserClient`
+   from `@supabase/ssr` (`lib/supabase/client.ts`) defaults to the **PKCE**
+   flow, whose automatic `detectSessionInUrl` only looks for a `?code=`
+   query param — it silently never fires for this fragment shape, so
+   neither `onAuthStateChange`'s `PASSWORD_RECOVERY` event nor
+   `getSession()` ever resolved. Fixed by parsing `window.location.hash`
+   directly and calling `supabase.auth.setSession({ access_token,
+   refresh_token })` explicitly rather than relying on auto-detection.
+   **Worth remembering for anything else that lands with tokens in a URL
+   fragment** (this app doesn't have another case today, but the next
+   session that adds one will hit the identical silent failure).
+
+**Verified — the full loop, on real production, not simulated:** generated
+a real recovery link via the same `generateLink` call the app makes,
+opened it, confirmed it landed on `app.vibelabsagency.com/reset-password`
+with a real access token, set a new password through the actual form, and
+confirmed it signed the account in and landed on the correct
+role-based destination (`/partners/portal` for the test partner account
+used). All temporary accounts and data deleted afterward.
+
+**Six Admin-dashboard gaps, in the requested order:**
+1. **Real bug fixed**: partner invites were leaking into Settings → Team's
+   pending-invites list (that query pulled every `team_invitations` row
+   with no `role` filter) — a partner invite showed up looking like a
+   pending agency-staff invite. Filtered with `.neq("role","partner")`.
+2. `/partners` now shows a genuine three-state per partner — no invite /
+   invited-pending / has portal access — instead of a binary toggle.
+   Verified all three states live: created an invite (pending pill +
+   Resend + Revoke appear), revoked it (reverts to "Invite to portal"),
+   confirmed "Portal access" shows correctly for an already-linked partner.
+3. Resend/revoke for pending invites, both team and partner
+   (`revokeInvitationAction`). Building this surfaced a **second real
+   bug**: the original `inviteTeamMemberAction` hashed random bytes
+   directly and never captured the raw pre-image —
+   `createHash("sha256").update(randomBytes(32))` — so the
+   `team_invitations` row it created could **never** actually be turned
+   into a working `/invite/[token]` link, for as long as that action has
+   existed. Replaced with `POST /api/team/invite`, matching the correct
+   pattern `/api/partners/invite` already used, plus a new
+   `InviteTeamMemberForm` client component. Verified live: invited a real
+   test address through the actual Settings form, got a real copyable
+   link, confirmed it showed up correctly in the pending list.
+4. `removeMemberAction` — owner-only, guarded against removing yourself or
+   the owner role. Verified by code review, not by clicking it live — it's
+   wrapped in `ConfirmForm`'s native `window.confirm()`, which would freeze
+   the browser-automation session if triggered (documented tool
+   constraint), so this and `deletePartnerAction` (item 6) were checked by
+   reading the code carefully rather than exercised end-to-end.
+5. **A third real bug, and the most consequential one**: Settings' Team
+   member list has shown only the *signed-in user's own row* — never any
+   other teammate's — since this app's foundation migration (`002`). Its
+   RLS policy was `using (user_id = auth.uid())`, which is correctly
+   scoped for "can I read my own row" but wrong for "can I see my team."
+   Invisible until now because this app has only ever had one real member
+   (Cassey) — "I can only see myself" and "I can see the whole team" look
+   identical when the whole team is one person. Confirmed with a real
+   3-member org (owner/admin/editor) that only 1 row ever came back from
+   the query. **Fixed with migration `023`**: a `SECURITY DEFINER` helper
+   function (`my_organization_ids()`) plus an additive read policy — the
+   naive self-referencing version of this policy risks Postgres RLS
+   infinite recursion, so it follows the same SECURITY DEFINER pattern
+   this app already uses for `bootstrap_organization` (migration `013`).
+   Also resolved the member-list "raw user_id instead of a name" gap in
+   the same pass — resolved server-side via the admin client. Verified
+   with a real authenticated non-owner session before and after: 1 row
+   visible, then 3.
+6. `deletePartnerAction` — also revokes the partner's portal login (if
+   any) via the admin client, not just the database row. Code-reviewed,
+   not clicked (see item 4).
+
+**Mobile nav + pagination (the "lower priority" items, still built).** The
+entire nav was previously invisible below tablet width — `hidden md:flex`
+with no fallback of any kind, including no way to reach "My Referrals" from
+a phone. New `components/mobile-nav.tsx`, a hamburger panel with the same
+role-based content as the desktop dropdowns. Verified the rendered content
+and structure directly (the browser tool's `resize_window` did not actually
+change the viewport in this environment despite reporting success — worked
+around it by forcing the CSS breakpoint via a direct style override and
+confirming the real rendered panel and its links, rather than trusting a
+screenshot at a viewport size that hadn't actually changed).
+Page-based pagination (25/page) added to `/calls`, `/leads`, `/partners`
+via a shared `components/pagination.tsx` — stats (follow-ups due, new
+leads, owed/paid totals) are computed from the full fetched set before
+slicing, so they stay accurate regardless of which page is showing.
+
+### 2a. Stripe — corrected 22 Aug 2026
+
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
 verified against a real account** — its `STRIPE_SECRET_KEY` pointed to a Stripe
 account nobody could locate on 22 Aug. On investigation, the login `erngone@yahoo.com`
@@ -905,7 +1033,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── partners/, partners/portal/  Admin partner console + partner self-service portal — see §2j
 │   │   ├── invite/[token]/         Public invite-accept page (agency-staff and partner invites) — see §2j
 │   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
-│   │   ├── login/, auth/           Auth
+│   │   ├── login/, auth/           Auth. Sign-in only — no self-serve signup (§2j)
+│   │   ├── forgot-password/, reset-password/  Password reset — see §2k
 │   │   ├── settings/               Account settings
 │   │   └── api/
 │   │       ├── prospects/, demo-site/   Finder + site-gen routes
@@ -916,6 +1045,10 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │       ├── auth/create-account/     Server-side pre-confirmed account creation. No public UI
 │   │       │                            entry point since 30 Aug (§2j) — reused internally by the
 │   │       │                            invite-accept pattern, not called directly from /login anymore
+│   │       ├── auth/request-reset/      Public — generates + emails a password-reset link (§2k)
+│   │       ├── team/invite/             Admin-only — generates an agency-staff invite link (§2k;
+│   │       │                            replaced the original inviteTeamMemberAction, which had a
+│   │       │                            real bug — see §2k)
 │   │       ├── partners/invite/         Admin-only — generates a partner's one-time portal invite link
 │   │       ├── invite/accept/           Public — redeems an invite token, creates the account
 │   │       ├── analysis/, audits/, delivery-runs/, orchestration-runs/,
@@ -943,7 +1076,7 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── jobs/, admin/, security/, visual/, format.ts, types.ts
 │   │   └── supabase/               client / server / admin
 │   └── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
-├── supabase/migrations/            001–022, run in order
+├── supabase/migrations/            001–023, run in order
 ├── docs/                           Sprint checklists + architecture decisions
 ├── public/industry-photos/         Self-hosted hero photos referenced by absolute URL — see §2e
 ├── Dockerfile.worker               Container for the analysis worker
@@ -1244,12 +1377,45 @@ mind for the paid options.
   via `lib/auth/access.ts` (`requireAdminPage()`, `requirePartnerPage()`,
   `requireAdminApi()`) — check that a new page actually calls one of these,
   since nothing centrally enforces it.
+- **`organization_members` SELECT is scoped per-row, not per-org — every
+  team-visibility feature needs to go through `my_organization_ids()`, not
+  a direct `.select()`.** The foundation migration's policy
+  (`using (user_id = auth.uid())`) means a plain query only ever returns
+  the caller's own membership row, never their teammates'. Migration `023`
+  added a broader read policy via a `SECURITY DEFINER` helper function
+  (the same pattern `bootstrap_organization`, migration `013`, already
+  uses) — a naive self-referencing policy directly on this table risks
+  Postgres RLS infinite recursion. This bug existed since the app's
+  foundation and was invisible until a real multi-member org was tested
+  (§2k) — with only one member, "I can only see myself" and "I can see
+  the whole team" produce identical results.
 - **Run exactly one worker replica.** Job claiming is not atomic; two workers will
   claim the same job. Add a Postgres claim function before scaling.
 - **Windows vs Linux case sensitivity.** The most common cause of "builds locally,
   fails on Vercel."
 - **Supabase Auth redirect URLs** must include both production and
   `https://*-your-team.vercel.app`, or login redirects to a blank page.
+  **Confirmed for real, not just carried over as a general warning** —
+  building password reset (§2k) hit this directly: `admin.auth.generateLink`
+  with `redirectTo` set to `app.vibelabsagency.com` silently fell back to
+  the old `webgenie-ai-sooty.vercel.app` Site URL, no error, until Cassey
+  added the real domain in Authentication → URL Configuration → Redirect
+  URLs. If any future link-based auth flow (password reset, a new invite
+  variant, anything with a `redirectTo`) seems to silently redirect
+  somewhere wrong, check this list before assuming the app code is broken.
+- **A link that lands with `#access_token=...` in the URL fragment needs
+  `supabase.auth.setSession()` called explicitly — don't rely on
+  `createBrowserClient`'s auto-detection.** `@supabase/ssr`'s browser
+  client (`lib/supabase/client.ts`) defaults to the PKCE flow, whose
+  `detectSessionInUrl` only recognizes a `?code=` query param. Supabase's
+  `admin.auth.generateLink({ type: "recovery" })` (and other admin-generated
+  links) produce the older implicit-flow hash-fragment shape instead — the
+  auto-detection silently never fires for it, no error, `getSession()`
+  just never resolves. Bit password reset directly (§2k): the recovery
+  link and its token were both genuinely valid (confirmed independently
+  against Supabase's `/auth/v1/user` endpoint), the page still said
+  "invalid" every time, until this was found. Parse `window.location.hash`
+  and call `setSession({ access_token, refresh_token })` directly instead.
 - **Migrations must run in order, one at a time.** Out-of-sequence failures produce
   unhelpful errors. `012`–`019` are now all verified against production
   (§2g) — but `014`/`019` verified `audit_logs` INSERT as still broken even
@@ -1365,13 +1531,42 @@ mind for the paid options.
   from `POST /api/prospects`), then re-confirmed on real production that
   an unauthenticated visitor hitting `/finder` redirects to `/login`. All
   temporary accounts and data deleted afterward. See §2j.
+- **Password reset + Dashboard follow-up fixes (30 Aug 2026):** full
+  password-reset loop confirmed on real production with a real recovery
+  link — landed on the correct domain, established a real session, set a
+  new password, signed in, landed on the correct role-based destination.
+  Two real bugs found and fixed only by this live test (the Supabase
+  redirect-URL allowlist silently falling back to the wrong domain; the
+  page never calling `setSession` for a hash-fragment link) — neither
+  would have been caught by build or lint. Migration `023` (member-list
+  visibility) confirmed with a real 3-member org and a real authenticated
+  non-owner session: 1 row visible before, 3 after. The new/fixed
+  Settings and `/partners` invite-management UI (pending state, resend,
+  revoke, the rebuilt team-invite flow) all walked through live on a
+  preview deployment. `removeMemberAction`/`deletePartnerAction`
+  specifically were verified by reading the code, not by clicking them —
+  both are wrapped in a native `window.confirm()`, which would freeze the
+  browser-automation session if triggered. See §2k.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
   is confirmed present in `pg_policies`, but a real authenticated insert
   still fails RLS the same way it did before `019` (§2g) — root cause
   unresolved, not something to assume fixed just because the migration file
-  exists and applied cleanly.
+  exists and applied cleanly. **Odd data point from 30 Aug, not a
+  re-verification**: a real `team.invited` audit log entry was observed
+  landing correctly during the Settings testing in §2k, which is exactly
+  the write path §2g documented as broken. Could mean it started working
+  (a Supabase-side fix or cache invalidation, not anything this session
+  changed) or could be inconsistent/intermittent. Don't treat this as
+  "fixed" — re-run §2g's actual reproduction method to know for sure.
+- Partner self-service gaps intentionally left open this round (Cassey's
+  instruction was password reset + the six numbered Admin items + lower
+  priority, not the full partner-side list from the original review): a
+  partner can't change their own password/email from the portal, gets no
+  notification when a referral converts or is paid, and there's no way to
+  revoke a partner's portal login without deleting the whole partner
+  record. Worth picking up next if revisited.
 - That generated-site leads attribute to the correct agency once more than one
   agency uses WebGenie — known single-tenant limitation, see §2c.
 - **Whether a real card can actually be charged and paid out in live mode.**
