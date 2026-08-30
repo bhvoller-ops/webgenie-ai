@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Plus, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
 import { NavGroup } from "@/components/nav-group";
+import { MobileNav } from "@/components/mobile-nav";
 import { signOut } from "@/app/actions";
 import type { AccessRole } from "@/lib/auth/access";
 
@@ -42,7 +43,7 @@ const PUBLIC_ITEMS = [
 export function TopBar({ role = "guest" }: { role?: AccessRole }) {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-6">
+      <div className="relative mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-6">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
           {role === "admin" ? (
@@ -70,6 +71,7 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          <MobileNav role={role} prospectorItems={PROSPECTOR_ITEMS} dashboardItems={DASHBOARD_ITEMS} publicItems={PUBLIC_ITEMS} />
           {role === "admin" ? (
             <>
               <Link

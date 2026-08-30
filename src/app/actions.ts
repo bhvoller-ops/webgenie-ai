@@ -234,16 +234,34 @@ export async function createDeliveryAction(formData: FormData) {
   redirect(`/projects/${projectId}/delivery/${deliveryId}`);
 }
 
-export async function inviteTeamMemberAction(formData: FormData) {
-  const email = z.string().email().parse(formData.get("email"));
-  const role = z.enum(["admin", "editor", "viewer"]).parse(formData.get("role"));
+// inviteTeamMemberAction used to live here. Removed 30 Aug 2026 — it hashed
+// random bytes directly and never captured/returned the raw pre-image, so
+// the team_invitations row it created could never actually be turned into
+// a working /invite/[token] link. Replaced by POST /api/team/invite (same
+// correct pattern as /api/partners/invite), called from the new
+// InviteTeamMemberForm client component on /settings.
+
+export async function revokeInvitationAction(formData: FormData) {
+  const invitationId = z.string().uuid().parse(formData.get("invitationId"));
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
+  // Works for both agency-staff and partner invites — same table, no
+  // role filter needed since it's scoped to this org and this specific row.
+  const { error } = await supabase.from("team_invitations").delete().eq("id", invitationId).eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidatePath("/partners");
+}
+
+export async function removeMemberAction(formData: FormData) {
+  const memberUserId = z.string().uuid().parse(formData.get("memberUserId"));
   const { supabase, user, organizationId } = await getUserAndOrganization();
   const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", organizationId).eq("user_id", user.id).single();
-  if (!membership || !["owner", "admin"].includes(membership.role)) throw new Error("Team administration permission required.");
-  const tokenHash = (await import("node:crypto")).createHash("sha256").update((await import("node:crypto")).randomBytes(32)).digest("hex");
-  const { error } = await supabase.from("team_invitations").upsert({ organization_id: organizationId, email: email.toLowerCase(), role, token_hash: tokenHash, invited_by: user.id, expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), accepted_at: null }, { onConflict: "organization_id,email" });
+  if (membership?.role !== "owner") throw new Error("Only an owner can remove members.");
+  if (memberUserId === user.id) throw new Error("You can't remove yourself. Have another owner do it.");
+  const { error } = await supabase.from("organization_members").delete().eq("organization_id", organizationId).eq("user_id", memberUserId).neq("role", "owner");
   if (error) throw new Error(error.message);
-  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_user_id: user.id, action: "team.invited", target_type: "email", target_id: email.toLowerCase(), metadata: { role } });
+  await supabase.from("audit_logs").insert({ organization_id: organizationId, actor_user_id: user.id, action: "team.member_removed", target_type: "user", target_id: memberUserId, metadata: {} });
   revalidatePath("/settings");
 }
 
@@ -429,6 +447,31 @@ export async function markCommissionPaidAction(formData: FormData) {
     .eq("organization_id", organizationId)
     .eq("commission_status", "owed"); // only a real owed commission can be marked paid
   if (error) throw new Error(error.message);
+  revalidatePath("/partners");
+}
+
+export async function deletePartnerAction(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
+
+  // call_log.partner_id is ON DELETE SET NULL (migration 020) — referred
+  // deals survive, just lose their partner attribution, rather than being
+  // deleted themselves.
+  const { data: partner } = await supabase.from("partners").select("user_id").eq("id", id).eq("organization_id", organizationId).maybeSingle();
+
+  const { error } = await supabase.from("partners").delete().eq("id", id).eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
+
+  // Also revoke their portal login, if they had one — otherwise a dangling
+  // auth account remains that can sign in but (correctly) can no longer
+  // see anything, which is confusing even though it's not a security gap.
+  if (partner?.user_id) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    await admin.auth.admin.deleteUser(partner.user_id);
+  }
+
   revalidatePath("/partners");
 }
 
