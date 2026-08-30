@@ -1,4 +1,5 @@
 import type { IndustryKey, IndustryProfile } from "@/lib/sitegen/types";
+import { SITE_ORIGIN } from "@/lib/site-url";
 
 /**
  * Industry profiles.
@@ -54,7 +55,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HVACBusiness",
     primary: "#0369A1",
     primaryDark: "#075985",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/hvac.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/hvac.jpg`,
     secondaryImage: "https://images.pexels.com/photos/33671149/pexels-photo-33671149.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Heating and cooling repair, installation, and maintenance across {city}. Comfortable homes, honest pricing.",
@@ -91,7 +92,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Electrician",
     primary: "#B45309",
     primaryDark: "#92400E",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/electrician.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/electrician.jpg`,
     secondaryImage: "https://images.pexels.com/photos/5691590/pexels-photo-5691590.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Safe, code-compliant electrical work for homes and businesses across {city}.",
@@ -239,7 +240,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "HousePainter",
     primary: "#0D9488",
     primaryDark: "#115E59",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/cleaning.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/cleaning.jpg`,
     secondaryImage: "https://images.pexels.com/photos/28576636/pexels-photo-28576636.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Dependable home and office cleaning across {city}. Bonded, insured, and consistently thorough.",
@@ -313,7 +314,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "Dentist",
     primary: "#0E7490",
     primaryDark: "#155E75",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/dentist.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/dentist.jpg`,
     secondaryImage: "https://images.pexels.com/photos/6812479/pexels-photo-6812479.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Gentle, modern dentistry in {city}. Same-week appointments and treatment explained before it starts.",
@@ -350,7 +351,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "MedicalClinic",
     primary: "#9333EA",
     primaryDark: "#6B21A8",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/med-spa.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/med-spa.jpg`,
     secondaryImage: "https://images.pexels.com/photos/35884499/pexels-photo-35884499.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Advanced aesthetic treatments in {city}, delivered by licensed medical professionals.",
@@ -387,7 +388,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "MedicalClinic",
     primary: "#0F766E",
     primaryDark: "#115E59",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/chiropractor.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/chiropractor.jpg`,
     secondaryImage: "https://images.pexels.com/photos/4506169/pexels-photo-4506169.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Relief from back, neck, and joint pain in {city}. Evidence-based care with a clear treatment plan.",
@@ -461,7 +462,7 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
     schemaType: "GeneralContractor",
     primary: "#C2410C",
     primaryDark: "#9A3412",
-    heroImage: "https://webgenie-ai-sooty.vercel.app/industry-photos/contractor.jpg",
+    heroImage: `${SITE_ORIGIN}/industry-photos/contractor.jpg`,
     secondaryImage: "https://images.pexels.com/photos/14989317/pexels-photo-14989317.jpeg?auto=compress&cs=tinysrgb&w=1400",
     heroSub:
       "Remodelling and construction across {city}. Clear quotes, realistic timelines, work you can inspect.",

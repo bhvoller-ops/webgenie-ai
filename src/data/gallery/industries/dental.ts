@@ -11,6 +11,7 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const dentalConfig: IndustryConfig = {
   id: 'dental',
@@ -49,7 +50,7 @@ export const dentalConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://webgenie-ai-sooty.vercel.app/gallery-photos/dental.jpg',
+  heroImage: `${SITE_ORIGIN}/gallery-photos/dental.jpg`,
   heroBadge: 'Accepting New Patients • Most Insurance Accepted',
   ctaPrimary: 'Book Appointment',
   ctaSecondary: 'View Services',

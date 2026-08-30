@@ -11,6 +11,7 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const chiropracticConfig: IndustryConfig = {
   id: 'chiropractic',
@@ -49,7 +50,7 @@ export const chiropracticConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://webgenie-ai-sooty.vercel.app/gallery-photos/chiropractic.jpg',
+  heroImage: `${SITE_ORIGIN}/gallery-photos/chiropractic.jpg`,
   heroBadge: 'Licensed Chiropractor • Most Insurance Accepted',
   ctaPrimary: 'Book Free Consultation',
   ctaSecondary: 'View Services',

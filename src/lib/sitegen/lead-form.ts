@@ -6,7 +6,8 @@ import { safeJson } from "@/lib/sitegen/chat-widget";
  * same cross-origin pattern as the chat widget (generated sites are static
  * HTML with no server of their own).
  */
-const LEAD_API_URL = "https://webgenie-ai-sooty.vercel.app/api/site-lead";
+import { SITE_ORIGIN } from "@/lib/site-url";
+const LEAD_API_URL = `${SITE_ORIGIN}/api/site-lead`;
 
 export function leadFormStyles(): string {
   return `
