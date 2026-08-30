@@ -3,8 +3,10 @@ import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, Stat, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/auth/access";
-import { addPartnerAction, updatePartnerAction, markCommissionPaidAction } from "@/app/actions";
+import { addPartnerAction, updatePartnerAction, markCommissionPaidAction, deletePartnerAction, revokeInvitationAction } from "@/app/actions";
 import { InvitePartnerButton } from "@/components/invite-partner-button";
+import { ConfirmForm } from "@/components/confirm-form";
+import { Pagination } from "@/components/pagination";
 import { cn } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -51,23 +53,42 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-export default async function PartnersPage() {
+const PAGE_SIZE = 25;
+
+export default async function PartnersPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const { organizationId } = await requireAdminPage();
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
   let partners: PartnerRow[] = [];
+  const pendingInviteByPartner = new Map<string, string>(); // partner_id -> invitation id
   {
     const supabase = await createClient();
-    const { data } = await supabase
-      .from("partners")
-      .select("id,name,contact_email,contact_phone,referral_code,flat_fee,status,notes,user_id,call_log(id,business_name,commission_status,commission_amount,payment_status)")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false });
+    const [{ data }, { data: pendingInvites }] = await Promise.all([
+      supabase
+        .from("partners")
+        .select("id,name,contact_email,contact_phone,referral_code,flat_fee,status,notes,user_id,call_log(id,business_name,commission_status,commission_amount,payment_status)")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("team_invitations")
+        .select("id,partner_id")
+        .eq("organization_id", organizationId)
+        .eq("role", "partner")
+        .is("accepted_at", null)
+        .not("partner_id", "is", null)
+    ]);
     partners = (data as unknown as PartnerRow[]) ?? [];
+    for (const inv of pendingInvites ?? []) {
+      if (inv.partner_id) pendingInviteByPartner.set(inv.partner_id, inv.id);
+    }
   }
 
   const allDeals = partners.flatMap((p) => p.call_log ?? []);
   const totalOwed = allDeals.filter((d) => d.commission_status === "owed").reduce((sum, d) => sum + (d.commission_amount ?? 0), 0);
   const totalPaid = allDeals.filter((d) => d.commission_status === "paid").reduce((sum, d) => sum + (d.commission_amount ?? 0), 0);
+  const totalPages = Math.max(1, Math.ceil(partners.length / PAGE_SIZE));
+  const pagePartners = partners.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <PageShell role="admin">
@@ -119,11 +140,12 @@ export default async function PartnersPage() {
             <p className="mt-3 text-sm text-ink">No partners yet. Add one above, then tag them on a deal in the Call Tracker.</p>
           </div>
         ) : (
-          partners.map((partner) => {
+          pagePartners.map((partner) => {
             const deals = partner.call_log ?? [];
             const owed = deals.filter((d) => d.commission_status === "owed");
             const paid = deals.filter((d) => d.commission_status === "paid");
             const owedTotal = owed.reduce((sum, d) => sum + (d.commission_amount ?? 0), 0);
+            const pendingInviteId = pendingInviteByPartner.get(partner.id);
 
             return (
               <div key={partner.id} className="card p-5">
@@ -145,12 +167,29 @@ export default async function PartnersPage() {
                       <span>{deals.length} referred · {paid.length} paid</span>
                     </div>
                   </div>
-                  <div className="shrink-0">
+                  <div className="flex shrink-0 flex-col items-end gap-2">
                     {partner.user_id ? (
                       <Pill tone="good">Portal access</Pill>
                     ) : (
-                      <InvitePartnerButton partnerId={partner.id} hasEmail={!!partner.contact_email} />
+                      <div className="flex items-center gap-2">
+                        {pendingInviteId ? <Pill tone="warn">Invited — pending</Pill> : null}
+                        <InvitePartnerButton partnerId={partner.id} hasEmail={!!partner.contact_email} alreadyInvited={!!pendingInviteId} />
+                        {pendingInviteId ? (
+                          <form action={revokeInvitationAction}>
+                            <input type="hidden" name="invitationId" value={pendingInviteId} />
+                            <button className="focus-ring rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-signal-bad">
+                              Revoke
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     )}
+                    <ConfirmForm action={deletePartnerAction} confirmMessage={`Permanently delete ${partner.name}? Their referred deals stay in Call Tracker but lose the partner attribution.`}>
+                      <input type="hidden" name="id" value={partner.id} />
+                      <button className="text-[11px] text-faint underline decoration-dotted underline-offset-2 hover:text-signal-bad">
+                        Delete partner
+                      </button>
+                    </ConfirmForm>
                   </div>
                 </div>
 
@@ -217,6 +256,8 @@ export default async function PartnersPage() {
           })
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} basePath="/partners" />
     </PageShell>
   );
 }

@@ -14,7 +14,18 @@ type Status = "idle" | "loading" | "done" | "error";
  * stored, sent by hand" pattern as the agency-staff team invite in
  * /settings.
  */
-export function InvitePartnerButton({ partnerId, hasEmail, className }: { partnerId: string; hasEmail: boolean; className?: string }) {
+export function InvitePartnerButton({
+  partnerId,
+  hasEmail,
+  alreadyInvited = false,
+  className
+}: {
+  partnerId: string;
+  hasEmail: boolean;
+  /** A pending invite already exists for this partner — changes the idle label to "Resend" and the created label accordingly. */
+  alreadyInvited?: boolean;
+  className?: string;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
@@ -65,7 +76,7 @@ export function InvitePartnerButton({ partnerId, hasEmail, className }: { partne
         )}
       >
         {status === "loading" ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <UserPlus className="h-3 w-3" aria-hidden />}
-        {status === "loading" ? "Creating invite…" : status === "error" ? "Retry invite" : "Invite to portal"}
+        {status === "loading" ? "Sending…" : status === "error" ? "Retry" : alreadyInvited ? "Resend invite" : "Invite to portal"}
       </button>
       {!hasEmail ? (
         <p className="mt-1 flex items-center gap-1 text-[11px] text-faint">

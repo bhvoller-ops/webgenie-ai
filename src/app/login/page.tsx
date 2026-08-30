@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -75,6 +76,10 @@ export default function LoginPage() {
         </form>
 
         {message ? <p className="mt-4 text-sm text-slate-300">{message}</p> : null}
+
+        <Link href="/forgot-password" className="mt-6 inline-block text-sm text-slate-400 underline decoration-dotted underline-offset-4 hover:text-slate-200">
+          Forgot your password?
+        </Link>
       </section>
     </main>
   );

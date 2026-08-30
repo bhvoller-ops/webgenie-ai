@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/auth/access";
 import { addCallLogEntryAction, updateCallLogEntryAction, startClientCheckoutAction } from "@/app/actions";
 import { PaymentLinkButton } from "@/components/payment-link-button";
+import { Pagination } from "@/components/pagination";
 import { cn } from "@/lib/format";
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -86,8 +87,12 @@ function followUpTone(dueAt: string | null): { label: string; tone: PillTone; ur
   return { label: `In ${days}d`, tone: "neutral", urgent: false };
 }
 
-export default async function CallsPage() {
+const PAGE_SIZE = 25;
+
+export default async function CallsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const { organizationId } = await requireAdminPage();
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
   let rows: CallLogRow[] = [];
   let partners: PartnerOption[] = [];
@@ -128,6 +133,12 @@ export default async function CallsPage() {
     if (!r.follow_up_due_at) return false;
     return new Date(r.follow_up_due_at).getTime() <= Date.now();
   }).length;
+
+  // Stats above are computed from the full set; only the list below is
+  // paginated, so "Follow-ups due" etc. stay accurate regardless of what
+  // page you're looking at.
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <PageShell role="admin">
@@ -188,7 +199,7 @@ export default async function CallsPage() {
             <p className="mt-3 text-sm text-ink">No prospects tracked yet. Add one above to get started.</p>
           </div>
         ) : (
-          rows.map((row) => {
+          pageRows.map((row) => {
             const follow = followUpTone(row.follow_up_due_at);
             return (
               <div
@@ -310,6 +321,8 @@ export default async function CallsPage() {
           })
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} basePath="/calls" />
     </PageShell>
   );
 }

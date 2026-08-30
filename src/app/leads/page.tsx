@@ -4,6 +4,7 @@ import { Eyebrow, Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/auth/access";
 import { updateChatLeadStatusAction } from "@/app/actions";
+import { Pagination } from "@/components/pagination";
 import { cn } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +44,12 @@ const SOURCE_LABELS: Record<string, string> = {
   form: "Quote form"
 };
 
-export default async function LeadsPage() {
+const PAGE_SIZE = 25;
+
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const { organizationId } = await requireAdminPage();
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
   let rows: ChatLeadRow[] = [];
   {
@@ -71,6 +76,8 @@ export default async function LeadsPage() {
   }
 
   const newCount = rows.filter((r) => r.status === "new").length;
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <PageShell role="admin">
@@ -109,7 +116,7 @@ export default async function LeadsPage() {
             </p>
           </div>
         ) : (
-          rows.map((row) => (
+          pageRows.map((row) => (
             <div key={row.id} className="card p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -161,6 +168,8 @@ export default async function LeadsPage() {
           ))
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} basePath="/leads" />
     </PageShell>
   );
 }
