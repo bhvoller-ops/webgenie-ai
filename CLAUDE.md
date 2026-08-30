@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
-| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k |
+| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -906,6 +906,82 @@ via a shared `components/pagination.tsx` — stats (follow-ups due, new
 leads, owed/paid totals) are computed from the full fetched set before
 slicing, so they stay accurate regardless of which page is showing.
 
+### 2l. Partner self-service, commission notifications, revoke access — 30 Aug 2026
+
+Cassey: "Sure" — to picking up the three partner-side items explicitly left
+open at the end of §2k (self-service password/email in the portal, no
+notification on a conversion or payout, no way to revoke just a login).
+
+**1. Self-service on `/partners/portal`**, under a new "Account" section:
+- Password change — reuses `supabase.auth.updateUser({ password })` on the
+  already-authenticated session, same call `/reset-password` makes at its
+  final step, just without the recovery-link setup around it.
+- Contact-phone update — deliberately **not** an auth-email change. Routed
+  through a new `updatePartnerContactAction`, scoped by the *code*, not a
+  new RLS policy, to touch exactly one column (`contact_phone`) on exactly
+  the caller's own row (`requirePartnerPage()`'s `partnerId`), via the
+  admin client. A row-level RLS UPDATE policy can't restrict *which*
+  columns a partner could change through a raw request — and since
+  `partners` already shares the `authenticated` role between partner and
+  admin writes, a column-level `GRANT` would have restricted both alike.
+  Auth-email change was left out on purpose: changing it would normally
+  route through Supabase's own confirmation-email flow, which is the exact
+  mailer this app has deliberately avoided since the OTP lockout (§2b) —
+  not worth the complexity for a small number of manually-vetted partners.
+  **Verified for real**: updated the phone through the actual form, then
+  queried the row directly and confirmed only `contact_phone` changed —
+  `flat_fee`/`status`/`name` untouched, proving the column-scoping holds.
+- Password change verified via its own success feedback in the UI, plus
+  independent confirmation that the old password stopped working and that
+  the underlying `updateUser`-equivalent mechanism reliably takes a
+  password (checked directly, separate from what got typed into the
+  browser field — see the note on browser-typing races below).
+
+**2. Commission email notifications** (`lib/partners/notify.ts`, a third
+Resend-based sender alongside `lib/notify.ts` and `lib/auth/reset-email.ts`
+— each a different audience, same integration). Fires when a referral
+converts (Stripe webhook flips `commission_status` `none` → `owed`) and
+when it's marked paid (`markCommissionPaidAction`). Both sites are
+idempotency-keyed off the deal + status, and both only send when the
+guarded update actually changed the row — a webhook retry or duplicate
+click updates zero rows and sends nothing. **Verified against the real
+Resend API, not just "no error thrown"**: triggered "Mark paid" through
+the actual `/partners` UI and confirmed a real `delivered` email in
+Resend's own API. The "owed" path was verified by exercising the exact
+same DB-update-plus-notify sequence directly (calling the real, unmodified
+`notifyPartnerCommission` function, not a reimplementation) rather than by
+POSTing a forged event at the webhook route — `.env.local` now holds
+*live* Stripe credentials (§2a-live) rather than the preview deployment's
+test-mode ones, so guessing at a signing secret to forge a webhook call
+risked touching live Stripe for no reason; the Supabase-side logic is the
+only thing that changed in the webhook handler, and that's what got
+tested. Also confirmed via Resend: `delivered`.
+
+**3. "Revoke access"** on `/partners` — deletes just the partner's portal
+login; `partners.user_id` clears via the existing `on delete set null` FK
+(migration 022) rather than a separate update, so the partner row, name,
+referral code, flat fee, and full deal/commission history all survive
+untouched. Distinct from "Delete partner" (§2k), which removes the whole
+row. Verified the exact mechanism directly (delete the auth user, confirm
+the row survives with `user_id` now null) rather than clicking the button
+in the browser — it's wrapped in `ConfirmForm`'s native `window.confirm()`,
+same reason `deletePartnerAction`/`removeMemberAction` weren't
+click-tested in §2k.
+
+**A real mid-session mistake, corrected, worth remembering:** partway
+through this verification, a `/partners/portal` navigation unexpectedly
+landed on the *real* production Dashboard with Cassey's actual project
+data visible — not the intended temporary test-admin session. Root cause:
+Chrome's saved-password autofill overwrote a typed test credential with a
+real saved one on submit (the same class of issue flagged once before in
+this project's memory). Signed out immediately, and re-entered credentials
+on the retry with an explicit click-select-all-delete-then-type sequence
+per field before submitting, rather than trusting a single `type` call.
+**Any browser-based login test in this repo should do the same** — don't
+assume a typed credential landed in the field or submitted as-is; verify
+with a screenshot before submitting when it matters, e.g. real projects
+data.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -1073,6 +1149,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── stripe.ts               Stripe client + billing helpers
 │   │   ├── auth/access.ts          The one place role (admin/partner/guest) is resolved — every gated
 │   │   │                           page/route uses this, not an ad hoc auth.getUser() check. See §2j
+│   │   ├── auth/reset-email.ts     Delivers Supabase recovery links via Resend, not Supabase's mailer — §2k
+│   │   ├── partners/notify.ts      Emails a partner when their referral converts or gets paid — §2l
 │   │   ├── jobs/, admin/, security/, visual/, format.ts, types.ts
 │   │   └── supabase/               client / server / admin
 │   └── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
@@ -1560,13 +1638,12 @@ mind for the paid options.
   (a Supabase-side fix or cache invalidation, not anything this session
   changed) or could be inconsistent/intermittent. Don't treat this as
   "fixed" — re-run §2g's actual reproduction method to know for sure.
-- Partner self-service gaps intentionally left open this round (Cassey's
-  instruction was password reset + the six numbered Admin items + lower
-  priority, not the full partner-side list from the original review): a
-  partner can't change their own password/email from the portal, gets no
-  notification when a referral converts or is paid, and there's no way to
-  revoke a partner's portal login without deleting the whole partner
-  record. Worth picking up next if revisited.
+- **Partner self-service gaps from §2k are now closed (§2l, same day)**:
+  password change and contact-phone update in the portal, commission
+  email notifications (verified delivered via the real Resend API, both
+  the "owed" and "paid" triggers), and "Revoke access" (verified the FK
+  cascade directly). Auth-email change specifically was left out on
+  purpose — see §2l for why.
 - That generated-site leads attribute to the correct agency once more than one
   agency uses WebGenie — known single-tenant limitation, see §2c.
 - **Whether a real card can actually be charged and paid out in live mode.**
