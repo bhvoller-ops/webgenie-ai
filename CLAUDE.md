@@ -471,6 +471,102 @@ past the auto-mode classifier's first-time block on this action shape —
 it's scoped to this one host+path+project, not a blanket `curl` or `Bash`
 allow.
 
+### 2h0. Partner/referral program — 27 Aug 2026
+
+`/partners` — v1, scoped deliberately small: partners are other
+agencies/consultants (later extended to individuals — see §2h below) who
+refer their own clients, earn a flat fee per closed signup ($100 default,
+editable per partner), paid **by hand** by Cassey. No automated payouts.
+
+- Migration `020`: `partners` table + `partner_id`/`commission_status`/
+  `commission_amount` added to `call_log` — reuses the existing deal-tracking
+  table rather than a parallel one.
+- `/calls` gets an optional "Referred by" dropdown on adding/editing a deal.
+- The Stripe webhook auto-marks a commission `"owed"` at the partner's flat
+  fee the moment a referred deal's *first* Checkout completes — guarded so a
+  later renewal/subscription-update event never re-fires it.
+- Verified live: added a real partner and a real referred deal through the
+  actual preview UI, then simulated the webhook's owed-transition and
+  clicked "Mark paid" for real, confirming the stats updated correctly.
+
+### 2h. Word-of-mouth intake, partner self-serve, notifications, `/gallery` — 27–29 Aug 2026
+
+Four related pieces shipped in quick succession, each verified live before
+merging, each its own PR:
+
+- **`/get-started`** — public, unauthenticated lead intake for word-of-mouth
+  and webinar leads (no GMB/Places dependency). Writes into `call_log`
+  (migration `021` added `source`/`contact_name`/`email` columns) tagged
+  `source: "self_serve"`, distinguishable on `/calls` via a badge. Supports
+  `?ref=<partner-referral-code>` for commission attribution.
+- **`/partner-signup`** — public self-serve partner signup, closing the gap
+  in the partner/referral program (below) where every partner had to be
+  added by hand. Lands as `status: "inactive"` deliberately — payouts are
+  manual/trust-based, so nothing activates until Cassey reviews it in
+  `/partners`. No email notifies her when someone signs up on its own — see
+  the next bullet for why that's now covered anyway.
+- **Signup notification email** — `/get-started` and `/partner-signup` now
+  both email `wallang@gmail.com` the moment a row lands (`lib/notify.ts`).
+  First email this app has ever sent. Provisioned via the Vercel Marketplace
+  Resend integration (`vercel integration add resend/resend-email` — the
+  only native email provider there, checked via `discover`, not assumed).
+  Sending domain `mail.vibelabsagency.com`: Vercel auto-added all 3 required
+  DNS records itself since it already manages that zone — zero manual DNS
+  step. `RESEND_API_KEY` / `RESEND_EMAIL_DOMAIN` are in Production, Preview,
+  and Development. Verified by submitting a real test lead and checking the
+  Resend API directly for `last_event: "delivered"` — not just assumed from
+  a 200 response. Deliberately awaited, not fire-and-forget, since a
+  serverless function can freeze before an unawaited request completes.
+  **Not built:** the multi-step nurture sequence sent to leads themselves —
+  separate, bigger piece (content, cron scheduling, unsubscribe handling),
+  explicitly scoped out and deferred.
+- **`/gallery`** — a 64-industry website-template showcase, ported from a
+  Bolt.new "Multi-Industry Website Template" export Cassey provided (source
+  app had 84 industries; 20 were excluded — see below). Reuses `/samples`'
+  pattern exactly: no auth check of its own, no DB reads/writes, static
+  reference data. The source app's own separate Supabase project, sign-in
+  modal, and admin-gated features were **not** carried over — WebGenie has
+  one Supabase project and one auth system, and duplicating either here
+  would contradict that. `lib/renderIndustryPage.ts` (the thing that
+  actually generates each industry's full preview page) was ported
+  **verbatim** — that's what guarantees the previews render identically to
+  the source app, not a reinterpretation of them.
+
+  **Why only 64 of 84:** every local (non-Pexels) hero image was opened and
+  looked at directly before trusting it, not assumed clean. Result — 9
+  industries' images were literal screenshots of other companies' full
+  websites (fake brand name, nav bar, lead-capture form baked into the
+  pixels — HVAC, Plumber, Roofer, Handyman, Pet Grooming, Remodeling,
+  Siding, Fitness), one of which (Salon) had the exact tiled "Magnific"
+  watermark already documented as a defect class from the industry-photos
+  incident earlier in this file. 2 more had real but unusable photos
+  (Garage Door showed a real residential unit number; Pool looked
+  AI-rendered). 2 more shared an image with a visible but unconfirmed-if-
+  staged company name (Electrical/Solar via `hero-hvac.webp`). 7 more were
+  never individually checked at all (Cleaning, Concrete, Fencing,
+  Landscaping, Painting, Real Estate, Tree Care). All 20 are excluded from
+  `categories.ts`'s map and have no file under `data/gallery/industries/` —
+  re-add an industry only after it has a real, checked, Pexels-or-equivalent
+  photo, never by restoring the original bundled image untouched.
+
+  The 6 industries that DID use a clean local image (Appliance Repair,
+  Chiropractic, Dental, Med Spa, Pest Control, plus Restoration/Auto
+  Detailing/Moving/Windows-Doors sharing one file) were resized/compressed
+  (1600px wide, mozjpeg q78 — same convention as `industry-photos/`) and
+  self-hosted at `public/gallery-photos/`, referenced by **absolute** URL —
+  never relative, per the trap already documented in §10.
+
+  **Verified live, not just built:** deployed each of these four to a
+  Vercel preview and exercised the real flow before merging — submitted the
+  actual `/get-started` and `/partner-signup` forms, confirmed DB rows and
+  (for partner signup) the `inactive` status and generated referral link,
+  confirmed the notification email's Resend delivery status, and clicked
+  through `/gallery`'s search/category filter/preview modal. All test data
+  written to the real production org during these checks was deleted
+  immediately after — this app has a single org, so any public-route test
+  lands there, not an isolated sandbox; budget for that cleanup step every
+  time.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually

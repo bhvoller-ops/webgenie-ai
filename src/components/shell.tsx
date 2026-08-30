@@ -32,6 +32,7 @@ export function TopBar() {
             { href: "/partners", label: "Partners" },
             { href: "/leads", label: "Leads" },
             { href: "/samples", label: "Samples" },
+            { href: "/gallery", label: "Gallery" },
             { href: "/onboard", label: "Onboard" },
             { href: "/", label: "Projects" },
           ].map((l) => (
