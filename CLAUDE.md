@@ -603,18 +603,38 @@ imports it rather than hardcoding the domain. `lib/notify.ts` was also
 refactored to take a relative `detailPath` instead of a full `detailUrl`,
 so callers can't accidentally hardcode a domain there either.
 
-**Not migrated, a separate decision if wanted:** the Stripe webhook
-endpoint actually registered in Stripe still points at the old
-`webgenie-ai-sooty.vercel.app/api/billing/webhook` URL — it still works
-(that domain isn't going away), so this wasn't touched. `scripts/
-stripe-setup-webhook.ts`'s hardcoded URL was updated for correctness if
-ever re-run, but re-running it would register a **second, duplicate**
-webhook endpoint in Stripe (its own signing secret and all) rather than
-update the existing one — don't just re-run it. Migrating the live
-registration would mean creating the new endpoint, updating
-`STRIPE_WEBHOOK_SECRET` to the new endpoint's secret, confirming it, then
-deleting the old registration — real billing-infrastructure work, not a
-code change, and not done here since it wasn't asked for.
+**Update, same day — the Stripe webhook was migrated too, and verified
+end-to-end, not just switched over and assumed to work:**
+
+1. Created a new webhook endpoint at `app.vibelabsagency.com/api/billing/
+   webhook` (same 3 events as before) via the Stripe API. The signing
+   secret is only ever shown once, at creation — piped directly from
+   Stripe's API response into `.env.local` with a single Node one-liner,
+   never printed to a terminal or written to any intermediate file (an
+   earlier attempt lost the secret exactly this way, to a Windows-vs-Git-
+   Bash `/tmp` path mismatch — endpoint deleted and recreated clean rather
+   than left as an orphaned, secret-less registration).
+2. Updated `STRIPE_WEBHOOK_SECRET` on Vercel (`production` — the only
+   target it was ever scoped to) via the API, then triggered a real
+   redeploy — Vercel Functions need a fresh deployment to pick up a
+   changed env var, updating the dashboard value alone isn't enough.
+3. **Temporarily disabled the old endpoint** (not deleted yet) so a real
+   test would prove the *new* endpoint specifically, not just that
+   *some* webhook fired. Completed an actual test-mode Checkout through
+   the live UI (`/calls` → Collect payment → Stripe's real test Checkout,
+   card `4242 4242 4242 4242`, explicitly via "Pay without Link" to avoid
+   touching any real saved payment method) and confirmed `call_log`
+   updated correctly: `payment_status: "active"`, real `stripe_customer_id`
+   / `stripe_subscription_id`, and the row's `stripe_checkout_session_id`
+   matching the exact session just completed.
+4. Only then: deleted the old webhook endpoint, canceled the test
+   subscription, deleted the test `call_log` row, org membership, and
+   auth user. Confirmed exactly one webhook endpoint exists now
+   (`we_1U9xlgCwvOQv0LhTpaaypYsq`, `app.vibelabsagency.com`, `enabled`).
+
+`scripts/stripe-setup-webhook.ts`'s URL was already updated for
+correctness in the same PR that did the rest of the domain rename (§2i
+above) — it now matches the actual live registration.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
@@ -1080,6 +1100,10 @@ mind for the paid options.
 - Stripe: real `/calls` → Checkout → webhook round trip completed and confirmed
   in `call_log`; business verification confirmed live (`charges_enabled`/
   `payouts_enabled` both `true`) via the Stripe API.
+- Stripe webhook re-verified after migrating to `app.vibelabsagency.com`
+  (30 Aug 2026) — old endpoint disabled first so the test could only prove
+  the new one, then a real test Checkout confirmed `call_log` updated
+  correctly before the old endpoint was deleted. See §2i.
 - Hero redesign + lead form: rendered at desktop and mobile widths via the
   browser tool, then a real `POST /api/site-lead` against production confirmed
   landing in `chat_leads` with the right fields before being cleaned up.
