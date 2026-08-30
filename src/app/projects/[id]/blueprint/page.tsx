@@ -4,18 +4,20 @@ import { Breadcrumbs, PageShell } from "@/components/shell";
 import { Button, Card, Eyebrow, MetaRow, Panel, Pill } from "@/components/ui";
 import { Tabs } from "@/components/tabs";
 import { getBlueprint, getProject } from "@/lib/data/provider";
+import { requireAdminPage } from "@/lib/auth/access";
 import type { PageBlueprint, WebsiteBlueprint } from "@/lib/blueprint/types";
 import { cn, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function BlueprintPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const [project, blueprint] = await Promise.all([getProject(id), getBlueprint(id)]);
   if (!project || !blueprint) notFound();
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <Breadcrumbs
         items={[
           { label: "Projects", href: "/" },

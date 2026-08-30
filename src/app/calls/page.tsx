@@ -2,6 +2,7 @@ import { AlertTriangle, CreditCard, Phone, PhoneCall } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import { addCallLogEntryAction, updateCallLogEntryAction, startClientCheckoutAction } from "@/app/actions";
 import { PaymentLinkButton } from "@/components/payment-link-button";
 import { cn } from "@/lib/format";
@@ -68,21 +69,6 @@ interface PartnerOption {
   name: string;
 }
 
-async function getOrganizationId() {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  return membership?.organization_id ?? null;
-}
-
 function smsHref(phone: string, businessName: string, demoUrl: string | null) {
   const body = demoUrl
     ? `Hi, this is Cassey — here's the site I mentioned for ${businessName}: ${demoUrl}`
@@ -101,11 +87,11 @@ function followUpTone(dueAt: string | null): { label: string; tone: PillTone; ur
 }
 
 export default async function CallsPage() {
-  const organizationId = await getOrganizationId();
+  const { organizationId } = await requireAdminPage();
 
   let rows: CallLogRow[] = [];
   let partners: PartnerOption[] = [];
-  if (organizationId) {
+  {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("call_log")
@@ -144,7 +130,7 @@ export default async function CallsPage() {
   }).length;
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <SectionHeading
         eyebrow="Motion A pipeline"
         title="Call Tracker"

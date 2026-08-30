@@ -2,7 +2,9 @@ import { Handshake, Users } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, Stat, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import { addPartnerAction, updatePartnerAction, markCommissionPaidAction } from "@/app/actions";
+import { InvitePartnerButton } from "@/components/invite-partner-button";
 import { cn } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ interface PartnerRow {
   flat_fee: number;
   status: string;
   notes: string | null;
+  user_id: string | null;
   call_log: ReferredDeal[];
 }
 
@@ -48,30 +51,15 @@ function money(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-async function getOrganizationId() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  return membership?.organization_id ?? null;
-}
-
 export default async function PartnersPage() {
-  const organizationId = await getOrganizationId();
+  const { organizationId } = await requireAdminPage();
 
   let partners: PartnerRow[] = [];
-  if (organizationId) {
+  {
     const supabase = await createClient();
     const { data } = await supabase
       .from("partners")
-      .select("id,name,contact_email,contact_phone,referral_code,flat_fee,status,notes,call_log(id,business_name,commission_status,commission_amount,payment_status)")
+      .select("id,name,contact_email,contact_phone,referral_code,flat_fee,status,notes,user_id,call_log(id,business_name,commission_status,commission_amount,payment_status)")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
     partners = (data as unknown as PartnerRow[]) ?? [];
@@ -82,7 +70,7 @@ export default async function PartnersPage() {
   const totalPaid = allDeals.filter((d) => d.commission_status === "paid").reduce((sum, d) => sum + (d.commission_amount ?? 0), 0);
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <SectionHeading
         eyebrow="Recurring revenue, one referral at a time"
         title="Partners"
@@ -156,6 +144,13 @@ export default async function PartnersPage() {
                       <span>{money(partner.flat_fee)}/signup</span>
                       <span>{deals.length} referred · {paid.length} paid</span>
                     </div>
+                  </div>
+                  <div className="shrink-0">
+                    {partner.user_id ? (
+                      <Pill tone="good">Portal access</Pill>
+                    ) : (
+                      <InvitePartnerButton partnerId={partner.id} hasEmail={!!partner.contact_email} />
+                    )}
                   </div>
                 </div>
 

@@ -1,9 +1,11 @@
 import { PageShell } from "@/components/shell";
+import { requireAdminPage } from "@/lib/auth/access";
 import { createProject } from "@/app/actions";
 
-export default function NewProjectPage() {
+export default async function NewProjectPage() {
+  await requireAdminPage();
   return (
-    <PageShell>
+    <PageShell role="admin">
       <div className="max-w-3xl">
         <h1 className="text-3xl font-semibold">Create project</h1>
         <form action={createProject} className="mt-8 space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-6">

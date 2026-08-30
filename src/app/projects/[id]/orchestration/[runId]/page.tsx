@@ -2,17 +2,19 @@ import { notFound } from "next/navigation";
 import { PageShell } from "@/components/shell";
 import { approveOrchestrationAction, rejectOrchestrationAction } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import type { OrchestrationRunOutput } from "@/lib/orchestration/types";
 
 const badge: Record<string, string> = { critical: "bg-red-950 text-red-300", high: "bg-orange-950 text-orange-300", medium: "bg-amber-950 text-amber-300", low: "bg-slate-800 text-slate-300" };
 
 export default async function OrchestrationPage({ params }: { params: Promise<{ id: string; runId: string }> }) {
+  await requireAdminPage();
   const { id, runId } = await params;
   const supabase = await createClient();
   const { data: run } = await supabase.from("orchestration_runs").select("id,status,overall_score,overall_confidence,blocking_findings,approval_note,output,created_at").eq("id", runId).eq("project_id", id).maybeSingle();
   if (!run?.output) notFound();
   const output = run.output as OrchestrationRunOutput;
-  return <PageShell><div className="space-y-8">
+  return <PageShell role="admin"><div className="space-y-8">
     <section><a href={`/projects/${id}`} className="text-sm text-indigo-300">← Back to project</a><p className="mt-6 text-sm uppercase tracking-[0.2em] text-fuchsia-300">Multi-agent review</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-4xl font-semibold">Production readiness</h1><p className="mt-2 text-slate-400">Eight specialist agents reviewed the blueprint, content, and implementation package.</p></div><span className="rounded-full bg-slate-800 px-4 py-2 text-sm capitalize">{run.status.replace("_", " ")}</span></div></section>
     <section className="grid gap-4 md:grid-cols-3"><Metric label="Overall score" value={`${run.overall_score}/100`}/><Metric label="Confidence" value={`${run.overall_confidence}%`}/><Metric label="Blocking findings" value={String(run.blocking_findings)}/></section>
     <section className="grid gap-4 lg:grid-cols-2">{output.reviews.map((review)=><article key={review.agent} className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div className="flex justify-between"><h2 className="text-xl font-semibold capitalize">{review.agent} agent</h2><span className="text-sm">{review.score}/100</span></div><p className="mt-3 text-sm text-slate-400">{review.summary}</p><div className="mt-5 space-y-3">{review.findings.length ? review.findings.map((finding)=><div key={finding.id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-4"><span className={`rounded-full px-2 py-1 text-xs uppercase ${badge[finding.severity]}`}>{finding.severity}</span><h3 className="mt-3 font-medium">{finding.title}</h3><p className="mt-2 text-sm text-slate-400">{finding.detail}</p><p className="mt-3 text-sm text-emerald-300">Action: {finding.recommendation}</p></div>) : <p className="rounded-xl bg-emerald-950/40 p-4 text-sm text-emerald-300">No findings.</p>}</div></article>)}</section>

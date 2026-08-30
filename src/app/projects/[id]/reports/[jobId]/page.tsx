@@ -8,6 +8,7 @@ import { RecommendationCard } from "@/components/recommendation-card";
 import { Tabs } from "@/components/tabs";
 import { EvidenceList } from "@/components/evidence";
 import { getIntelligence, getProject } from "@/lib/data/provider";
+import { requireAdminPage } from "@/lib/auth/access";
 import {
   MODULE_LABELS,
   MODULE_ORDER,
@@ -31,6 +32,7 @@ export default async function ReportPage({
 }: {
   params: Promise<{ id: string; jobId: string }>;
 }) {
+  await requireAdminPage();
   const { id, jobId } = await params;
   const [project, intelligence] = await Promise.all([
     getProject(id),
@@ -49,7 +51,7 @@ export default async function ReportPage({
   const criticalCount = allFindings.filter((r) => r.priority === "critical").length;
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <Breadcrumbs
         items={[
           { label: "Projects", href: "/" },

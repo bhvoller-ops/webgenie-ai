@@ -4,12 +4,17 @@ import { Card, SectionHeading } from "@/components/ui";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
+import { getAccessContext } from "@/lib/auth/access";
 
-export const dynamic = "force-static";
+// Public — no login required, same reasoning as /gallery. Was
+// force-static; switched to force-dynamic since reading the caller's role
+// for the nav requires the per-request auth cookie.
+export const dynamic = "force-dynamic";
 
-export default function SamplesPage() {
+export default async function SamplesPage() {
+  const { role } = await getAccessContext();
   return (
-    <PageShell>
+    <PageShell role={role}>
       <SectionHeading
         eyebrow="Reference"
         title="Sample sites"

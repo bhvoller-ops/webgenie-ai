@@ -1,19 +1,43 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, Clock, FileCode2, Layers, Radar, ScanLine } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, Eyebrow, Panel, Pill, SectionHeading, Stat } from "@/components/ui";
 import { ScoreBar } from "@/components/score-ring";
 import { getPortfolioStats, getProjects } from "@/lib/data/provider";
+import { getAccessContext } from "@/lib/auth/access";
 import { JOB_STAGE_LABELS, type ProjectSummary } from "@/lib/types";
 import { BAND_TEXT_CLASS, cn, formatDate, hostOf, scoreBand } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+// The one page every role can land on after signing in, so it branches by
+// role instead of hard-redirecting like every other gated page (that would
+// loop back here). Admin sees the Dashboard below; a partner is sent to
+// their portal; a guest — signed in but with no assigned access — sees a
+// plain explanation instead of a crash or a blank Dashboard.
 export default async function DashboardPage() {
+  const { user, role } = await getAccessContext();
+  if (!user) redirect("/login");
+  if (role === "partner") redirect("/partners/portal");
+  if (role === "guest") {
+    return (
+      <PageShell role="guest">
+        <Panel className="mt-10">
+          <Eyebrow className="text-iris-soft">No access yet</Eyebrow>
+          <h1 className="mt-3 text-2xl font-semibold text-ink">Your account isn&apos;t set up with access yet</h1>
+          <p className="mt-2 max-w-xl text-sm text-muted">
+            You&apos;re signed in, but nothing has been assigned to this account. Ask whoever invited you to grant access.
+          </p>
+        </Panel>
+      </PageShell>
+    );
+  }
+
   const [projects, stats] = await Promise.all([getProjects(), getPortfolioStats()]);
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <Hero />
 
       <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

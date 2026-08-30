@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdminApi } from "@/lib/auth/access";
 import { publishBusinessSite } from "@/lib/publish/vercel";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import type { Business } from "@/lib/sitegen/types";
@@ -29,11 +29,8 @@ const businessSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { response } = await requireAdminApi();
+  if (response) return response;
 
   const parsed = businessSchema.safeParse((await request.json().catch(() => null))?.business);
   if (!parsed.success || !(parsed.data.industry in INDUSTRIES)) {

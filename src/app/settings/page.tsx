@@ -1,38 +1,16 @@
 import { PageShell } from "@/components/shell";
 import { ApiKeyCreator } from "@/components/admin/api-key-creator";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import { defaultPlans, type PlanKey } from "@/lib/admin/plans";
 import { inviteTeamMemberAction, revokeApiKeyAction, updateMemberRoleAction, deleteMyAccountAction } from "@/app/actions";
 import { DeleteAccountForm } from "@/components/settings/delete-account-form";
 
 export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
-  const supabase=await createClient(); const {data:{user}}=await supabase.auth.getUser(); if(!user) return null;
-  const { data: membership, error: membershipError } = await supabase
-  .from("organization_members")
-  .select("organization_id,role")
-  .eq("user_id", user.id)
-  .limit(1)
-  .maybeSingle();
-
-if (membershipError) {
-  throw new Error(membershipError.message);
-}
-
-if (!membership) {
-  return (
-    <PageShell>
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-        <h1 className="text-2xl font-semibold">Workspace unavailable</h1>
-        <p className="mt-2 text-slate-400">
-          Your account is not connected to a workspace yet.
-        </p>
-      </div>
-    </PageShell>
-  );
-}
-
-const orgId = membership.organization_id;
+  const { user, organizationId: orgId, membershipRole } = await requireAdminPage();
+  const supabase = await createClient();
+  const membership = { organization_id: orgId, role: membershipRole ?? "admin" };
   const [{data:organization},{data:members},{data:invitations},{data:keys},{data:usage},{data:audit}]=await Promise.all([
     supabase.from("organizations").select("id,name,plan_key,subscription_status,trial_ends_at,billing_email").eq("id",orgId).single(),
     supabase.from("organization_members").select("user_id,role,created_at").eq("organization_id",orgId).order("created_at"),
@@ -44,7 +22,7 @@ const orgId = membership.organization_id;
   const plan=defaultPlans[((organization?.plan_key ?? "starter") in defaultPlans ? organization?.plan_key : "starter") as PlanKey];
   const totals=new Map<string,number>(); for(const event of usage??[]) totals.set(event.metric,(totals.get(event.metric)??0)+event.quantity);
   const canAdmin=["owner","admin"].includes(membership.role);
-  return <PageShell><div className="space-y-8"><section><p className="text-sm uppercase tracking-[0.2em] text-slate-400">Administration</p><h1 className="mt-2 text-4xl font-semibold">Workspace settings</h1><p className="mt-3 text-slate-400">Manage access, usage, API credentials, billing state, and operational history.</p></section>
+  return <PageShell role="admin"><div className="space-y-8"><section><p className="text-sm uppercase tracking-[0.2em] text-slate-400">Administration</p><h1 className="mt-2 text-4xl font-semibold">Workspace settings</h1><p className="mt-3 text-slate-400">Manage access, usage, API credentials, billing state, and operational history.</p></section>
   <section className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Current plan</p><p className="mt-2 text-2xl font-semibold">{plan.name}</p><p className="mt-1 text-sm text-slate-500">${(plan.monthlyCents/100).toFixed(0)}/month</p></div><div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Subscription</p><p className="mt-2 text-2xl font-semibold capitalize">{organization?.subscription_status?.replace("_"," ")}</p><p className="mt-1 text-sm text-slate-500">Provider connection required for live checkout.</p></div><div className="rounded-2xl border border-slate-800 bg-slate-900 p-5"><p className="text-sm text-slate-400">Your role</p><p className="mt-2 text-2xl font-semibold capitalize">{membership.role}</p><p className="mt-1 text-sm text-slate-500">Workspace: {organization?.name}</p></div></section>
   <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="text-xl font-semibold">Monthly usage</h2><div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(plan.limits).map(([metric,limit])=>{const used=totals.get(metric)??0; const pct=Math.min(100,Math.round(used/limit*100));return <div key={metric} className="rounded-xl border border-slate-800 p-4"><div className="flex justify-between text-sm"><span className="capitalize">{metric.replaceAll("_"," ")}</span><span>{used}/{limit}</span></div><div className="mt-3 h-2 rounded-full bg-slate-800"><div className="h-2 rounded-full bg-indigo-400" style={{width:`${pct}%`}}/></div></div>})}</div></section>
   <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="text-xl font-semibold">Team</h2>{canAdmin?<form action={inviteTeamMemberAction} className="mt-5 grid gap-3 md:grid-cols-[1fr_160px_auto]"><input name="email" type="email" required placeholder="team@example.com" className="rounded-lg px-3 py-2 text-slate-950"/><select name="role" className="rounded-lg px-3 py-2 text-slate-950"><option value="editor">Editor</option><option value="viewer">Viewer</option><option value="admin">Admin</option></select><button className="rounded-lg bg-white px-4 py-2 font-medium text-slate-950">Invite member</button></form>:null}<div className="mt-6 space-y-3">{members?.map((member)=><div key={member.user_id} className="flex items-center justify-between rounded-xl border border-slate-800 px-4 py-3"><div><p className="font-medium">{member.user_id===user.id?"You":member.user_id}</p><p className="text-xs text-slate-500">Joined {new Date(member.created_at).toLocaleDateString()}</p></div>{membership.role==="owner"&&member.role!=="owner"?<form action={updateMemberRoleAction} className="flex gap-2"><input type="hidden" name="memberUserId" value={member.user_id}/><select name="role" defaultValue={member.role} className="rounded-lg px-2 py-1 text-sm text-slate-950"><option value="admin">Admin</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button className="rounded-lg border border-slate-700 px-3 py-1 text-sm">Save</button></form>:<span className="capitalize text-sm text-slate-400">{member.role}</span>}</div>)}{invitations?.filter(i=>!i.accepted_at).map(inv=><div key={inv.id} className="flex justify-between rounded-xl border border-dashed border-slate-700 px-4 py-3"><div><p>{inv.email}</p><p className="text-xs text-slate-500">Invitation expires {new Date(inv.expires_at).toLocaleDateString()}</p></div><span className="capitalize text-sm text-amber-300">{inv.role} · pending</span></div>)}</div></section>

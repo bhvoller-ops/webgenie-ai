@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { findProspects, normalizeBusinessName, REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
+import { requireAdminApi } from "@/lib/auth/access";
 
 const TIER_KEYS = REVIEW_TIERS.map((t) => t.key) as [ReviewTierKey, ...ReviewTierKey[]];
 
@@ -17,40 +17,18 @@ const schema = z.object({
   radiusMiles: z.number().min(1).max(31).optional()
 });
 
-async function getUserAndOrganization(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Authentication required.");
-
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-
-  if (membership) {
-    const { data: organization } = await supabase
-      .from("organizations")
-      .select("plan_key")
-      .eq("id", membership.organization_id)
-      .single();
-    return { user, organizationId: membership.organization_id, planKey: organization?.plan_key ?? "starter" };
-  }
-
-  // Direct authenticated-role inserts into organizations hit an unresolved RLS
-  // rejection despite a correct with-check(true) policy; bootstrap goes
-  // through a SECURITY DEFINER RPC instead. See migration 013.
-  const { data: organizationId, error: bootstrapError } = await supabase.rpc("bootstrap_organization");
-  if (bootstrapError || !organizationId) {
-    throw new Error(bootstrapError?.message ?? "Unable to create workspace.");
-  }
-
-  return { user, organizationId, planKey: "starter" };
-}
-
 export async function POST(request: Request) {
+  // Was gated on "signed in" only, via a local helper that auto-bootstrapped
+  // a brand-new organization for any stranger with no membership — meaning
+  // a partner login (or any non-admin) could burn Places API calls and
+  // create real projects in their own throwaway org. Now admin-only, no
+  // bootstrap. See lib/auth/access.ts.
+  const { ctx, response } = await requireAdminApi();
+  if (response) return response;
+  const { supabase, user, organizationId } = ctx;
+  const { data: organization } = await supabase.from("organizations").select("plan_key").eq("id", organizationId).single();
+  const planKey = organization?.plan_key ?? "starter";
+
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -59,18 +37,6 @@ export async function POST(request: Request) {
   const industry = parsed.data.industry as IndustryKey;
   if (!(industry in INDUSTRIES)) {
     return NextResponse.json({ error: "Unknown industry." }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-
-  let user, organizationId, planKey;
-  try {
-    ({ user, organizationId, planKey } = await getUserAndOrganization(supabase));
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Authentication required." },
-      { status: 401 }
-    );
   }
 
   // Refreshing the same industry/city previously returned the same top results
