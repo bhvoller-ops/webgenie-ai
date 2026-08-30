@@ -2,8 +2,7 @@
 
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
-> Last updated: 27 August 2026 (previous update: 23 August 2026 — that version
-> undersold progress; the v2 UI merge and much more happened after it was written).
+> Last updated: 29 August 2026 (previous update: 27 August 2026).
 
 ---
 
@@ -48,7 +47,7 @@ more per client. Both are real; A is the priority.
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
-| Stripe billing | **Fully working and activated** as of 23 Aug — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), real $297/mo Checkout from `/calls`, webhook confirmed updating `call_log.payment_status` on a completed test payment, and business verification confirmed live (`charges_enabled`/`payouts_enabled` both `true`). Only remaining step is swapping test-mode keys for live-mode ones when there's a real client to bill — see §2a |
+| Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
 | Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
@@ -683,6 +682,67 @@ account it's calling exists and is reachable" — and "I ran the migration" isn'
 confirmed until a live query shows the columns. Both gaps surfaced only because
 each claim got checked against the real system instead of taken at face value.
 
+### 2a-live. Stripe — switched to LIVE mode, 29 Aug 2026
+
+Cassey: "I have been paid manually. Go live with stripe." First real client
+had already paid outside the app, so this made the app's own billing path
+match reality.
+
+**What changed:**
+- `STRIPE_SECRET_KEY` is now a **live-mode Restricted API Key**
+  (`rk_live_...`, prefix `rk_live_51U7Qi9Cc...`) rather than the account's
+  full live secret key — scoped to only what this app actually calls
+  (Checkout Sessions), per the Stripe best-practices skill's default
+  recommendation. Cassey generated it and pasted it in; created via the
+  Dashboard, not the API, since a secret key can't create a *more*-privileged
+  key than itself and the setup key available here was itself restricted.
+- New live Product/Price created in the same "WebGenie sandbox" account
+  (live and test mode are entirely separate catalogs even within one
+  account) — `STRIPE_CLIENT_PRICE_ID=price_1U9yr9CcJfOSCiRyiHNce1Mb`,
+  $297.00/month recurring, active. Cassey created this too, same reason.
+- New live webhook endpoint pointed at
+  `https://app.vibelabsagency.com/api/billing/webhook` —
+  `STRIPE_WEBHOOK_SECRET=whsec_vGz9fgee3RU8Qz4G7ZYxtlsPnaNmlgPC`.
+- All three values updated in `.env.local` **and** on Vercel for the
+  `production` environment target **only** — `development`/`preview` were
+  deliberately left on the existing test-mode values so local/preview work
+  never accidentally touches real money. Triggered a fresh production
+  deploy (`dpl_7WpC3BwGJhDxpmVqUJ8iXcuN7k4s`) — env var changes don't take
+  effect on already-running Vercel Functions, a redeploy is required, same
+  as every other env-var change this project has made.
+- No code changed for this — `lib/stripe.ts` already only calls
+  `stripe.checkout.sessions.create()`, which works identically in test and
+  live mode; only the credentials it's instantiated with changed.
+
+**Verified, with an explicit boundary respected:** created a temporary
+authenticated test user + a temporary `call_log` row in the real production
+org, logged into `app.vibelabsagency.com/calls` as that user, and clicked
+the real "Collect payment" button. It navigated to a genuine
+`cs_live_a118YNoz...` Stripe Checkout session — confirmed visually
+(screenshot): `$297.00 per month`, "WebGenie" branding, real Stripe
+live-mode chrome, no "Sandbox" badge anywhere. **Did not enter any card
+details or click Subscribe** — completing a live Checkout is a real charge,
+which is not something to do on the user's behalf without being asked to
+place that specific charge. The tab was closed instead, letting the
+uncompleted session expire harmlessly. All test artifacts were then deleted:
+the `call_log` row, the org membership, the auth user, and the local files
+that briefly held the test password.
+
+**What this proves and what it doesn't:** proves real live-mode Checkout
+Sessions are created correctly end-to-end from the actual UI, with the
+correct live price. Does **not** prove a card can actually be charged and
+paid out — that requires completing a real Checkout, which by design wasn't
+done here. The next real client's payment (or a deliberate self-test
+Cassey chooses to run herself) is the first actual confirmation of that
+last step.
+
+**Restricted key scope, for next time this needs touching:** the live RAK
+is scoped narrowly enough that `GET /v1/account` returns 403 through it —
+this is *correct*, not a bug (confirmed while investigating whether the
+key needed to be broader). If a future feature needs a Stripe capability
+beyond creating Checkout Sessions, the key's scope will need widening in
+the Dashboard, not just re-used as-is.
+
 ---
 
 ## 3. Repository map
@@ -946,13 +1006,17 @@ section ever disagrees with it, that file wins.
    tester, or explicit sign-off to bisect on production) before audit
    logging can be trusted. (The analysis worker's deployment — previously
    the other item here — is now confirmed running; see the status table.)
-2. **Close the billing loop.** Once verified, do one real `/calls` → Checkout →
-   webhook round trip end to end, in test mode first.
+2. **Billing loop is closed, in both modes.** Test-mode Checkout → webhook →
+   DB write was verified end-to-end on 22 Aug; live mode went live 29 Aug
+   with a real live Checkout Session verified through the actual UI
+   (§2a-live). The one remaining unknown is whether a real card actually
+   charges and pays out — that needs either Cassey's own deliberate
+   self-test or the next real client's payment, not more building.
 3. **Keep making Motion A calls** (`launch-kit/06-Motion-A-Call-Script.md`).
-   The finder, site generator, call tracker, and billing are all real now —
-   there is no remaining technical excuse to not be dialing.
+   The finder, site generator, call tracker, and billing (now live-mode) are
+   all real — there is no remaining technical excuse to not be dialing.
 4. **Motion B second.** The audit funnel is built and queues real analysis jobs;
-   use it once the worker is confirmed running.
+   the worker is confirmed running (see status table).
 
 **Why verification is first, not more building.** Every piece Motion A needs
 (finder → generate → call → onboard → bill) now exists in code. The risk at this
@@ -1121,6 +1185,12 @@ mind for the paid options.
   existing. Deployed in the `production` environment, instance status
   `RUNNING`, `numReplicas: 1`, real `[worker] Claimed job ... / Completed
   job ...` log pairs with no crash-loop pattern.
+- **Stripe live mode (29 Aug 2026):** live restricted key, live Price, live
+  webhook all confirmed live on Vercel production and picked up by a fresh
+  deploy; a real live Checkout Session was created through the actual
+  `/calls` UI and visually confirmed as genuine live mode before being
+  abandoned unpaid — see §2a-live. All temporary test data (call_log row,
+  org membership, auth user) cleaned up afterward.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
@@ -1128,13 +1198,14 @@ mind for the paid options.
   still fails RLS the same way it did before `019` (§2g) — root cause
   unresolved, not something to assume fixed just because the migration file
   exists and applied cleanly.
-- Stripe is still on **test-mode** keys (`sk_test_`/`pk_test_`) even though the
-  account is activated — real money won't move until those are swapped for
-  live-mode keys, product, price, and webhook (§2a notes this needs redoing
-  in live mode, not just flipping a toggle).
 - That generated-site leads attribute to the correct agency once more than one
   agency uses WebGenie — known single-tenant limitation, see §2c.
-- Whether any customer has actually paid yet.
+- **Whether a real card can actually be charged and paid out in live mode.**
+  §2a-live confirmed live Checkout Sessions are created correctly through the
+  real UI (screenshot-verified `$297.00/month`, genuine `cs_live_...` id) but
+  deliberately did not complete one — that's a real charge, not something to
+  do on the user's behalf. First proof of this is either Cassey running one
+  deliberate self-test, or the next real client's payment.
 
 **Run a real end-to-end check (§9, item 1) early and treat a failure there as
 expected, not alarming — it just means the "two things only a human can do"
