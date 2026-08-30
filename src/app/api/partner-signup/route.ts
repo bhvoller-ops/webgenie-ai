@@ -78,7 +78,7 @@ export async function POST(request: Request) {
           name,
           contactEmail,
           contactPhone: contactPhone || null,
-          detailUrl: "https://webgenie-ai-sooty.vercel.app/partners",
+          detailPath: "/partners",
           idempotencyKey: `partner-signup/${retry.data.id}`
         });
         return NextResponse.json({ ok: true, referralCode: retryCode });
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       name,
       contactEmail,
       contactPhone: contactPhone || null,
-      detailUrl: "https://webgenie-ai-sooty.vercel.app/partners",
+      detailPath: "/partners",
       idempotencyKey: `partner-signup/${row.id}`
     });
 

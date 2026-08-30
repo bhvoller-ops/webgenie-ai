@@ -5,7 +5,8 @@ import type { IndustryProfile } from "@/lib/sitegen/types";
  * sites are static HTML with no server of their own, so the widget always
  * calls back here regardless of where the site itself ends up hosted.
  */
-const CHAT_API_URL = "https://webgenie-ai-sooty.vercel.app/api/site-chat";
+import { SITE_ORIGIN } from "@/lib/site-url";
+const CHAT_API_URL = `${SITE_ORIGIN}/api/site-chat`;
 
 /** Prevents embedded JSON from prematurely closing the surrounding <script> tag. */
 export function safeJson(value: unknown): string {

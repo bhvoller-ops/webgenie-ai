@@ -9,7 +9,7 @@ import Stripe from "stripe";
 
 config({ path: ".env.local" });
 
-const WEBHOOK_URL = "https://webgenie-ai-sooty.vercel.app/api/billing/webhook";
+const WEBHOOK_URL = "https://app.vibelabsagency.com/api/billing/webhook";
 const EVENTS: Stripe.WebhookEndpointCreateParams.EnabledEvent[] = [
   "checkout.session.completed",
   "customer.subscription.updated",

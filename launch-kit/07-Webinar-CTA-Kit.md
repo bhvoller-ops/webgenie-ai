@@ -7,7 +7,7 @@
 > around this copy.
 >
 > Link to use everywhere below:
-> **`https://webgenie-ai-sooty.vercel.app/get-started`**
+> **`https://app.vibelabsagency.com/get-started`**
 > For a specific partner's attendees, add `?ref=<their-referral-code>` (find
 > the code on their card in `/partners`) so referrals auto-attribute.
 
@@ -20,7 +20,7 @@
 > ### Want a site like the ones I just showed you?
 > **Get one built for your business — free to see, no obligation.**
 >
-> 📱 **webgenie-ai-sooty.vercel.app/get-started**
+> 📱 **app.vibelabsagency.com/get-started**
 > *(or scan the QR code)*
 >
 > Takes 60 seconds. We'll reach out to show you a real, working site for
@@ -57,7 +57,7 @@ there's no public partner-signup page yet, so this slide is what turns a
 >
 > **If you want a site built for your business:**
 > It's free to see, no obligation, and takes about a minute to request:
-> 👉 **https://webgenie-ai-sooty.vercel.app/get-started**
+> 👉 **https://app.vibelabsagency.com/get-started**
 >
 > We'll reach out to show you a real, working version — hosting, AI chat
 > widget, and review automation all included.

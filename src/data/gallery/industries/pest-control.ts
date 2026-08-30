@@ -14,6 +14,7 @@ import {
   Star,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const pestControlConfig: IndustryConfig = {
   id: 'pest-control',
@@ -52,7 +53,7 @@ export const pestControlConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://webgenie-ai-sooty.vercel.app/gallery-photos/pest-control.jpg',
+  heroImage: `${SITE_ORIGIN}/gallery-photos/pest-control.jpg`,
   heroBadge: 'Licensed & Insured • Family & Pet Safe Treatments',
   ctaPrimary: 'Get Free Inspection',
   ctaSecondary: 'View Services',

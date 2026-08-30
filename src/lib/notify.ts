@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { SITE_ORIGIN } from "@/lib/site-url";
 
 /**
  * Internal notification email — fired to the agency operator (not the lead
@@ -29,7 +30,7 @@ interface SignupNotification {
   name: string;
   contactEmail?: string | null;
   contactPhone?: string | null;
-  detailUrl: string; // where to go look at it (/calls or /partners)
+  detailPath: string; // where to go look at it — "/calls" or "/partners"
   idempotencyKey: string; // <kind>/<row-id> — same row never double-notifies on retry
 }
 
@@ -45,7 +46,7 @@ export async function notifySignup(input: SignupNotification) {
       ${input.contactEmail ? `<li>Email: ${input.contactEmail}</li>` : ""}
       ${input.contactPhone ? `<li>Phone: ${input.contactPhone}</li>` : ""}
     </ul>
-    <p><a href="${input.detailUrl}">Open in WebGenie</a></p>
+    <p><a href="${SITE_ORIGIN}${input.detailPath}">Open in WebGenie</a></p>
   `;
 
   const { error } = await resend.emails.send(

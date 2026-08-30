@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       name: businessName,
       contactEmail: email || null,
       contactPhone: phone,
-      detailUrl: "https://webgenie-ai-sooty.vercel.app/calls",
+      detailPath: "/calls",
       idempotencyKey: `lead-signup/${row.id}`
     });
 

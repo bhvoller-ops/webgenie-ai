@@ -11,6 +11,7 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const medSpaConfig: IndustryConfig = {
   id: 'med-spa',
@@ -49,7 +50,7 @@ export const medSpaConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://webgenie-ai-sooty.vercel.app/gallery-photos/med-spa.jpg',
+  heroImage: `${SITE_ORIGIN}/gallery-photos/med-spa.jpg`,
   heroBadge: 'Medical Director Supervised • Licensed Professionals',
   ctaPrimary: 'Book Free Consultation',
   ctaSecondary: 'View Services',

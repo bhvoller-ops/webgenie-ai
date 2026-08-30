@@ -39,7 +39,7 @@ more per client. Both are real; A is the priority.
 | v2 UI merge (design system, finder, onboard, sitegen, prospect finder) | **Done** — merged into this repo, no longer a separate folder |
 | Data seam (`lib/data/provider.ts`) | **Live on Supabase** (`DATA_MODE = "supabase"`), not fixtures |
 | Database migrations `001`–`019` | Written and committed. `012`, `013`, `015`, `016`, `017`, `018` **confirmed run** against production (checked live via the Supabase API). `014`'s `usage_events` insert policy is confirmed live; its `audit_logs` insert policy was confirmed missing, and `019` (applied 27 Aug) re-added it — but **audit_logs inserts are still confirmed broken in production even after `019`**, root cause not found. See §2g before trusting audit logging |
-| Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
+| Deployed to Vercel | Yes, production — **`https://app.vibelabsagency.com`** (renamed from `genie.vibelabsagency.com` 30 Aug 2026; the auto-generated `webgenie-ai-sooty.vercel.app` still works too, Vercel never stops serving it, but all in-app code now points at the branded domain — see §2i) |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented and confirmed running** — checked live via the Railway API (29 Aug 2026), not assumed. Deployed on Railway (`production` environment, service "worker"), instance status `RUNNING`, built from `Dockerfile.worker`, `numReplicas: 1` (correctly matches the "exactly one worker" constraint in §10), `restartPolicyType: ON_FAILURE`. Real logs show genuine claim→complete job cycles, not a crash loop. Account is on Railway's **trial plan** — worth checking that hasn't hit a time/usage limit if this ever silently stops. |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause. "No AI Receptionist" / "No 24/7 Coverage" pitch badges on every result (`/audit` too) — see §2f |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
@@ -566,6 +566,55 @@ merging, each its own PR:
   immediately after — this app has a single org, so any public-route test
   lands there, not an isolated sandbox; budget for that cleanup step every
   time.
+
+### 2i. Custom domain: app.vibelabsagency.com — 30 Aug 2026
+
+Cassey connected `genie.vibelabsagency.com` to the Vercel project herself,
+then asked to rename it to `app.vibelabsagency.com`. Both done and verified:
+
+- Confirmed `genie.vibelabsagency.com` actually served the app (curled it —
+  real 200, real Vercel/Next.js response) before touching anything.
+- Confirmed login works on a custom domain with no Supabase config changes
+  needed: created a real temp user, signed in through the actual `/login`
+  form on the domain, landed on the dashboard. This app's email+password
+  auth doesn't route through any Supabase-hosted redirect page (unlike
+  magic-link/OTP or OAuth), so the "add every domain to Supabase's redirect
+  allowlist" trap that bit this project before (§2b) **does not apply
+  here** — verified rather than assumed either way, since getting that
+  wrong would have looked like a silent, hard-to-diagnose login failure.
+- Removed `genie.vibelabsagency.com` from the Vercel project and added
+  `app.vibelabsagency.com` in its place (`vercel.com` domains API — both
+  confirmed via direct `curl` before/after: old one now 404s, new one 200s).
+  `webgenie-ai-sooty.vercel.app` (the auto-generated one) still works too —
+  Vercel never stops serving it, and nothing needed to change there.
+
+**Every hardcoded reference to the old domain in application code was
+found and updated** — `grep`, not assumed complete. 14 files: the main
+site generator's hero photos (`lib/sitegen/industries.ts`), the chat
+widget's and lead form's CORS-safe callback URLs (`chat-widget.ts`,
+`lead-form.ts` — these are the ones a prospect could actually see, in their
+generated site's network tab), the 9 gallery industry configs referencing
+the 6 self-hosted gallery photos, and the two notification-email call
+sites in `/api/get-started` and `/api/partner-signup`.
+
+Introduced `lib/site-url.ts` exporting one `SITE_ORIGIN` constant so this
+never has to be a 14-file grep-and-replace again — every call site now
+imports it rather than hardcoding the domain. `lib/notify.ts` was also
+refactored to take a relative `detailPath` instead of a full `detailUrl`,
+so callers can't accidentally hardcode a domain there either.
+
+**Not migrated, a separate decision if wanted:** the Stripe webhook
+endpoint actually registered in Stripe still points at the old
+`webgenie-ai-sooty.vercel.app/api/billing/webhook` URL — it still works
+(that domain isn't going away), so this wasn't touched. `scripts/
+stripe-setup-webhook.ts`'s hardcoded URL was updated for correctness if
+ever re-run, but re-running it would register a **second, duplicate**
+webhook endpoint in Stripe (its own signing secret and all) rather than
+update the existing one — don't just re-run it. Migrating the live
+registration would mean creating the new endpoint, updating
+`STRIPE_WEBHOOK_SECRET` to the new endpoint's secret, confirming it, then
+deleting the old registration — real billing-infrastructure work, not a
+code change, and not done here since it wasn't asked for.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
