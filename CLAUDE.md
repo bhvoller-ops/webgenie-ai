@@ -2,7 +2,7 @@
 
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
-> Last updated: 29 August 2026 (previous update: 27 August 2026).
+> Last updated: 30 August 2026 (previous update: 29 August 2026).
 
 ---
 
@@ -48,9 +48,10 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | **Switched from magic-link (OTP) to email+password** on 23 Aug — the OTP flow hit Supabase's default mailer rate limit mid-testing and locked out a real login with no recovery path. `/login` now supports sign-in and self-serve account creation (server-side, pre-confirmed, no email sent). `/settings` has a confirm-gated "delete my account" action. See §2b |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
+| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -62,11 +63,15 @@ and locked out the only real account with no way to recover except waiting —
 unacceptable for a single-operator tool that needs to log in reliably.
 
 **What changed:**
-- `/login` now has email + password sign-in, plus a "Create account" toggle
-- New accounts go through `POST /api/auth/create-account`, which uses the
+- `/login` now has email + password sign-in, plus (at the time) a "Create
+  account" toggle — **removed 30 Aug 2026**, see §2j; `/login` is sign-in only
+  now, new accounts come through an invite
+- New accounts went through `POST /api/auth/create-account`, which uses the
   Supabase **admin** client (`email_confirm: true`) to create a pre-confirmed
   user server-side — no confirmation email is sent, so this can't hit the same
   rate limit. The client then signs in immediately with the same credentials.
+  That route still exists (unused by any UI now) and the same pattern is
+  reused by the invite-accept flow (§2j)
 - `deleteMyAccountAction` (in `actions.ts`) added a confirm-gated "Delete my
   account" button to `/settings` → Danger zone. Deletes the auth identity only;
   it does not cascade/export org data first — do that separately if it matters.
@@ -635,7 +640,145 @@ end-to-end, not just switched over and assumed to work:**
 correctness in the same PR that did the rest of the domain rename (§2i
 above) — it now matches the actual live registration.
 
-### 2a. Stripe — corrected 22 Aug 2026
+### 2j. Real role-based access control — 30 Aug 2026
+
+Cassey: group Find Clients/Find Audits under one "Prospector" menu, group
+Call Tracker/Leads/Onboard/etc. under a "Dashboard" menu restricted to
+Admins, and give Partners their own login with more rights than a guest but
+less than an Admin so they can check their own affiliate sales. Also asked
+what pieces were missing — checked the actual code rather than assuming,
+and found more than expected.
+
+**What was actually there before this, checked directly in the code, not
+assumed:** almost no access control existed. `/finder`, `/audit`, `/onboard`,
+`/projects/*` (all 6 pages: the list, `new`, and the 5 `[id]/...` viewers),
+and `POST /api/prospects` had **zero auth check of any kind** — fully public
+to anyone with the URL, no login required. `/api/prospects` being open meant
+any anonymous caller could burn the Google Places budget directly. Where a
+check *did* exist (`/calls`, `/leads`, `/settings`, `/partners`), it only
+ever checked "is this person signed in" — never their role. The nav showed
+every link to everyone regardless.
+
+**The harder problem underneath the ask:** almost every RLS policy in this
+database (`call_log`, `chat_leads`, `projects`, `analysis_*`, the old
+`partners` policy from migration `020`, etc.) grants full access to "any
+member of this organization," without checking *which* role that member
+has. That's the actual security boundary in this app, not the app-level
+role checks layered on top. Which meant giving a partner a real login
+inside `organization_members` — the obvious-looking approach — would have
+silently handed them full access to every client's data, every project,
+every lead, not just their own referral stats. Caught before building
+anything, not after.
+
+**The fix: partners are deliberately NOT `organization_members` rows.**
+They get their own real Supabase Auth login, but it's linked to their
+`partners` row via a direct `partners.user_id` column (migration `022`),
+with two narrow, additive RLS policies: partners can read their own
+`partners` row, and can read only their own referred `call_log` rows
+(`partner_id in (select id from partners where user_id = auth.uid())`).
+Nothing else. Since a partner has no `organization_members` row, none of
+the "any org member" policies on every other table ever match them at all
+— confirmed by actually attempting the reads/writes as a real authenticated
+partner session, not just by reading the SQL (see Verified below).
+
+**What shipped:**
+- `lib/auth/access.ts` — the one place role is resolved.
+  `getAccessContext()` is read-only (never creates an organization,
+  unlike `getUserAndOrganization()` in `actions.ts`, which auto-bootstraps
+  a brand-new org + ownership for any signed-in stranger with no
+  membership — right for a future paying agency signing up for WebGenie
+  itself, wrong for a partner or a stray sign-up just loading a page).
+  Three roles: `admin` (`organization_members.role` in `owner`/`admin`),
+  `partner` (a `partners` row with `user_id` = them), `guest` (neither).
+  `requireAdminPage()`/`requirePartnerPage()` redirect; `requireAdminApi()`
+  returns a 401/403 for API routes.
+- **Nav** (`components/shell.tsx` + new `components/nav-group.tsx`):
+  "Prospector" (Find Clients, Find Audits) and "Dashboard" (Call Tracker,
+  Leads, Onboard, Partners, Projects, Settings) are dropdown groups, both
+  admin-only. Samples and Gallery stay plain public links — they're sales
+  collateral shared with prospects on calls, a deliberate call, not an
+  oversight (flag if this should change). A partner's nav shows just "My
+  Referrals." A guest sees Samples/Gallery + "Sign in."
+- **Every Dashboard/Prospector page and API route gated**, including the
+  previously-wide-open ones above. The three big client-component pages
+  (`/finder`, `/audit`, `/onboard`) were split into a server `page.tsx`
+  (does the `requireAdminPage()` check) wrapping a `*-client.tsx` (the
+  actual UI, unchanged). `addPartnerAction`/`updatePartnerAction`/
+  `markCommissionPaidAction` in `actions.ts` also now explicitly require
+  admin role — previously any org member/role could call them; migration
+  `022`'s RLS enforces the same thing at the database layer independently.
+- **Partner portal** — `/partners/portal`, partner-role-only, read-only:
+  their own referral link (`{SITE_ORIGIN}/get-started?ref=<code>`), flat
+  fee, status, and their referred deals with commission status. `/partners`
+  (the existing admin console) gets an "Invite to portal" button per
+  partner with no login yet (`components/invite-partner-button.tsx` →
+  `POST /api/partners/invite`), disabled until that partner has a contact
+  email on file.
+- **Finishes a feature that was half-built:** `team_invitations` rows for
+  agency-staff invites (admin/editor/viewer, built earlier for `/settings`)
+  were created but nothing could ever redeem one — no accept page existed.
+  Reused the same table for partner invites too (added `role: 'partner'`
+  and a `partner_id` column) and built the accept flow both kinds needed:
+  `/invite/[token]` (public — validates the token via the admin/service-role
+  client, since an anonymous visitor can't read `team_invitations` under
+  its existing owner/admin-only RLS policy) → `POST /api/invite/accept`
+  (creates the pre-confirmed account, same pattern as
+  `/api/auth/create-account`; branches on invite role — `partner` updates
+  `partners.user_id`, anything else inserts an `organization_members` row)
+  → signs in client-side → lands on `/partners/portal` or `/`. Same
+  "invite link shown once, copy and send by hand" pattern as everywhere
+  else in this app that doesn't have real outbound email.
+- **Removed the public "Create account" toggle from `/login`.** New
+  accounts only come through an invite now. The underlying
+  `/api/auth/create-account` route is untouched (still works, just has no
+  public entry point) — the invite-accept route uses the identical pattern
+  rather than reusing that route directly.
+- `/` (the Projects/Dashboard home) is the one page every role can land on
+  after signing in, so it branches instead of redirecting to itself: admin
+  sees the Dashboard, a partner is bounced to `/partners/portal`, a guest
+  (signed in, nothing assigned) sees a plain explanation instead of a
+  crash or an empty Dashboard.
+
+**Verified, not just built — both at the database and through the actual
+UI:**
+1. Applied migration `022` directly (Cassey ran it herself via the
+   Supabase SQL editor this time, not a personal-access-token curl like
+   `019` — simpler, no token to rotate afterward).
+2. **Real RLS behavior**, not just checking the policy exists: created a
+   temporary partner + a temporary referred `call_log` deal + a temporary
+   auth user linked via `user_id`, signed in as that real session, and
+   confirmed exactly the intended shape — could read their own partner row
+   and their own referred deal, could **not** update the partner row
+   (blocked, 0 rows affected — proves the old blanket "any member" policy
+   is really gone), and saw **zero** other `call_log` rows (proves they
+   don't inherit blanket org access, the property this whole design
+   depended on). All test rows deleted after.
+3. **Real UI walkthrough** on the Vercel preview for this PR: signed in as
+   a temporary admin — nav showed the Prospector/Dashboard dropdowns,
+   dropdown opened correctly; on `/partners`, clicked "Invite to portal"
+   on a temporary partner and got a real invite link; signed out; opened
+   the invite link, set a password, and landed on `/partners/portal`
+   automatically with the right referral link, stats, and empty state;
+   confirmed the partner's nav showed only "My Referrals"; confirmed
+   navigating a partner session straight to `/finder` bounced them to
+   `/partners/portal` instead; confirmed a direct `POST /api/prospects`
+   call from that same partner session returned `403 Admin access
+   required`; confirmed a re-visit of the already-used invite link
+   correctly showed "Invite not valid." Then, after merging to `main`,
+   confirmed on real production (`app.vibelabsagency.com/finder`) that an
+   unauthenticated visitor is redirected to `/login`. All temporary
+   accounts, partner rows, and invitations deleted afterward.
+
+**Known gap, not fixed here — proportionate, not ignored:** only the
+partner-management actions (`addPartnerAction`/`updatePartnerAction`/
+`markCommissionPaidAction`) got explicit app-level admin checks, out of
+~25 server actions in `actions.ts`. The rest still rely on RLS's "any org
+member" policies as their enforcement layer, which is real and independent
+of the app-level checks — but wasn't individually audited action-by-action
+in this pass. A partner can never reach a page containing a form wired to
+any of them (every relevant page is now gated), so the realistic exposure
+is a crafted direct request, not normal use. Worth a dedicated pass later,
+not urgent for a single-operator app today.
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
 verified against a real account** — its `STRIPE_SECRET_KEY` pointed to a Stripe
@@ -759,6 +902,8 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── pay/                    Public per-prospect payment link redirect + outcome pages
 │   │   ├── leads/                  All site leads (chat + hero form), one inbox
 │   │   ├── samples/                One curated example site per industry
+│   │   ├── partners/, partners/portal/  Admin partner console + partner self-service portal — see §2j
+│   │   ├── invite/[token]/         Public invite-accept page (agency-staff and partner invites) — see §2j
 │   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
 │   │   ├── login/, auth/           Auth
 │   │   ├── settings/               Account settings
@@ -768,7 +913,11 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │       ├── site-chat/               AI intake chat widget backend
 │   │       ├── site-lead/               Hero quote-form backend
 │   │       ├── publish-site/            Real Vercel deployment, agency-only
-│   │       ├── auth/create-account/     Server-side pre-confirmed signup
+│   │       ├── auth/create-account/     Server-side pre-confirmed account creation. No public UI
+│   │       │                            entry point since 30 Aug (§2j) — reused internally by the
+│   │       │                            invite-accept pattern, not called directly from /login anymore
+│   │       ├── partners/invite/         Admin-only — generates a partner's one-time portal invite link
+│   │       ├── invite/accept/           Public — redeems an invite token, creates the account
 │   │       ├── analysis/, audits/, delivery-runs/, orchestration-runs/,
 │   │       │   content-packages/, prompt-packages/, admin/, v1/, health/
 │   ├── lib/
@@ -789,11 +938,12 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── prospect/               Google Places finder + sample fallback
 │   │   ├── data/provider.ts        The one data seam — now backed by Supabase
 │   │   ├── stripe.ts               Stripe client + billing helpers
+│   │   ├── auth/access.ts          The one place role (admin/partner/guest) is resolved — every gated
+│   │   │                           page/route uses this, not an ad hoc auth.getUser() check. See §2j
 │   │   ├── jobs/, admin/, security/, visual/, format.ts, types.ts
 │   │   └── supabase/               client / server / admin
-│   ├── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
-│   └── middleware.ts               Auth
-├── supabase/migrations/            001–018, run in order
+│   └── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
+├── supabase/migrations/            001–022, run in order
 ├── docs/                           Sprint checklists + architecture decisions
 ├── public/industry-photos/         Self-hosted hero photos referenced by absolute URL — see §2e
 ├── Dockerfile.worker               Container for the analysis worker
@@ -1080,6 +1230,20 @@ mind for the paid options.
   (§2d) or a client's own deployed domain isn't served from this app's
   origin, so a relative path silently 404s there even though it works fine
   when previewed from this deployment.
+- **Never add a partner login to `organization_members`.** Nearly every RLS
+  policy in this database grants full access to "any member of this
+  organization" without checking role — that table is the real trust
+  boundary, not the app-level role checks in `lib/auth/access.ts`. A
+  partner's login is deliberately kept out of it, linked to their `partners`
+  row via `user_id` instead, with two narrow read-only policies (own row,
+  own referred `call_log` rows — migration `022`). Giving a partner an
+  `organization_members` row of any role would silently hand them full
+  access to every client's data. See §2j.
+- **There is no `middleware.ts` in this repo**, despite an earlier version of
+  this file claiming one existed for auth. Access control is per-page/per-route
+  via `lib/auth/access.ts` (`requireAdminPage()`, `requirePartnerPage()`,
+  `requireAdminApi()`) — check that a new page actually calls one of these,
+  since nothing centrally enforces it.
 - **Run exactly one worker replica.** Job claiming is not atomic; two workers will
   claim the same job. Add a Postgres claim function before scaling.
 - **Windows vs Linux case sensitivity.** The most common cause of "builds locally,
@@ -1191,6 +1355,16 @@ mind for the paid options.
   `/calls` UI and visually confirmed as genuine live mode before being
   abandoned unpaid — see §2a-live. All temporary test data (call_log row,
   org membership, auth user) cleaned up afterward.
+- **Role-based access control (30 Aug 2026):** migration `022`'s RLS
+  policies confirmed with a real authenticated partner session, not just
+  by reading the SQL — could read own partner row and own referred deal,
+  could not update the partner row, saw zero other `call_log` rows. The
+  full nav/gating/invite/portal flow walked through end to end on a Vercel
+  preview with temporary accounts (admin nav, invite creation, invite
+  acceptance, partner portal contents, partner blocked from `/finder` and
+  from `POST /api/prospects`), then re-confirmed on real production that
+  an unauthenticated visitor hitting `/finder` redirects to `/login`. All
+  temporary accounts and data deleted afterward. See §2j.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
@@ -1206,6 +1380,10 @@ mind for the paid options.
   deliberately did not complete one — that's a real charge, not something to
   do on the user's behalf. First proof of this is either Cassey running one
   deliberate self-test, or the next real client's payment.
+- That every server action in `actions.ts` is safe from a non-admin caller.
+  Only the three partner-management actions got explicit app-level admin
+  checks (§2j) — the rest rely on RLS's "any org member" policies, which are
+  real but weren't individually audited action-by-action in this pass.
 
 **Run a real end-to-end check (§9, item 1) early and treat a failure there as
 expected, not alarming — it just means the "two things only a human can do"
