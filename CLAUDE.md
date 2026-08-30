@@ -40,7 +40,7 @@ more per client. Both are real; A is the priority.
 | Data seam (`lib/data/provider.ts`) | **Live on Supabase** (`DATA_MODE = "supabase"`), not fixtures |
 | Database migrations `001`–`019` | Written and committed. `012`, `013`, `015`, `016`, `017`, `018` **confirmed run** against production (checked live via the Supabase API). `014`'s `usage_events` insert policy is confirmed live; its `audit_logs` insert policy was confirmed missing, and `019` (applied 27 Aug) re-added it — but **audit_logs inserts are still confirmed broken in production even after `019`**, root cause not found. See §2g before trusting audit logging |
 | Deployed to Vercel | Yes, production — `https://webgenie-ai-sooty.vercel.app` |
-| Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented** (polling loop). Containerized via `Dockerfile.worker`. **Deployment target unconfirmed** — a `.railway/` folder exists locally (gitignored) but has no linked config in it; verify a worker is actually running persistently somewhere before relying on analysis jobs completing |
+| Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented and confirmed running** — checked live via the Railway API (29 Aug 2026), not assumed. Deployed on Railway (`production` environment, service "worker"), instance status `RUNNING`, built from `Dockerfile.worker`, `numReplicas: 1` (correctly matches the "exactly one worker" constraint in §10), `restartPolicyType: ON_FAILURE`. Real logs show genuine claim→complete job cycles, not a crash loop. Account is on Railway's **trial plan** — worth checking that hasn't hit a time/usage limit if this ever silently stops. |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause. "No AI Receptionist" / "No 24/7 Coverage" pitch badges on every result (`/audit` too) — see §2f |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form (§2c), a shared "How It Works" 5-step section on every site (§2e). **9 of 14 have a real curated hero photo** (Roofer/Landscaper/Tree Care/Restoration/Salon still on generic stock — see §2e) |
@@ -875,8 +875,8 @@ section ever disagrees with it, that file wins.
    policy exists correctly, the insert still fails RLS, root cause not
    found (§2g). Needs a real debugging session (Supabase dashboard's policy
    tester, or explicit sign-off to bisect on production) before audit
-   logging can be trusted. Also confirm the analysis worker is actually
-   deployed and polling somewhere persistent — that's still unverified.
+   logging can be trusted. (The analysis worker's deployment — previously
+   the other item here — is now confirmed running; see the status table.)
 2. **Close the billing loop.** Once verified, do one real `/calls` → Checkout →
    webhook round trip end to end, in test mode first.
 3. **Keep making Motion A calls** (`launch-kit/06-Motion-A-Call-Script.md`).
@@ -1043,6 +1043,11 @@ mind for the paid options.
   `/finder` search returning live Google data instead of the sample fallback.
 - Working tree is clean, `main` is up to date with `origin/main`, latest deploy
   on Vercel is production and "Ready."
+- **Analysis worker (29 Aug 2026):** checked live via the Railway API
+  (`railway status` + `railway logs`), not assumed from the Dockerfile
+  existing. Deployed in the `production` environment, instance status
+  `RUNNING`, `numReplicas: 1`, real `[worker] Claimed job ... / Completed
+  job ...` log pairs with no crash-loop pattern.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
@@ -1050,9 +1055,6 @@ mind for the paid options.
   still fails RLS the same way it did before `019` (§2g) — root cause
   unresolved, not something to assume fixed just because the migration file
   exists and applied cleanly.
-- That the analysis worker is deployed and running anywhere persistent (only
-  that the code and Dockerfile exist; the local `.railway/` folder has no
-  linked project config in it).
 - Stripe is still on **test-mode** keys (`sk_test_`/`pk_test_`) even though the
   account is activated — real money won't move until those are swapped for
   live-mode keys, product, price, and webhook (§2a notes this needs redoing
