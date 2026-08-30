@@ -2,7 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Plus, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
+import { NavGroup } from "@/components/nav-group";
 import { signOut } from "@/app/actions";
+import type { AccessRole } from "@/lib/auth/access";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -19,23 +21,45 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function TopBar() {
+const PROSPECTOR_ITEMS = [
+  { href: "/finder", label: "Find Clients" },
+  { href: "/audit", label: "Find Audits" },
+];
+
+const DASHBOARD_ITEMS = [
+  { href: "/calls", label: "Call Tracker" },
+  { href: "/leads", label: "Leads" },
+  { href: "/onboard", label: "Onboard" },
+  { href: "/partners", label: "Partners" },
+  { href: "/", label: "Projects" },
+];
+
+const PUBLIC_ITEMS = [
+  { href: "/samples", label: "Samples" },
+  { href: "/gallery", label: "Gallery" },
+];
+
+export function TopBar({ role = "guest" }: { role?: AccessRole }) {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-6">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
-          {[
-            { href: "/finder", label: "Find Clients" },
-            { href: "/audit", label: "Find Audits" },
-            { href: "/calls", label: "Call Tracker" },
-            { href: "/partners", label: "Partners" },
-            { href: "/leads", label: "Leads" },
-            { href: "/samples", label: "Samples" },
-            { href: "/gallery", label: "Gallery" },
-            { href: "/onboard", label: "Onboard" },
-            { href: "/", label: "Projects" },
-          ].map((l) => (
+          {role === "admin" ? (
+            <>
+              <NavGroup label="Prospector" items={PROSPECTOR_ITEMS} />
+              <NavGroup label="Dashboard" items={DASHBOARD_ITEMS} />
+            </>
+          ) : null}
+          {role === "partner" ? (
+            <Link
+              href="/partners/portal"
+              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+            >
+              My Referrals
+            </Link>
+          ) : null}
+          {PUBLIC_ITEMS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -46,26 +70,34 @@ export function TopBar() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <Link
-            href="/settings"
-            className="focus-ring hidden items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm text-muted transition-colors hover:border-iris/50 hover:text-ink sm:inline-flex"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
-          <Button href="/projects/new" variant="secondary" className="hidden sm:inline-flex">
-            <Plus className="h-4 w-4" />
-            New project
-          </Button>
-          <Button href="/finder">Find clients</Button>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="focus-ring rounded-lg border border-hairline px-3 py-2 text-sm text-muted transition-colors hover:border-iris/50 hover:text-ink"
-            >
-              Sign out
-            </button>
-          </form>
+          {role === "admin" ? (
+            <>
+              <Link
+                href="/settings"
+                className="focus-ring hidden items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm text-muted transition-colors hover:border-iris/50 hover:text-ink sm:inline-flex"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+              <Button href="/projects/new" variant="secondary" className="hidden sm:inline-flex">
+                <Plus className="h-4 w-4" />
+                New project
+              </Button>
+              <Button href="/finder">Find clients</Button>
+            </>
+          ) : null}
+          {role === "guest" ? (
+            <Button href="/login">Sign in</Button>
+          ) : (
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="focus-ring rounded-lg border border-hairline px-3 py-2 text-sm text-muted transition-colors hover:border-iris/50 hover:text-ink"
+              >
+                Sign out
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </header>
@@ -88,10 +120,10 @@ export function Footer() {
   );
 }
 
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({ children, role = "guest" }: { children: ReactNode; role?: AccessRole }) {
   return (
     <div className="min-h-screen">
-      <TopBar />
+      <TopBar role={role} />
       <main className="mx-auto max-w-[1400px] px-6 py-10">{children}</main>
       <Footer />
     </div>

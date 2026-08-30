@@ -3,17 +3,19 @@ import { Breadcrumbs, PageShell } from "@/components/shell";
 import { Eyebrow, MetaRow, Panel } from "@/components/ui";
 import { PromptExplorer } from "@/components/prompt-explorer";
 import { getProject, getPromptPackage } from "@/lib/data/provider";
+import { requireAdminPage } from "@/lib/auth/access";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function PromptsPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const [project, pkg] = await Promise.all([getProject(id), getPromptPackage(id)]);
   if (!project || !pkg) notFound();
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <Breadcrumbs
         items={[
           { label: "Projects", href: "/" },

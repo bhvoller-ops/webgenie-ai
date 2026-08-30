@@ -2,6 +2,7 @@ import { MessageSquare, Phone } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import { updateChatLeadStatusAction } from "@/app/actions";
 import { cn } from "@/lib/format";
 
@@ -42,26 +43,11 @@ const SOURCE_LABELS: Record<string, string> = {
   form: "Quote form"
 };
 
-async function getOrganizationId() {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-  return membership?.organization_id ?? null;
-}
-
 export default async function LeadsPage() {
-  const organizationId = await getOrganizationId();
+  const { organizationId } = await requireAdminPage();
 
   let rows: ChatLeadRow[] = [];
-  if (organizationId) {
+  {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("chat_leads")
@@ -87,7 +73,7 @@ export default async function LeadsPage() {
   const newCount = rows.filter((r) => r.status === "new").length;
 
   return (
-    <PageShell>
+    <PageShell role="admin">
       <SectionHeading
         eyebrow="Generated sites"
         title="Leads"

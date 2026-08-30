@@ -361,6 +361,16 @@ export async function updateCallLogEntryAction(formData: FormData) {
 
 const partnerStatuses = ["active", "inactive"] as const;
 
+// Defense in depth on top of migration 022's "admins manage partners" RLS
+// policy, which already rejects these at the database layer for anyone
+// who isn't owner/admin (including a partner's own portal login, which
+// deliberately has no organization_members row at all — see that
+// migration). This just turns a raw RLS 42501 into a clear message.
+async function requireAdminMembership(supabase: Awaited<ReturnType<typeof createClient>>, organizationId: string, userId: string) {
+  const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", organizationId).eq("user_id", userId).single();
+  if (!membership || !["owner", "admin"].includes(membership.role)) throw new Error("Admin access required.");
+}
+
 export async function addPartnerAction(formData: FormData) {
   const name = z.string().min(1).max(160).parse(formData.get("name"));
   const contactEmail = z.string().email().or(z.literal("")).parse(formData.get("contactEmail")?.toString() ?? "");
@@ -369,7 +379,8 @@ export async function addPartnerAction(formData: FormData) {
   const notes = z.string().max(2000).optional().parse(formData.get("notes")?.toString() || undefined);
   const referralCode = buildReferralCode(name, formData.get("referralCode")?.toString());
 
-  const { supabase, organizationId } = await getUserAndOrganization();
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
   const { error } = await supabase.from("partners").insert({
     organization_id: organizationId,
     name,
@@ -397,7 +408,8 @@ export async function updatePartnerAction(formData: FormData) {
   const status = z.enum(partnerStatuses).parse(formData.get("status"));
   const notes = formData.get("notes")?.toString();
 
-  const { supabase, organizationId } = await getUserAndOrganization();
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
   const update: Record<string, unknown> = { flat_fee: flatFee, status };
   if (notes !== undefined) update.notes = notes || null;
 
@@ -408,7 +420,8 @@ export async function updatePartnerAction(formData: FormData) {
 
 export async function markCommissionPaidAction(formData: FormData) {
   const callLogId = z.string().uuid().parse(formData.get("callLogId"));
-  const { supabase, organizationId } = await getUserAndOrganization();
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
   const { error } = await supabase
     .from("call_log")
     .update({ commission_status: "paid" })

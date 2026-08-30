@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageShell } from "@/components/shell";
 import { addReference, generateContentPackageAction, generatePromptPackageAction, runOrchestrationAction, startAnalysis, createDeliveryAction } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdminPage } from "@/lib/auth/access";
 import { platformProfiles } from "@/lib/prompts/platforms";
 import { promptPlatforms } from "@/lib/prompts/types";
 import { copyTones } from "@/lib/copy/types";
@@ -11,6 +12,7 @@ import { deliveryTargets } from "@/lib/delivery/types";
 export const dynamic = "force-dynamic";
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const supabase = await createClient();
   const [{ data: project }, { data: references }, { data: jobs }, { data: blueprint }, { data: packages }, { data: contentPackages }, { data: orchestrationRuns }, { data: deliveryRuns }] = await Promise.all([
@@ -27,7 +29,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const blueprintData = blueprint?.blueprint as any;
   const pages = blueprintData?.pages ?? [];
 
-  return <PageShell><div className="flex flex-col gap-8">
+  return <PageShell role="admin"><div className="flex flex-col gap-8">
     <section><p className="text-sm uppercase tracking-[0.2em] text-slate-400">Production project</p><h1 className="mt-2 text-4xl font-semibold">{project.name}</h1><p className="mt-3 text-slate-400">{project.industry}</p></section>
 
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
