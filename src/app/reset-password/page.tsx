@@ -10,7 +10,6 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [debugError, setDebugError] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -31,9 +30,7 @@ export default function ResetPasswordPage() {
 
     if (accessToken && refreshToken) {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(({ error }) => {
-        if (error) console.error("setSession failed:", error.message, error);
         setStatus(error ? "invalid" : "ready");
-        setDebugError(error?.message ?? "");
       });
     } else {
       setStatus("invalid");
@@ -95,7 +92,6 @@ export default function ResetPasswordPage() {
         {status === "invalid" ? (
           <p className="mt-4 text-sm text-slate-400">
             This link is invalid or has expired. <a href="/forgot-password" className="underline decoration-dotted underline-offset-4">Request a new one</a>.
-            {debugError ? <span className="mt-2 block text-xs text-rose-400">{debugError}</span> : null}
           </p>
         ) : null}
 
