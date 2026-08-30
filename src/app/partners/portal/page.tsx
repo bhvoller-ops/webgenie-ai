@@ -2,7 +2,9 @@ import { Handshake, Users } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, Stat, type PillTone } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
+import { ChangePasswordForm } from "@/components/change-password-form";
 import { requirePartnerPage } from "@/lib/auth/access";
+import { updatePartnerContactAction } from "@/app/actions";
 import { SITE_ORIGIN } from "@/lib/site-url";
 import { cn } from "@/lib/format";
 
@@ -34,6 +36,7 @@ interface PartnerSelf {
   referral_code: string;
   flat_fee: number;
   status: string;
+  contact_phone: string | null;
 }
 
 function money(n: number) {
@@ -49,7 +52,7 @@ export default async function PartnerPortalPage() {
 
   const { data: partner } = await supabase
     .from("partners")
-    .select("id,name,referral_code,flat_fee,status")
+    .select("id,name,referral_code,flat_fee,status,contact_phone")
     .eq("id", partnerId)
     .single<PartnerSelf>();
 
@@ -134,6 +137,30 @@ export default async function PartnerPortalPage() {
           </div>
         )}
       </div>
+
+      <Panel className="mt-10">
+        <Eyebrow className="mb-4 text-ink font-bold">Account</Eyebrow>
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-[12px] text-muted">Contact phone (shown to the WebGenie team)</p>
+            <form action={updatePartnerContactAction} className="flex flex-wrap items-end gap-3">
+              <input
+                name="contactPhone"
+                defaultValue={partner.contact_phone ?? ""}
+                placeholder="(555) 555-5555"
+                className="rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
+              />
+              <button className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-ink transition-colors hover:border-iris/50">
+                Save
+              </button>
+            </form>
+          </div>
+          <div className="border-t border-hairline pt-5">
+            <p className="mb-2 text-[12px] text-muted">Password</p>
+            <ChangePasswordForm />
+          </div>
+        </div>
+      </Panel>
     </PageShell>
   );
 }

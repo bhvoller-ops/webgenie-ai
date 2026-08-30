@@ -15,6 +15,8 @@ import { createProjectDelivery } from "@/lib/jobs/create-delivery";
 import { deliveryTargets } from "@/lib/delivery/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
 import { buildReferralCode } from "@/lib/partners";
+import { notifyPartnerCommission } from "@/lib/partners/notify";
+import { requirePartnerPage } from "@/lib/auth/access";
 
 const projectSchema = z.object({
   name: z.string().min(2).max(120),
@@ -440,13 +442,30 @@ export async function markCommissionPaidAction(formData: FormData) {
   const callLogId = z.string().uuid().parse(formData.get("callLogId"));
   const { supabase, user, organizationId } = await getUserAndOrganization();
   await requireAdminMembership(supabase, organizationId, user.id);
-  const { error } = await supabase
+  const { data: deal, error } = await supabase
     .from("call_log")
     .update({ commission_status: "paid" })
     .eq("id", callLogId)
     .eq("organization_id", organizationId)
-    .eq("commission_status", "owed"); // only a real owed commission can be marked paid
+    .eq("commission_status", "owed") // only a real owed commission can be marked paid
+    .select("business_name, commission_amount, partner_id")
+    .maybeSingle();
   if (error) throw new Error(error.message);
+
+  if (deal?.partner_id) {
+    const { data: partner } = await supabase.from("partners").select("name, contact_email").eq("id", deal.partner_id).maybeSingle();
+    if (partner?.contact_email) {
+      await notifyPartnerCommission({
+        email: partner.contact_email,
+        partnerName: partner.name,
+        businessName: deal.business_name,
+        amount: deal.commission_amount ?? 0,
+        status: "paid",
+        callLogId
+      });
+    }
+  }
+
   revalidatePath("/partners");
 }
 
@@ -473,6 +492,47 @@ export async function deletePartnerAction(formData: FormData) {
   }
 
   revalidatePath("/partners");
+}
+
+export async function revokePartnerAccessAction(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  await requireAdminMembership(supabase, organizationId, user.id);
+
+  const { data: partner } = await supabase.from("partners").select("user_id").eq("id", id).eq("organization_id", organizationId).maybeSingle();
+  if (!partner?.user_id) throw new Error("This partner doesn't have portal access.");
+
+  // Deletes the login only — the partners row (name, referral code, flat
+  // fee, referred-deal history) is untouched. partners.user_id is
+  // ON DELETE SET NULL (migration 022), so it clears automatically; no
+  // separate update needed. They can be re-invited later from the same row.
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(partner.user_id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/partners");
+}
+
+// Partner self-service — updates only their own contact phone, never any
+// other column (flat_fee, status, name, referral_code stay admin-only).
+// Uses the admin client scoped by MY code to exactly one column and one
+// row (their own partnerId from requirePartnerPage()), rather than a new
+// RLS UPDATE policy — a row-level policy can't restrict which columns a
+// partner could change via a raw request, and this table shares the
+// `authenticated` role with admin writes, so a column-level GRANT would
+// have to apply to both alike. This way nothing but this action can move
+// that column, and it can't touch any other row.
+export async function updatePartnerContactAction(formData: FormData) {
+  const { partnerId } = await requirePartnerPage();
+  const contactPhone = z.string().max(40).optional().parse(formData.get("contactPhone")?.toString() || undefined);
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { error } = await admin.from("partners").update({ contact_phone: contactPhone || null }).eq("id", partnerId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/partners/portal");
 }
 
 async function getBaseUrl() {

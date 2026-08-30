@@ -3,7 +3,7 @@ import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill, SectionHeading, Stat, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/auth/access";
-import { addPartnerAction, updatePartnerAction, markCommissionPaidAction, deletePartnerAction, revokeInvitationAction } from "@/app/actions";
+import { addPartnerAction, updatePartnerAction, markCommissionPaidAction, deletePartnerAction, revokeInvitationAction, revokePartnerAccessAction } from "@/app/actions";
 import { InvitePartnerButton } from "@/components/invite-partner-button";
 import { ConfirmForm } from "@/components/confirm-form";
 import { Pagination } from "@/components/pagination";
@@ -169,7 +169,18 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     {partner.user_id ? (
-                      <Pill tone="good">Portal access</Pill>
+                      <div className="flex items-center gap-2">
+                        <Pill tone="good">Portal access</Pill>
+                        <ConfirmForm
+                          action={revokePartnerAccessAction}
+                          confirmMessage={`Revoke ${partner.name}'s portal login? They'll be signed out and can no longer check their referrals — the partner record itself (referral code, deal history) stays intact and they can be re-invited later.`}
+                        >
+                          <input type="hidden" name="id" value={partner.id} />
+                          <button className="focus-ring rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-signal-bad">
+                            Revoke access
+                          </button>
+                        </ConfirmForm>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         {pendingInviteId ? <Pill tone="warn">Invited — pending</Pill> : null}
