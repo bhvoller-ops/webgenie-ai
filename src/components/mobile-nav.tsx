@@ -72,6 +72,11 @@ export function MobileNav({
                 My Referrals
               </Link>
             ) : null}
+            {role === "beta" ? (
+              <Link href="/trial/portal" onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
+                My Trials
+              </Link>
+            ) : null}
             <p className="mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">More</p>
             {publicItems.map((item) => (
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">

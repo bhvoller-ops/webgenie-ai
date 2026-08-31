@@ -60,6 +60,14 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
               My Referrals
             </Link>
           ) : null}
+          {role === "beta" ? (
+            <Link
+              href="/trial/portal"
+              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+            >
+              My Trials
+            </Link>
+          ) : null}
           {PUBLIC_ITEMS.map((l) => (
             <Link
               key={l.href}
