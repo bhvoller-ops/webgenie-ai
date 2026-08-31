@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
-| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l |
+| Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -982,6 +982,82 @@ assume a typed credential landed in the field or submitted as-is; verify
 with a screenshot before submitting when it matters, e.g. real projects
 data.
 
+### 2m. Public self-serve trial — 31 Aug 2026
+
+Real outreach the day before (§2l's positioning, shared in a cofounders
+forum and a WhatsApp group) surfaced two concrete problems, not vague
+feedback: several people wanted to run the tool on their own site before
+any pricing conversation meant anything, and one business owner couldn't
+open a report link on their phone. Cassey: "do the trial page and make
+sure reports work and can be shared. Also the beta testers should be
+able to login." This closes both.
+
+**The link failure was almost certainly the private-by-default Claude
+Artifact sharing model** — a raw artifact URL only works for a stranger
+if the share toggle was explicitly set, easy to miss when just
+copy-pasting a link into WhatsApp. Not something to keep depending on
+for real distribution. Fixed structurally, not by remembering to click
+a toggle: reports now live on real, public pages on this app's own
+domain (`/trial/report/[jobId]/technical` and `.../plain`), keyed by an
+unguessable UUID — same trust model `/pay/[callLogId]` already uses.
+**Verified for real, not assumed**: ran a real trial against
+`vibelabsagency.com` through the actual `/trial` page, then cleared all
+cookies and local storage on the tab and reloaded the report URL cold —
+full content, no login wall.
+
+**New role: `beta`.** A trial signer-upper is a third kind of external
+login, alongside partner. `beta_testers` (migration 024) follows the
+same peer-of-`organization_members` shape as `partners` (022) and for
+the identical reason — but goes one step further and carries **no RLS
+policies of its own at all**. Every read/write to it, and to
+trial-flagged `projects` rows, goes through the admin (service-role)
+client scoped by an explicit `.eq()` filter in the route/page code,
+never through the caller's own authenticated session. That sidesteps
+the entire class of RLS bug this project has now hit twice for real
+(023's `organization_members` visibility policy; the original
+over-broad `partners` policy in 022) by not writing new row-level
+policies for this feature at all — nothing to get subtly wrong.
+
+**The pipeline itself needed almost no new engineering.** Discovered
+while tracing how the admin Dashboard's `/projects/new` flow works:
+`process-analysis-job.ts` (the Railway worker) already calls
+`generateBlueprintForJob()` automatically the moment analysis
+completes — the audit-to-blueprint chain was never a manual step, only
+blueprint-to-prompt-package was. `/api/trial/start` just creates the
+same `projects` → `website_references` → `analysis_jobs` rows the admin
+UI creates, and `/api/trial/[projectId]/status` (polled by the client)
+triggers `generatePromptsForBlueprint()` itself, exactly once, the
+first time it observes a blueprint with no package yet — idempotent
+against repeated polling, so it can't queue a duplicate.
+
+**`lib/intelligence/plain-english.ts` — the real version of the gap
+flagged when the hand-written "Website Report Card" sample first shipped
+(§2l's predecessor conversation).** Deterministic and template-driven,
+not another LLM call per report, matching the "deterministic first"
+principle already documented for the rest of the intelligence engine
+(§4) — a fixed table of plain-English copy per (module, score band),
+grouped into the same four buyer-relatable questions the hand-written
+sample used ("Can people find you," "Do they trust you," "Can they act,"
+"Does it work"), built from the real `moduleScores`/`evidence` on any
+audited site, not hardcoded to Vibe Labs. **Verified against a second,
+independently-run audit of the same URL** (score came back 50/100 this
+time, not the earlier 54 — a genuinely fresh capture, not cached data)
+and the translated copy, badges, and "what we checked" evidence lines
+all generated correctly from that different real output.
+
+**Also real, not assumed to be needed later:** a per-tester cap (3 free
+trials) on top of the existing organization-wide plan limits — the plan
+limits protect the workspace's overall usage, this protects the free
+trial specifically from being hammered by one tester. `/trial/portal`
+(beta-role-gated) lists past trials and lets a returning tester queue
+another without re-entering signup details.
+
+**What's still open, deliberately not built this pass:** an admin-side
+`/beta-testers` console (Cassey currently has no in-app way to see who's
+signed up — has to query the database directly, same as I did to verify
+this). Worth adding once there are enough real testers for a list to be
+useful, not before.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -1154,7 +1230,7 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── jobs/, admin/, security/, visual/, format.ts, types.ts
 │   │   └── supabase/               client / server / admin
 │   └── workers/analysis-worker.ts  MUST run on a persistent host, not Vercel
-├── supabase/migrations/            001–023, run in order
+├── supabase/migrations/            001–024, run in order
 ├── docs/                           Sprint checklists + architecture decisions
 ├── public/industry-photos/         Self-hosted hero photos referenced by absolute URL — see §2e
 ├── Dockerfile.worker               Container for the analysis worker
@@ -1625,6 +1701,24 @@ mind for the paid options.
   specifically were verified by reading the code, not by clicking them —
   both are wrapped in a native `window.confirm()`, which would freeze the
   browser-automation session if triggered. See §2k.
+- **Partner self-service + commission emails (30 Aug 2026):** password/phone
+  change and "Revoke access" walked through live in the partner portal;
+  the commission-email send path confirmed via a real webhook-triggered
+  "owed" transition and a real "Mark paid" click, both producing an actual
+  Resend delivery. See §2l.
+- **Public self-serve trial (31 Aug 2026):** a real signup against
+  `app.vibelabsagency.com/trial` (real URL, real email/password) ran the
+  actual pipeline end to end — the Railway worker picked up the queued job,
+  completed capture + analysis, and auto-chained blueprint generation with
+  no manual trigger; the new trial-status endpoint then generated the
+  prompt package on its first poll and didn't duplicate it on later polls.
+  Both `/trial/report/[jobId]/technical` and `/plain` rendered real, fresh
+  (not the earlier hand-pulled example's) numbers correctly. Public
+  accessibility was proven, not assumed — cleared all cookies/localStorage
+  and reloaded both report URLs cold, no login prompt, no redirect. All
+  test rows (prompt_packages, website_blueprints, analysis_outputs,
+  analysis_jobs, website_references, projects, the beta_testers row, the
+  auth user) deleted afterward via a cleanup script. See §2m.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
