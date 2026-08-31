@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export type AccessRole = "admin" | "partner" | "guest";
+export type AccessRole = "admin" | "partner" | "beta" | "guest";
 
 export interface AccessContext {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -11,6 +12,7 @@ export interface AccessContext {
   organizationId: string | null; // set when role === "admin"
   membershipRole: string | null; // the raw organization_members.role, e.g. "owner"
   partnerId: string | null; // set when role === "partner"
+  betaTesterId: string | null; // set when role === "beta"
 }
 
 const ADMIN_ROLES = ["owner", "admin"];
@@ -33,7 +35,7 @@ export async function getAccessContext(): Promise<AccessContext> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { supabase, user: null, role: "guest", organizationId: null, membershipRole: null, partnerId: null };
+    return { supabase, user: null, role: "guest", organizationId: null, membershipRole: null, partnerId: null, betaTesterId: null };
   }
 
   const { data: membership } = await supabase
@@ -50,7 +52,8 @@ export async function getAccessContext(): Promise<AccessContext> {
       role: "admin",
       organizationId: membership.organization_id,
       membershipRole: membership.role,
-      partnerId: null
+      partnerId: null,
+      betaTesterId: null
     };
   }
 
@@ -60,10 +63,20 @@ export async function getAccessContext(): Promise<AccessContext> {
   const { data: partner } = await supabase.from("partners").select("id").eq("user_id", user.id).maybeSingle();
 
   if (partner) {
-    return { supabase, user, role: "partner", organizationId: null, membershipRole: membership?.role ?? null, partnerId: partner.id };
+    return { supabase, user, role: "partner", organizationId: null, membershipRole: membership?.role ?? null, partnerId: partner.id, betaTesterId: null };
   }
 
-  return { supabase, user, role: "guest", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null };
+  // beta_testers carries no RLS policies of its own (migration 024) — every
+  // read goes through the admin client, scoped by this exact filter, never
+  // through the caller's own session.
+  const admin = createAdminClient();
+  const { data: betaTester } = await admin.from("beta_testers").select("id").eq("user_id", user.id).maybeSingle();
+
+  if (betaTester) {
+    return { supabase, user, role: "beta", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: betaTester.id };
+  }
+
+  return { supabase, user, role: "guest", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: null };
 }
 
 /**
@@ -87,6 +100,14 @@ export async function requirePartnerPage(): Promise<AccessContext & { user: NonN
   return ctx as AccessContext & { user: NonNullable<AccessContext["user"]>; partnerId: string };
 }
 
+/** Page guard for the beta-tester trial portal. */
+export async function requireBetaPage(): Promise<AccessContext & { user: NonNullable<AccessContext["user"]>; betaTesterId: string }> {
+  const ctx = await getAccessContext();
+  if (!ctx.user) redirect("/login");
+  if (ctx.role !== "beta" || !ctx.betaTesterId) redirect("/");
+  return ctx as AccessContext & { user: NonNullable<AccessContext["user"]>; betaTesterId: string };
+}
+
 /**
  * API-route guard. Returns { response: null } when the caller is an admin;
  * otherwise an already-built NextResponse to return immediately:
@@ -104,4 +125,18 @@ export async function requireAdminApi(): Promise<{ ctx: AdminApiContext; respons
     return { ctx: ctx as AdminApiContext, response: NextResponse.json({ error: "Admin access required." }, { status: 403 }) };
   }
   return { ctx: ctx as AdminApiContext, response: null };
+}
+
+type BetaApiContext = AccessContext & { user: NonNullable<AccessContext["user"]>; betaTesterId: string };
+
+/** Same shape as requireAdminApi(), for routes only a logged-in beta tester should reach. */
+export async function requireBetaApi(): Promise<{ ctx: BetaApiContext; response: NextResponse | null }> {
+  const ctx = await getAccessContext();
+  if (!ctx.user) {
+    return { ctx: ctx as BetaApiContext, response: NextResponse.json({ error: "Sign in required." }, { status: 401 }) };
+  }
+  if (ctx.role !== "beta" || !ctx.betaTesterId) {
+    return { ctx: ctx as BetaApiContext, response: NextResponse.json({ error: "Beta access required." }, { status: 403 }) };
+  }
+  return { ctx: ctx as BetaApiContext, response: null };
 }
