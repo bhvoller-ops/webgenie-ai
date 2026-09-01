@@ -1138,6 +1138,73 @@ page has). **A real click-through by Cassey herself is the one piece of
 this that's still unconfirmed** — worth doing on the next real prospect
 list.
 
+### 2o. Nav redesign, searchable industry picker, New Project site previews — 1 Sep 2026
+
+Cassey, same day as §2n: the industry picker should be easier to select
+from, New Project's generated sites should show a preview with a
+Dashboard link next to it, and the Dashboard/Prospector top-bar menus
+should be a card view with brief descriptions instead of a plain dropdown
+— on both, "beautiful design."
+
+**Shipped, three pieces:**
+- `components/nav-group.tsx` — the Dashboard and Prospector dropdowns are
+  now a card grid (icon + title + one-line description per destination)
+  instead of a bare link list that didn't say what "Leads" or "Onboard"
+  actually do. `mobile-nav.tsx` carries the same icon+description shape
+  into the hamburger menu. `shell.tsx`'s `PROSPECTOR_ITEMS`/
+  `DASHBOARD_ITEMS` now hold a description + icon per entry, not just an
+  href/label pair.
+- `components/industry-picker.tsx` — a searchable combobox (type to
+  filter, click to select) replacing the plain `<select>` everywhere one
+  picked an `IndustryKey`: Finder's main search, Audit's main search, and
+  both of New Project's pickers (the "if we can't tell" fallback and the
+  per-row correction). Built to scale past the current 14 industries —
+  see the open question below.
+- New Project's "Ready for outreach" section is now a card grid instead
+  of a table. Each card shows a live, scaled-down `<iframe>` preview of
+  the actual generated demo site (the same trick used for link
+  thumbnails elsewhere on the web — render the real page at 4× size,
+  `transform:scale(0.25)` down to thumbnail size; clicking it opens the
+  real full-size page), plus the per-business industry correction and
+  the same Text/View/Download/Publish actions as before. Both result
+  sections ("Ready for outreach" and "Now analyzing") now have a
+  "Dashboard" link next to their heading — New Project didn't have this
+  at all before; Audit's queued section already did, so this makes both
+  pages consistent rather than inventing a new pattern.
+
+**Explicitly NOT done yet — a real scope decision, not an oversight:**
+"industry picker should contain all the niches in the Gallery" was left
+out of this round on purpose. The Gallery's 64 industries
+(`data/gallery/industries/`) and the site generator's 14
+(`lib/sitegen/industries.ts`) are genuinely different systems, checked
+directly before assuming otherwise:
+- Gallery's `renderIndustryPage()` produces a full, good-looking static
+  page per niche — real content, no new copywriting needed to reuse it.
+- But its lead-capture form is decorative only (`handleLeadSubmit` swaps
+  in a "Thank You!" message client-side and calls nothing) — it doesn't
+  post to `/api/site-lead` or anywhere else. Wiring the Gallery's 64
+  niches straight into Finder/New Project's picker as-is would mean any
+  real lead a prospect submits on one of those 50 additional generated
+  sites vanishes silently instead of landing in `/leads` — a real,
+  functional regression from what the current 14 industries do, not a
+  cosmetic gap.
+- Making it work properly means porting a real lead form (and probably
+  the chat widget) into the Gallery renderer for those 50 niches — real
+  engineering, not just appending 50 names to a list. Flagged to Cassey
+  rather than either shipping the broken-lead-capture version silently
+  or spending that effort without confirming it's wanted first.
+
+**Verified:** full production build, typecheck, and lint all pass clean.
+The demo-site route the new preview iframes point at was confirmed
+rendering correct real HTML (fetched directly against a local dev
+server using a real encoded business, not assumed from the code). The
+actual card/preview UI was **not** click-tested through a logged-in
+session — same reason as §2n: that would mean creating an account or
+entering a password, which doesn't happen even for a throwaway test
+account. A Vercel preview build was confirmed to deploy and serve
+`/projects/new` (redirecting an unauthenticated request, the expected
+admin-gate behavior) before merging.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
