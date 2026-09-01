@@ -3,7 +3,7 @@
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
 > Last updated: 1 September 2026 (previous update: 31 August 2026, same-day
-> revisions later on 1 September for §2n–§2q).
+> revisions later on 1 September for §2n–§2r).
 
 ---
 
@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **14-day free trial enforced 1 Sep** (§2r) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) both confirmed applied to production. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1392,9 +1392,86 @@ watching it happen. Real Google sign-in is not live yet either.
    done, to confirm the bootstrap chain actually behaves as verified in
    code — the one piece this pass couldn't prove directly.
 
-```sql
-alter table public.organizations alter column plan_key set default 'starter';
-```
+**Update, same day — migration 025 confirmed run.** Verified directly
+(not assumed from Cassey saying so): a real insert into `organizations`
+with no `plan_key` specified now comes back `'starter'`, confirmed via a
+throwaway test row, deleted after. Item 2 above is done; items 1
+(Supabase Google provider credentials) and 3 (a real signup/Google
+sign-in) are still open.
+
+### 2r. Enforcing a 14-day free trial — 1 Sep 2026
+
+Cassey, same day: new signups should get full access but a limit —
+either on days or on usage — using whatever's industry standard. Landed
+on **both**, each answering a different half of the question:
+usage caps (§2q's migration 025 — 5 projects/20 analyses per month on
+the `starter` plan) answer "how many queries/reports/analyses"; this
+piece answers "how many days." A time-boxed trial rather than a
+permanent capped-free-forever tier, specifically because there's no
+self-serve upgrade payment flow yet for a WebGenie-the-tool
+subscription — a hard usage ceiling with no way to pay past it is a dead
+end, where a trial deadline at least has a clear "get in touch" moment.
+
+**The schema for this has existed since migration 011 (6 Aug)** —
+`organizations.subscription_status` defaults to `'trialing'`,
+`trial_ends_at` to `now() + 14 days` — but nothing ever read either
+column until now; they were purely decorative, only ever displayed
+read-only on `/settings`.
+
+**What shipped:**
+- `lib/auth/access.ts` — `AccessContext` gains `trialExpired`, computed
+  once in `getAccessContext()` for role `"admin"`
+  (`subscription_status === "trialing" && trial_ends_at` has passed).
+  `requireAdminPage()` redirects to the new `/trial-expired`;
+  `requireAdminApi()` returns `402`. Deliberately keyed off
+  `subscription_status`, not `plan_key` — an org Cassey manually marks
+  `"active"` (however that deal was struck) is never blocked, regardless
+  of which plan it's on.
+- `/trial-expired` — reachable only by a signed-in admin whose trial has
+  actually expired (its own guard redirects anyone else away). A plain
+  "trial ended, get in touch" page with a `mailto:` and a sign-out link —
+  no fake checkout button, since no self-serve upgrade payment exists
+  for this tier yet.
+- `/` redirects a trial-expired admin straight to `/trial-expired`
+  instead of bouncing them through `/projects/new` first.
+
+**A real, serious near-miss caught before any enforcement code shipped,
+not after:** checked live production data before writing the logic, and
+the one existing organization — Cassey's own — was still sitting on
+`subscription_status='trialing'` with a `trial_ends_at` from 20 Aug,
+already well in the past, since nothing had ever touched either column
+since migration 011 set the defaults. Computed the exact predicate the
+new code uses against that real row and got `true` — meaning shipping
+the enforcement logic as-is would have locked Cassey out of her own
+account on her very next page load. **Held the PR unmerged rather than
+deploy past that risk** — new pattern for this project, matching the
+"hard to reverse or outward-facing, confirm first" principle applied to
+a self-inflicted risk rather than an external one. Migration 026 fixes
+it: every organization with `subscription_status='trialing'` at the
+moment it runs gets marked `'active'` — correct, not a workaround, since
+every such org predates the concept of a real trial existing at all; any
+org created after this migration keeps the genuine `'trialing'` default
+and is subject to real enforcement.
+
+**Verified, before and after Cassey ran the migration, not just once:**
+full production build, typecheck, and lint pass clean; a Vercel preview
+build reached `READY` before merging. Before the migration ran: computed
+the real `trialExpired` predicate against production data directly and
+confirmed it evaluated `true` for Cassey's account — proving the risk
+was real, not theoretical. After Cassey ran both pending migrations
+(025 and 026): re-verified directly — a fresh test insert now defaults
+to `plan_key: 'starter'` and `subscription_status: 'trialing'` (correct
+for a genuinely new org); Cassey's real organization now reads
+`subscription_status: 'active'`; the exact `trialExpired` predicate
+re-computed against her real row now evaluates `false`. Only then
+merged and deployed to production, and confirmed live:
+`app.vibelabsagency.com/` returns 200, `/trial-expired` and
+`/projects/new` both correctly redirect an unauthenticated visitor to
+`/login`. **Not verified: an admin account actually hitting a real,
+non-stale trial expiry** — no organization has reached 14 days old under
+the new logic yet, so the redirect-to-`/trial-expired` path has been
+proven correct by code review and by the near-miss check above, not by
+watching a real expiry happen.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
@@ -2113,6 +2190,19 @@ mind for the paid options.
   see §2q for exactly what that leaves unconfirmed and the two manual
   steps (Supabase Google provider credentials, running migration 025)
   still needed first.
+- **14-day free trial enforcement (1 Sep 2026):** the near-miss and its
+  fix were both verified directly against real data, not assumed —
+  computed the app's exact `trialExpired` predicate against Cassey's
+  real organization row before migration 026 ran and confirmed it was
+  `true` (would have locked her out), then re-computed it after both
+  migrations ran and confirmed `false`. A fresh test insert after the
+  migrations confirmed `plan_key: 'starter'` and a genuine `'trialing'`
+  status for a real new org — the intended behavior going forward. Only
+  merged and deployed after both were confirmed; production re-checked
+  afterward (`/`, `/trial-expired`, `/projects/new` all respond
+  correctly). Not verified: a real admin account actually reaching a
+  genuine 14-day expiry — no organization is old enough yet under this
+  logic. See §2r.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
