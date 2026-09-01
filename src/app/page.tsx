@@ -1,26 +1,37 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Clock, FileCode2, Layers, Radar, ScanLine } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  FileCode2,
+  Handshake,
+  Layers,
+  Phone,
+  Radar,
+  ScanLine,
+  Sparkles,
+} from "lucide-react";
 import { PageShell } from "@/components/shell";
-import { Button, Eyebrow, Panel, Pill, SectionHeading, Stat } from "@/components/ui";
-import { ScoreBar } from "@/components/score-ring";
-import { getPortfolioStats, getProjects } from "@/lib/data/provider";
+import { Button, Eyebrow, Panel, Pill } from "@/components/ui";
 import { getAccessContext } from "@/lib/auth/access";
-import { JOB_STAGE_LABELS, type ProjectSummary } from "@/lib/types";
-import { BAND_TEXT_CLASS, cn, formatDate, hostOf, scoreBand } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-// The one page every role can land on after signing in, so it branches by
-// role instead of hard-redirecting like every other gated page (that would
-// loop back here). Admin sees the Dashboard below; a partner is sent to
-// their portal; a guest — signed in but with no assigned access — sees a
-// plain explanation instead of a crash or a blank Dashboard.
-export default async function DashboardPage() {
+/**
+ * / used to be the signed-in Dashboard for every role. It's now the public
+ * marketing funnel — the page a stranger who's never heard of WebGenie
+ * lands on — with the actual Dashboard content moved to /projects/new
+ * (see CLAUDE.md §2q). A signed-in visitor never sees the funnel: this
+ * redirects them to their real home before rendering anything below.
+ */
+export default async function HomePage() {
   const { user, role } = await getAccessContext();
-  if (!user) redirect("/login");
-  if (role === "partner") redirect("/partners/portal");
-  if (role === "guest") {
+
+  if (user) {
+    if (role === "admin") redirect("/projects/new");
+    if (role === "partner") redirect("/partners/portal");
+    if (role === "beta") redirect("/trial/portal");
+    // Signed in, but nothing assigned to this account yet.
     return (
       <PageShell role="guest">
         <Panel className="mt-10">
@@ -34,49 +45,12 @@ export default async function DashboardPage() {
     );
   }
 
-  const [projects, stats] = await Promise.all([getProjects(), getPortfolioStats()]);
-
   return (
-    <PageShell role="admin">
+    <PageShell role="guest">
       <Hero />
-
-      <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Projects" value={stats.projectCount} hint="Across the workspace" />
-        <Stat label="Runs in flight" value={stats.activeRuns} hint="Capture and analysis" tone="warn" />
-        <Stat label="Mean score" value={stats.averageScore} hint="Weighted across 11 modules" />
-        <Stat
-          label="Critical findings"
-          value={stats.criticalFindings}
-          hint="Blocking conversion or performance"
-          tone="bad"
-        />
-      </div>
-
-      <div className="mt-16">
-        <SectionHeading
-          eyebrow="Workspace"
-          title="Website intelligence projects"
-          description="Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package."
-          action={<Button href="/projects/new" variant="secondary">New project</Button>}
-        />
-
-        {projects.length ? (
-          <div className="mt-8 grid gap-4 lg:grid-cols-2">
-            {projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-8 rounded-panel border border-dashed border-hairline p-10 text-center">
-            <h3 className="text-lg font-semibold text-ink">Create your first project</h3>
-            <p className="mt-2 text-sm text-muted">
-              Start with a current website, competitor, benchmark, or inspiration URL.
-            </p>
-          </div>
-        )}
-      </div>
-
-      <PipelineStrip />
+      <HowItWorks />
+      <Toolset />
+      <ClosingCta />
     </PageShell>
   );
 }
@@ -90,22 +64,26 @@ function Hero() {
         aria-hidden
       />
       <div className="relative px-6 py-14 sm:px-12 sm:py-20">
-        <Eyebrow className="text-iris-soft">Digital presence intelligence</Eyebrow>
+        <Eyebrow className="text-iris-soft">For agencies, freelancers &amp; consultants</Eyebrow>
         <h1 className="mt-5 max-w-3xl text-display-lg font-semibold">
-          <span className="gradient-text">Turn any website into evidence,</span>
+          <span className="gradient-text">Find the clients</span>
           <br />
-          <span className="text-ink">a blueprint, and a build.</span>
+          <span className="text-ink">other agencies miss.</span>
         </h1>
         <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-muted">
-          WebGenie captures a site and its reference set, scores it across eleven intelligence
-          modules against traceable evidence, generates an original rebuild blueprint, and exports a
-          production-ready prompt package for the builder of your choice.
+          WebGenie finds local businesses with no website — or a bad one — and turns each into a
+          personalized demo site or an evidence-backed audit in minutes. Then it builds the real
+          thing: an original rebuild blueprint and a ready-to-run prompt package for Claude Code,
+          Cursor, v0, Lovable, and more.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center gap-3">
-          <Button href="/projects/new">
-            Analyze a website
+          <Button href="/signup">
+            Get started free
             <ArrowRight className="h-4 w-4" aria-hidden />
+          </Button>
+          <Button href="/samples" variant="secondary">
+            See a sample site
           </Button>
         </div>
 
@@ -121,99 +99,36 @@ function Hero() {
   );
 }
 
-function ProjectCard({ project }: { project: ProjectSummary }) {
-  const job = project.latestJob;
-  const score = job?.overallScore;
-  const isRunning = Boolean(job && job.status !== "completed" && job.status !== "failed");
-
-  return (
-    <Link
-      href={`/projects/${project.id}`}
-      className="focus-ring card group relative block overflow-hidden p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-iris/40"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-ink">{project.name}</h3>
-          <p className="mt-1 truncate font-mono text-[11px] text-faint">
-            {project.primaryUrl ? hostOf(project.primaryUrl) : "No reference yet"}
-          </p>
-        </div>
-        {typeof score === "number" ? (
-          <div className="text-right">
-            <div className={cn("font-mono text-3xl font-semibold tabular-nums", BAND_TEXT_CLASS[scoreBand(score)])}>
-              {score}
-            </div>
-            <div className="text-[10px] uppercase tracking-widest text-faint">score</div>
-          </div>
-        ) : (
-          <Pill tone={isRunning ? "warn" : "neutral"}>
-            {isRunning ? (
-              <>
-                <span className="h-1.5 w-1.5 animate-pulse-ring rounded-full bg-signal-warn" aria-hidden />
-                {JOB_STAGE_LABELS[job!.status]}
-              </>
-            ) : (
-              "Not analyzed"
-            )}
-          </Pill>
-        )}
-      </div>
-
-      {typeof score === "number" ? <ScoreBar score={score} className="mt-5" /> : null}
-
-      <p className="mt-4 text-[13px] leading-relaxed text-muted">{project.primaryGoal}</p>
-
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        <Pill>{project.industry}</Pill>
-        <Pill>{project.referenceCount} references</Pill>
-        {project.deliverables.blueprint ? <Pill tone="iris">Blueprint</Pill> : null}
-        {project.deliverables.promptPackage ? <Pill tone="neon">Prompt package</Pill> : null}
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-hairline pt-4">
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-faint">
-          <Clock className="h-3 w-3" aria-hidden />
-          Updated {formatDate(project.updatedAt)}
-        </span>
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted transition-colors group-hover:text-iris-soft">
-          Open
-          <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
-        </span>
-      </div>
-    </Link>
-  );
-}
-
 const PIPELINE = [
   {
     icon: ScanLine,
-    title: "Capture",
-    body: "Headless capture of the current site plus competitors, benchmarks, and inspiration. Rendered DOM, computed styles, network waterfall, and full-page screenshots.",
+    title: "Find",
+    body: "Scan Google Maps for businesses with no website — or a bad one — sorted by review count so you always call the easiest yes first.",
   },
   {
     icon: Radar,
     title: "Score",
-    body: "Eleven deterministic modules produce a score, a confidence figure, and a set of findings — each one tied back to the capture that produced it.",
+    body: "Eleven deterministic modules produce a score and a set of findings — each one tied back to real evidence, not a guess.",
   },
   {
     icon: Layers,
     title: "Blueprint",
-    body: "An original sitemap, design token set, component library, and per-page section plan. Derived from the findings, never copied from the references.",
+    body: "An original sitemap, design token set, component library, and per-page section plan. Derived from the findings, never copied from a competitor.",
   },
   {
     icon: FileCode2,
     title: "Package",
-    body: "A validated, platform-adapted prompt package that builds the blueprint in Claude Code, Cursor, v0, Lovable, Bolt, Framer, and more.",
+    body: "A validated, platform-adapted prompt package that builds the blueprint in the AI tool you already use.",
   },
 ];
 
-function PipelineStrip() {
+function HowItWorks() {
   return (
     <div className="mt-20">
-      <SectionHeading
+      <SectionIntro
         eyebrow="How it works"
         title="Four stages, one canonical artifact chain"
-        description="Each stage emits a versioned JSON artifact. Human-readable reports and exports are derived views, so the data never drifts from the analysis."
+        description="Each stage emits a versioned JSON artifact. Every report and export is a derived view, so the data never drifts from the analysis."
       />
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {PIPELINE.map((stage, i) => (
@@ -229,6 +144,77 @@ function PipelineStrip() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+const CAPABILITIES = [
+  { icon: Building2, title: "Prospect Finder", body: "Search by industry and city — every result already has a demo site built for it." },
+  { icon: Radar, title: "Audit Funnel", body: "Queue real audits at scale for businesses that already have a site worth improving." },
+  { icon: Sparkles, title: "Site Generator", body: "73 industries, real lead capture, an AI intake chat, and full LocalBusiness schema on every page." },
+  { icon: FileCode2, title: "Blueprints & Prompts", body: "Every audit exports a build-ready prompt package for nine different AI builders." },
+  { icon: Phone, title: "Call Tracker", body: "Log outcomes, follow-ups, and collect payment without leaving the workspace." },
+  { icon: Handshake, title: "Partner Program", body: "Bring in referral partners with their own portal and commission tracking." },
+];
+
+function Toolset() {
+  return (
+    <div className="mt-20">
+      <SectionIntro
+        eyebrow="One workspace"
+        title="Everything the offer needs, not just the engine"
+        description="The intelligence engine is the differentiator — the rest of the workspace is what turns a finding into a closed deal."
+      />
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {CAPABILITIES.map((c) => (
+          <div key={c.title} className="card p-6">
+            <span className="grid h-9 w-9 place-items-center rounded-lg border border-neon/30 bg-neon/10">
+              <c.icon className="h-4 w-4 text-neon-soft" aria-hidden />
+            </span>
+            <h3 className="mt-4 text-sm font-semibold text-ink">{c.title}</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted">{c.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClosingCta() {
+  return (
+    <div className="mt-20 mb-8">
+      <Panel className="relative overflow-hidden text-center">
+        <div
+          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.25]"
+          style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(600px 260px at 50% 0%, #000, transparent)" }}
+          aria-hidden
+        />
+        <div className="relative">
+          <h2 className="text-display-md font-semibold text-ink">Start finding clients today</h2>
+          <p className="mx-auto mt-3 max-w-md text-sm text-muted">
+            Free to start, no credit card. Your workspace is ready the moment you sign up.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <Button href="/signup">
+              Get started free
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Button>
+            <Link href="/login" className="focus-ring text-sm font-medium text-muted transition-colors hover:text-ink">
+              Already have an account? Sign in
+            </Link>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function SectionIntro({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+  return (
+    <div className="max-w-2xl">
+      <Eyebrow className="text-iris-soft">{eyebrow}</Eyebrow>
+      <h2 className="mt-2.5 text-display-md font-semibold text-ink">{title}</h2>
+      <p className="mt-2.5 text-sm leading-relaxed text-muted">{description}</p>
     </div>
   );
 }
