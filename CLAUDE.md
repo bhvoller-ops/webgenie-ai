@@ -2,7 +2,7 @@
 
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
-> Last updated: 30 August 2026 (previous update: 29 August 2026).
+> Last updated: 1 September 2026 (previous update: 31 August 2026).
 
 ---
 
@@ -43,6 +43,7 @@ more per client. Both are real; A is the priority.
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause. "No AI Receptionist" / "No 24/7 Coverage" pitch badges on every result (`/audit` too) — see §2f |
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form (§2c), a shared "How It Works" 5-step section on every site (§2e). **9 of 14 have a real curated hero photo** (Roofer/Landscaper/Tree Care/Restoration/Salon still on generic stock — see §2e) |
+| New Project bulk intake (`/projects/new`) | **Built, 1 Sep** — paste one or more Google Business Profile links, plain names, or website URLs (up to 25); no-website results get a Finder-style demo site, has-website results get queued for a real audit. See §2n |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
@@ -1058,6 +1059,85 @@ signed up — has to query the database directly, same as I did to verify
 this). Worth adding once there are enough real testers for a list to be
 useful, not before.
 
+### 2n. New Project: bulk business intake — 1 Sep 2026
+
+Cassey: New Project only audits one existing website at a time, entered by
+hand. It should offer the same demo-site generation Finder does, but for a
+specific Google Business Profile rather than a category search — and take
+many businesses at once, like Finder's results list.
+
+**Shipped.** `/projects/new`'s bare name/industry/goal/CTA form is now a
+multi-line paste box: one or more Google Business Profile links, plain
+business names, or existing website URLs, up to 25 per submission. Each
+line resolves independently — a partial failure on one line (a typo, an
+unresolvable name) doesn't block the rest:
+
+- **No website found** → the exact Finder experience — a demo site built
+  instantly (Text/View site/Download/Publish, per-row industry correction)
+  — no DB write, since site generation is a free pure function of the
+  business data, same as Finder.
+- **Has a website** → queued for a real audit immediately: the identical
+  project + `website_references` + `analysis_jobs` insert sequence
+  `/api/audits/queue` already uses, not a new pattern.
+- **No match at all** → the raw line is reported back so it can be retried
+  with a plainer search term, instead of silently vanishing.
+
+The old manual name/industry/goal/CTA form still exists, collapsed under
+"Prefer to set up a project by hand instead?" — for a referral with no
+Google presence to look up.
+
+**New `lib/prospect/parse-line.ts`** classifies each pasted line:
+- A Google Maps share link — the short form (`maps.app.goo.gl`, `goo.gl`,
+  `g.page`) or the full `/maps/place/<name>/...` form, or a `cid=`-based
+  permalink (the exact shape Places API's own `googleMapsUri` field
+  returns, and one Google's Business Profile "Share" panel still
+  produces) — has its business name pulled from the URL, following the
+  short-link redirect first when needed.
+- A plain non-Maps URL is treated directly as the business's existing
+  site — the "audit a website" case New Project already had.
+- Plain text is used as-is for a Places Text Search query.
+
+**New `resolveBusiness()` in `lib/prospect/finder.ts`** is the
+single-result sibling of `placesSearch()`'s category search — one Places
+Text Search call per line instead of a category scan. Industry is guessed
+by keyword-matching Places' own `primaryType`/`types`/`displayName` text
+against each of the 14 supported industries — deliberately not hardcoded
+Google enum strings (safer than getting Google's exact spelling right from
+memory) — and is always correctable per-row in the results table before a
+site is generated, since the guess can be wrong.
+
+**Verified against the real, live Google Places API, not sample data** —
+a full `/maps/place/` share link, a `cid=`-based permalink, and plain text
+all classified correctly; a real dentist listing resolved with the
+correct industry guess (`dentist`); a business with a real website
+resolved with its actual site intact; a garbage query correctly returned
+no match. The `cid=` case specifically caught a real bug before it
+shipped: the first version of the classifier only recognized Maps URLs by
+a `/maps` path prefix, so a `cid=`-based permalink (paths of just `/`)
+fell through and got misclassified as an ordinary website URL — which
+would have written the Google Maps redirect link itself into a project's
+`website_references` row instead of failing honestly. Caught by testing
+against a real `googleMapsUri` value from a live Places response, not
+by inspection.
+
+**The project+reference+job insert sequence was verified directly against
+the real production schema** — ran the exact insert sequence the route
+performs (project → website_reference → analysis_job → two usage_events)
+via the service-role key, confirmed all four succeed, then deleted every
+row. This route was **not** click-tested through the actual logged-in UI
+— unlike most features in this file, no temporary auth account was
+created and no password was entered into any login field for this round
+of verification. The DB-write branch is a verbatim reuse of
+`/api/audits/queue`'s already-proven insert pattern, and the genuinely
+new logic (line classification + business resolution) was verified
+against live Google data instead. Full production build, typecheck, and
+lint all pass clean, and the merged deploy was confirmed live on
+`app.vibelabsagency.com/projects/new` (redirects an unauthenticated
+request to `/login`, the same admin-gate behavior every other Dashboard
+page has). **A real click-through by Cassey herself is the one piece of
+this that's still unconfirmed** — worth doing on the next real prospect
+list.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -1184,12 +1264,16 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   ├── samples/                One curated example site per industry
 │   │   ├── partners/, partners/portal/  Admin partner console + partner self-service portal — see §2j
 │   │   ├── invite/[token]/         Public invite-accept page (agency-staff and partner invites) — see §2j
-│   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers
+│   │   ├── projects/, projects/[id]/  Report / blueprint / prompt viewers.
+│   │   │                            projects/new is the bulk business-intake
+│   │   │                            box (Google profile link / name / URL,
+│   │   │                            up to 25 at once) — see §2n
 │   │   ├── login/, auth/           Auth. Sign-in only — no self-serve signup (§2j)
 │   │   ├── forgot-password/, reset-password/  Password reset — see §2k
 │   │   ├── settings/               Account settings
 │   │   └── api/
 │   │       ├── prospects/, demo-site/   Finder + site-gen routes
+│   │       ├── projects/bulk/           New Project's bulk intake backend — see §2n
 │   │       ├── billing/                 Stripe checkout + webhook
 │   │       ├── site-chat/               AI intake chat widget backend
 │   │       ├── site-lead/               Hero quote-form backend
@@ -1719,6 +1803,20 @@ mind for the paid options.
   test rows (prompt_packages, website_blueprints, analysis_outputs,
   analysis_jobs, website_references, projects, the beta_testers row, the
   auth user) deleted afterward via a cleanup script. See §2m.
+- **New Project bulk intake (1 Sep 2026):** line classification and
+  business resolution tested against the real, live Google Places API —
+  a full Maps share link, a `cid=`-based permalink, and plain text all
+  classified correctly; a real dentist listing resolved with the right
+  industry guess; a business with a real website kept its actual site; a
+  garbage query correctly returned no match. Caught a real bug this way —
+  the `cid=`-permalink shape (Places' own `googleMapsUri` format) was
+  originally misclassified as an ordinary website URL before the fix. The
+  project+reference+job+usage insert sequence was verified directly
+  against the real production schema (ran it, confirmed all four writes,
+  deleted every row) rather than through the logged-in UI — no temporary
+  account was created and no password was entered for this round. See
+  §2n for why, and what's still genuinely unconfirmed (a real click-through
+  by Cassey).
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
