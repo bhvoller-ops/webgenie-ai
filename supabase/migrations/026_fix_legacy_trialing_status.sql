@@ -1,0 +1,16 @@
+-- Companion to the trial-expiry enforcement shipped in CLAUDE.md §2r.
+--
+-- organizations.subscription_status has defaulted to 'trialing' and
+-- trial_ends_at to now()+14 days since migration 011 (6 Aug) — but nothing
+-- ever read either column until now, so they were purely decorative. The
+-- one real organization in the system (Cassey's own) is still sitting on
+-- subscription_status='trialing' with a trial_ends_at from 20 Aug, already
+-- well in the past. Enforcing trial expiry without this fix first would
+-- lock her out of her own account the moment it shipped.
+--
+-- Every organization that exists before this migration runs predates the
+-- whole concept of a real trial — it was never actually trialing anything.
+-- Marking it 'active' is a one-time correction, not an ongoing exemption:
+-- any org created AFTER this migration keeps the real 'trialing' default
+-- and is subject to real enforcement.
+update public.organizations set subscription_status = 'active' where subscription_status = 'trialing';

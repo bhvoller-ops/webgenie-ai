@@ -13,6 +13,8 @@ export interface AccessContext {
   membershipRole: string | null; // the raw organization_members.role, e.g. "owner"
   partnerId: string | null; // set when role === "partner"
   betaTesterId: string | null; // set when role === "beta"
+  /** True only for an admin whose org is still subscription_status "trialing" past its trial_ends_at. See §2r. */
+  trialExpired: boolean;
 }
 
 const ADMIN_ROLES = ["owner", "admin"];
@@ -35,7 +37,7 @@ export async function getAccessContext(): Promise<AccessContext> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { supabase, user: null, role: "guest", organizationId: null, membershipRole: null, partnerId: null, betaTesterId: null };
+    return { supabase, user: null, role: "guest", organizationId: null, membershipRole: null, partnerId: null, betaTesterId: null, trialExpired: false };
   }
 
   const { data: membership } = await supabase
@@ -46,6 +48,20 @@ export async function getAccessContext(): Promise<AccessContext> {
     .maybeSingle();
 
   if (membership && ADMIN_ROLES.includes(membership.role)) {
+    // Only a genuine free-trial org past its window is blocked — an org
+    // Cassey has manually moved to "active" (a real deal, however it was
+    // struck) never hits this regardless of plan_key or trial_ends_at.
+    // Deliberately not keyed off plan_key: a paid-but-still-"trialing"
+    // org shouldn't exist, but if it ever did, this wouldn't lock it out.
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("subscription_status, trial_ends_at")
+      .eq("id", membership.organization_id)
+      .single();
+    const trialExpired = Boolean(
+      org?.subscription_status === "trialing" && org.trial_ends_at && new Date(org.trial_ends_at) < new Date()
+    );
+
     return {
       supabase,
       user,
@@ -53,7 +69,8 @@ export async function getAccessContext(): Promise<AccessContext> {
       organizationId: membership.organization_id,
       membershipRole: membership.role,
       partnerId: null,
-      betaTesterId: null
+      betaTesterId: null,
+      trialExpired
     };
   }
 
@@ -63,7 +80,7 @@ export async function getAccessContext(): Promise<AccessContext> {
   const { data: partner } = await supabase.from("partners").select("id").eq("user_id", user.id).maybeSingle();
 
   if (partner) {
-    return { supabase, user, role: "partner", organizationId: null, membershipRole: membership?.role ?? null, partnerId: partner.id, betaTesterId: null };
+    return { supabase, user, role: "partner", organizationId: null, membershipRole: membership?.role ?? null, partnerId: partner.id, betaTesterId: null, trialExpired: false };
   }
 
   // beta_testers carries no RLS policies of its own (migration 024) — every
@@ -73,10 +90,10 @@ export async function getAccessContext(): Promise<AccessContext> {
   const { data: betaTester } = await admin.from("beta_testers").select("id").eq("user_id", user.id).maybeSingle();
 
   if (betaTester) {
-    return { supabase, user, role: "beta", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: betaTester.id };
+    return { supabase, user, role: "beta", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: betaTester.id, trialExpired: false };
   }
 
-  return { supabase, user, role: "guest", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: null };
+  return { supabase, user, role: "guest", organizationId: null, membershipRole: membership?.role ?? null, partnerId: null, betaTesterId: null, trialExpired: false };
 }
 
 /**
@@ -89,6 +106,7 @@ export async function requireAdminPage(): Promise<AccessContext & { user: NonNul
   const ctx = await getAccessContext();
   if (!ctx.user) redirect("/login");
   if (ctx.role !== "admin" || !ctx.organizationId) redirect("/");
+  if (ctx.trialExpired) redirect("/trial-expired");
   return ctx as AccessContext & { user: NonNullable<AccessContext["user"]>; organizationId: string };
 }
 
@@ -123,6 +141,12 @@ export async function requireAdminApi(): Promise<{ ctx: AdminApiContext; respons
   }
   if (ctx.role !== "admin" || !ctx.organizationId) {
     return { ctx: ctx as AdminApiContext, response: NextResponse.json({ error: "Admin access required." }, { status: 403 }) };
+  }
+  if (ctx.trialExpired) {
+    return {
+      ctx: ctx as AdminApiContext,
+      response: NextResponse.json({ error: "Your free trial has ended. Reach out to keep using WebGenie." }, { status: 402 })
+    };
   }
   return { ctx: ctx as AdminApiContext, response: null };
 }
