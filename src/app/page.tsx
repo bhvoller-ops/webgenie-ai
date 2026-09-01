@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
  * redirects them to their real home before rendering anything below.
  */
 export default async function HomePage() {
-  const { user, role } = await getAccessContext();
+  const { user, role, trialExpired } = await getAccessContext();
 
   if (user) {
-    if (role === "admin") redirect("/projects/new");
+    if (role === "admin") redirect(trialExpired ? "/trial-expired" : "/projects/new");
     if (role === "partner") redirect("/partners/portal");
     if (role === "beta") redirect("/trial/portal");
     // Signed in, but nothing assigned to this account yet.
