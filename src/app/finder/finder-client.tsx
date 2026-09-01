@@ -25,7 +25,7 @@ import { Eyebrow, Panel, Pill } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
 import { IndustryPicker } from "@/components/industry-picker";
-import { INDUSTRIES, INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { industryHeroImage, industryLabel, industrySecondaryImage } from "@/lib/sitegen/industry-lookup";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
@@ -434,19 +434,19 @@ export function FinderClient({ role }: { role: AccessRole }) {
                         <div className="grid gap-4 sm:grid-cols-2">
                           <PhotoOverrideInput
                             label="Header photo URL"
-                            placeholder={INDUSTRIES[b.industry].heroImage}
+                            placeholder={industryHeroImage(b.industry)}
                             value={overrides[b.id]?.heroImageOverride ?? ""}
                             onChange={(v) => setOverride(b.id, { heroImageOverride: v || undefined })}
                           />
                           <PhotoOverrideInput
                             label="In-action photo URL"
-                            placeholder={INDUSTRIES[b.industry].secondaryImage}
+                            placeholder={industrySecondaryImage(b.industry)}
                             value={overrides[b.id]?.secondaryImageOverride ?? ""}
                             onChange={(v) => setOverride(b.id, { secondaryImageOverride: v || undefined })}
                           />
                         </div>
                         <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
-                          Leave blank to use the default {INDUSTRIES[b.industry].label.toLowerCase()} photo.
+                          Leave blank to use the default {industryLabel(b.industry).toLowerCase()} photo.
                           Paste any direct image link — free stock (Pexels, Unsplash) or one the business
                           sent you. The Text and View site links above update immediately.
                         </p>
@@ -464,7 +464,7 @@ export function FinderClient({ role }: { role: AccessRole }) {
             <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-muted">
               Open a demo site, check it reads well, then call. The opener that works is short:{" "}
               <span className="text-ink">
-                &ldquo;I was looking for a {INDUSTRY_LIST.find((i) => i.key === industry)?.label.toLowerCase()} in{" "}
+                &ldquo;I was looking for a {industryLabel(industry).toLowerCase()} in{" "}
                 {parseLocation(location).city} and found you, but noticed you don&rsquo;t have a website — so I
                 built you one. Would you like to see it?&rdquo;
               </span>{" "}

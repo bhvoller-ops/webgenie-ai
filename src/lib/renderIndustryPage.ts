@@ -1,4 +1,5 @@
 import type { IndustryConfig } from "@/data/gallery/types";
+import { SITE_ORIGIN } from "@/lib/site-url";
 
 function escapeHtml(str: string): string {
   return str
@@ -12,7 +13,87 @@ function stars(n: number): string {
   return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
-export function renderIndustryPage(cfg: IndustryConfig): string {
+/**
+ * The lead form's submit handler. Two very different jobs depending on
+ * caller:
+ *
+ *   - Default (no `live`): what /gallery's preview modal renders — a
+ *     decorative confirmation swap, nothing sent anywhere. Correct there
+ *     specifically because /gallery is public and unauthenticated; if this
+ *     posted for real, anyone just browsing the showcase would create a
+ *     fake lead for a placeholder business like "BrightSmile Dental".
+ *   - `live: true` — used only by lib/sitegen/gallery-site.ts when
+ *     generating an actual prospect's site (cfg's businessName/phone/email
+ *     have already been overridden with that business's real data by then).
+ *     Posts to /api/site-lead, same endpoint and payload shape the core 14
+ *     industries' lead-form.ts already uses, so a submission here lands in
+ *     the same /leads inbox instead of vanishing.
+ */
+function leadSubmitScript(cfg: IndustryConfig, live: boolean): string {
+  const c = cfg.colors;
+  const thankYou = `'<div style="text-align:center;padding:40px 20px"><div style="font-size:3rem;margin-bottom:16px">✓</div><h3 style="font-size:1.4rem;color:${c.text};margin-bottom:8px">Thank You!</h3><p style="color:${c.textMuted};font-size:.95rem">We received your request and will call you within one business day. Talk soon!</p></div>'`;
+
+  if (!live) {
+    return `function handleLeadSubmit(e){
+  e.preventDefault();
+  var form=e.target;
+  form.innerHTML=${thankYou};
+}`;
+  }
+
+  const apiUrl = JSON.stringify(`${SITE_ORIGIN}/api/site-lead`);
+  const business = JSON.stringify({ name: cfg.businessName, industryLabel: cfg.industryName, phone: cfg.phone });
+
+  return `function handleLeadSubmit(e){
+  e.preventDefault();
+  var form=e.target;
+  var data=new FormData(form);
+  var name=(data.get('name')||'').toString().trim();
+  var phone=(data.get('phone')||'').toString().trim();
+  if(!name||!phone)return;
+  var btn=form.querySelector('.lead-submit');
+  var originalText=btn.textContent;
+  var err=form.querySelector('.lead-error');
+  if(!err){
+    err=document.createElement('p');
+    err.className='lead-error';
+    err.style.cssText='color:#B91C1C;font-size:.85rem;text-align:center;margin-top:10px';
+    form.appendChild(err);
+  }
+  err.textContent='';
+  btn.disabled=true;
+  btn.textContent='Sending…';
+  fetch(${apiUrl},{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      business:${business},
+      name:name,
+      email:(data.get('email')||'').toString().trim(),
+      phone:phone,
+      service:(data.get('service')||'').toString().trim(),
+      message:(data.get('message')||'').toString().trim()
+    })
+  })
+    .then(function(r){return r.json().then(function(j){return {ok:r.ok,body:j};});})
+    .then(function(res){
+      if(res.ok){
+        form.innerHTML=${thankYou};
+      } else {
+        btn.disabled=false;
+        btn.textContent=originalText;
+        err.textContent=(res.body&&res.body.error)?res.body.error:'Something went wrong — please call us instead.';
+      }
+    })
+    .catch(function(){
+      btn.disabled=false;
+      btn.textContent=originalText;
+      err.textContent='Something went wrong — please call us instead.';
+    });
+}`;
+}
+
+export function renderIndustryPage(cfg: IndustryConfig, opts: { live?: boolean } = {}): string {
   const c = cfg.colors;
 
   const serviceCards = cfg.services
@@ -640,11 +721,7 @@ function askChat(q){
   document.getElementById('chatInput').value=q;
   sendChat();
 }
-function handleLeadSubmit(e){
-  e.preventDefault();
-  var form=e.target;
-  form.innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:3rem;margin-bottom:16px">✓</div><h3 style="font-size:1.4rem;color:${c.text};margin-bottom:8px">Thank You!</h3><p style="color:${c.textMuted};font-size:.95rem">We received your request and will call you within one business day. Talk soon!</p></div>';
-}
+${leadSubmitScript(cfg, opts.live ?? false)}
 </script>
 </body>
 </html>`;

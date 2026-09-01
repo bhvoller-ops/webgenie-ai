@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findProspects, type FinderQuery } from "@/lib/prospect/finder";
-import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { isKnownIndustry } from "@/lib/sitegen/industry-lookup";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { requireAdminApi } from "@/lib/auth/access";
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const city = typeof body.city === "string" ? body.city.trim() : "";
   const state = typeof body.state === "string" ? body.state.trim() : "";
 
-  if (!industry || !(industry in INDUSTRIES)) {
+  if (!industry || !isKnownIndustry(industry)) {
     return NextResponse.json({ error: "Unknown industry." }, { status: 400 });
   }
   if (!city) {

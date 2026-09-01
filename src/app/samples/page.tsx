@@ -1,7 +1,7 @@
 import { ExternalLink, Star } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Card, SectionHeading } from "@/components/ui";
-import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { industryLabel } from "@/lib/sitegen/industry-lookup";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { getAccessContext } from "@/lib/auth/access";
@@ -23,12 +23,11 @@ export default async function SamplesPage() {
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SAMPLE_BUSINESSES.map((business) => {
-          const profile = INDUSTRIES[business.industry];
           const url = demoSiteUrl(business, { by: "WebGenie AI", badge: false });
           return (
             <a key={business.id} href={url} target="_blank" rel="noopener noreferrer" className="group block">
               <Card className="h-full transition-colors group-hover:border-iris/50">
-                <p className="text-xs font-semibold uppercase tracking-wide text-iris-soft">{profile.label}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-iris-soft">{industryLabel(business.industry)}</p>
                 <h3 className="mt-1.5 flex items-center gap-1.5 text-base font-semibold text-ink">
                   {business.name}
                   <ExternalLink className="h-3.5 w-3.5 shrink-0 text-faint transition-colors group-hover:text-iris-soft" aria-hidden />

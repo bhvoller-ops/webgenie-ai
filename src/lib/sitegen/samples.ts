@@ -1,4 +1,4 @@
-import type { Business, IndustryKey } from "@/lib/sitegen/types";
+import type { Business, SiteGenIndustryKey } from "@/lib/sitegen/types";
 
 /**
  * One curated example per industry — for browsing site quality at a glance
@@ -8,7 +8,7 @@ import type { Business, IndustryKey } from "@/lib/sitegen/types";
  * plausible fixture data encoded into the same demo-site URL every other
  * generated site uses — nothing here is a real business.
  */
-const SAMPLES: Record<IndustryKey, Omit<Business, "industry" | "source">> = {
+const SAMPLES: Record<SiteGenIndustryKey, Omit<Business, "industry" | "source">> = {
   plumber: { id: "sample-plumber", name: "Cornerstone Plumbing Co.", phone: "(404) 555-0148", address: "", city: "Atlanta", state: "GA", rating: 4.9, reviewCount: 214 },
   hvac: { id: "sample-hvac", name: "Southern Comfort Heating & Air", phone: "(615) 555-0177", address: "", city: "Nashville", state: "TN", rating: 4.8, reviewCount: 341 },
   electrician: { id: "sample-electrician", name: "Bright Line Electric", phone: "(704) 555-0122", address: "", city: "Charlotte", state: "NC", rating: 4.9, reviewCount: 156 },
@@ -25,7 +25,7 @@ const SAMPLES: Record<IndustryKey, Omit<Business, "industry" | "source">> = {
   salon: { id: "sample-salon", name: "Lush Hair Studio", phone: "(206) 555-0136", address: "", city: "Seattle", state: "WA", rating: 4.9, reviewCount: 312 }
 };
 
-export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as IndustryKey[]).map((industry) => ({
+export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenIndustryKey[]).map((industry) => ({
   ...SAMPLES[industry],
   industry,
   source: "sample"

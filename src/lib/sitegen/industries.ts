@@ -1,4 +1,4 @@
-import type { IndustryKey, IndustryProfile } from "@/lib/sitegen/types";
+import type { IndustryProfile, SiteGenIndustryKey } from "@/lib/sitegen/types";
 import { SITE_ORIGIN } from "@/lib/site-url";
 
 /**
@@ -10,7 +10,7 @@ import { SITE_ORIGIN } from "@/lib/site-url";
  * buyer actually has.
  */
 
-export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
+export const INDUSTRIES: Record<SiteGenIndustryKey, IndustryProfile> = {
   plumber: {
     key: "plumber",
     label: "Licensed Plumber",
@@ -532,6 +532,6 @@ export const INDUSTRIES: Record<IndustryKey, IndustryProfile> = {
 
 export const INDUSTRY_LIST = Object.values(INDUSTRIES);
 
-export function industryOf(key: IndustryKey) {
+export function industryOf(key: SiteGenIndustryKey) {
   return INDUSTRIES[key];
 }

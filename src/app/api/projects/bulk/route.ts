@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasPlacesKey, resolveBusiness } from "@/lib/prospect/finder";
 import { classifyLine } from "@/lib/prospect/parse-line";
-import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { industryLabel, isKnownIndustry } from "@/lib/sitegen/industry-lookup";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
 import { requireAdminApi } from "@/lib/auth/access";
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   }
 
   const defaultIndustry = parsed.data.defaultIndustry as IndustryKey | undefined;
-  if (defaultIndustry && !(defaultIndustry in INDUSTRIES)) {
+  if (defaultIndustry && !isKnownIndustry(defaultIndustry)) {
     return NextResponse.json({ error: "Unknown industry." }, { status: 400 });
   }
 
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         .insert({
           organization_id: organizationId,
           name: business.name,
-          industry: INDUSTRIES[business.industry].label,
+          industry: industryLabel(business.industry),
           primary_goal: "Generate leads",
           primary_cta: "Call now",
           created_by: user.id,

@@ -4,9 +4,10 @@ import type {
   IconKey,
   SiteOptions,
 } from "@/lib/sitegen/types";
-import { industryOf } from "@/lib/sitegen/industries";
+import { INDUSTRIES, industryOf } from "@/lib/sitegen/industries";
 import { chatWidgetMarkup, chatWidgetScript, chatWidgetStyles } from "@/lib/sitegen/chat-widget";
 import { leadFormMarkup, leadFormScript, leadFormStyles } from "@/lib/sitegen/lead-form";
+import { generateGallerySite } from "@/lib/sitegen/gallery-site";
 
 /* ------------------------------------------------------------------ */
 /* Icons                                                               */
@@ -76,11 +77,20 @@ function howItWorksSteps(industryLabel: string): { icon: IconKey; title: string;
 /* Generator                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The one entry point both callers (the demo-site route, the Vercel
+ * publisher) use — dispatches on which of the two industry spaces
+ * business.industry belongs to. See the SiteGenIndustryKey/GalleryIndustryKey
+ * doc comments in lib/sitegen/types.ts for why there are two at all.
+ */
 export function generateSite(
   business: Business,
   options: SiteOptions = {}
 ): GeneratedSite {
-  const industry = industryOf(business.industry);
+  if (!(business.industry in INDUSTRIES)) {
+    return generateGallerySite(business, options);
+  }
+  const industry = industryOf(business.industry as keyof typeof INDUSTRIES);
   const p = {
     ...industry,
     heroImage: business.heroImageOverride || industry.heroImage,

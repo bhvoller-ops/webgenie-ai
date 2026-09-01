@@ -1,5 +1,6 @@
-import type { Business, IndustryKey } from "@/lib/sitegen/types";
-import { INDUSTRIES } from "@/lib/sitegen/industries";
+import type { Business, IndustryKey, SiteGenIndustryKey } from "@/lib/sitegen/types";
+import { industryLabel, industrySearchTerm } from "@/lib/sitegen/industry-lookup";
+import { GALLERY_INDUSTRY_SUMMARY } from "@/lib/sitegen/gallery-industry-summary";
 
 /**
  * Prospect Finder.
@@ -75,7 +76,7 @@ const NAME_PARTS: Record<string, string[]> = {
   ],
 };
 
-const CORE: Record<IndustryKey, string[]> = {
+const CORE: Record<SiteGenIndustryKey, string[]> = {
   plumber: ["Plumbing", "Water", "Pipe"],
   hvac: ["Heating & Air", "Climate", "Comfort"],
   electrician: ["Electric", "Electrical", "Power"],
@@ -118,6 +119,10 @@ export function sampleSearch(q: FinderQuery): FinderResult {
   const limit = q.limit ?? 17;
   const rand = seeded(`${q.industry}|${q.city}|${q.state}`);
   const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
+  // CORE only has hand-written words for the 14 original trades — a Gallery
+  // industry (e.g. "bakery") falls back to its own real name instead of
+  // crashing on an undefined lookup.
+  const coreWords = CORE[q.industry as SiteGenIndustryKey] ?? [industryLabel(q.industry)];
 
   const used = new Set<string>();
   const all: Business[] = [];
@@ -125,7 +130,7 @@ export function sampleSearch(q: FinderQuery): FinderResult {
   for (let i = 0; i < limit; i++) {
     let name = "";
     for (let attempt = 0; attempt < 12; attempt++) {
-      const candidate = `${pick(NAME_PARTS.prefix)} ${pick(CORE[q.industry])} ${pick(
+      const candidate = `${pick(NAME_PARTS.prefix)} ${pick(coreWords)} ${pick(
         NAME_PARTS.suffix
       )}`.replace(/\s+/g, " ");
       if (!used.has(candidate)) {
@@ -376,8 +381,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     return { ...sampleSearch(q), notice: "No GOOGLE_PLACES_API_KEY set — showing sample data." };
   }
 
-  const profile = INDUSTRIES[q.industry];
-  const textQuery = `${profile.plural} in ${q.city}, ${q.state}`;
+  const textQuery = `${industrySearchTerm(q.industry)} in ${q.city}, ${q.state}`;
 
   try {
     let boundingBox: BoundingBox | undefined;
@@ -472,7 +476,7 @@ export async function findProspects(q: FinderQuery): Promise<FinderResult> {
  * than guessing Google's exact type spelling from memory, and it still works
  * if Google's category text is slightly different from the enum name.
  */
-const INDUSTRY_KEYWORDS: Record<IndustryKey, string[]> = {
+const INDUSTRY_KEYWORDS: Record<SiteGenIndustryKey, string[]> = {
   plumber: ["plumb"],
   hvac: ["hvac", "heating", "air condition", "furnace"],
   electrician: ["electric"],
@@ -491,8 +495,16 @@ const INDUSTRY_KEYWORDS: Record<IndustryKey, string[]> = {
 
 export function guessIndustry(text: string): IndustryKey | null {
   const t = text.toLowerCase();
-  for (const [key, words] of Object.entries(INDUSTRY_KEYWORDS) as [IndustryKey, string[]][]) {
+  // The 14 core trades first — hand-picked keywords, most reliable.
+  for (const [key, words] of Object.entries(INDUSTRY_KEYWORDS) as [SiteGenIndustryKey, string[]][]) {
     if (words.some((w) => t.includes(w))) return key;
+  }
+  // Then the 59 Gallery industries — no hand-curated keyword list for each
+  // (59 of those isn't worth maintaining by hand), so this matches directly
+  // against each one's own real name instead, e.g. "bakery" in the Places
+  // primaryType/displayName text matches the "bakery" industry.
+  for (const g of GALLERY_INDUSTRY_SUMMARY) {
+    if (t.includes(g.label.toLowerCase())) return g.key;
   }
   return null;
 }
