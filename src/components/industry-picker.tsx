@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Check, ChevronDown, Search } from "lucide-react";
-import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { ALL_INDUSTRY_LIST } from "@/lib/sitegen/industry-lookup";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
 
 /**
  * A searchable dropdown for picking an industry — replaces the plain
  * <select> everywhere one was used (Finder, Audit, New Project). A native
- * select is fine for a handful of options; scanning 14 (and growing)
- * alphabetical labels in a stock browser dropdown isn't, especially on a
- * call where the goal is picking fast, not reading carefully.
+ * select is fine for a handful of options; scanning 73 alphabetical labels
+ * in a stock browser dropdown isn't, especially on a call where the goal
+ * is picking fast, not reading carefully. Grouped by category (Core
+ * Trades first, then the Gallery's 11) so 73 options reads as a handful
+ * of short, scannable lists instead of one long one.
  */
 export function IndustryPicker({
   value,
@@ -29,13 +31,25 @@ export function IndustryPicker({
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const current = INDUSTRY_LIST.find((p) => p.key === value);
+  const current = ALL_INDUSTRY_LIST.find((p) => p.key === value);
 
-  const filtered = useMemo(() => {
+  const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q ? INDUSTRY_LIST.filter((p) => p.label.toLowerCase().includes(q)) : INDUSTRY_LIST;
-    return [...list].sort((a, b) => a.label.localeCompare(b.label));
+    const list = q ? ALL_INDUSTRY_LIST.filter((p) => p.label.toLowerCase().includes(q)) : ALL_INDUSTRY_LIST;
+    const byCategory = new Map<string, typeof list>();
+    for (const item of list) {
+      const arr = byCategory.get(item.category) ?? [];
+      arr.push(item);
+      byCategory.set(item.category, arr);
+    }
+    for (const arr of byCategory.values()) arr.sort((a, b) => a.label.localeCompare(b.label));
+    // Core Trades first (the 14 with full working sites, chat widget
+    // included), then every Gallery category alphabetically.
+    return [...byCategory.entries()].sort(([a], [b]) =>
+      a === "Core Trades" ? -1 : b === "Core Trades" ? 1 : a.localeCompare(b)
+    );
   }, [query]);
+  const totalMatches = groups.reduce((n, [, items]) => n + items.length, 0);
 
   useEffect(() => {
     if (!open) return;
@@ -84,26 +98,33 @@ export function IndustryPicker({
               className="focus-ring w-full rounded-lg border border-hairline bg-surface py-2 pl-8 pr-3 text-[13px] text-ink placeholder:text-faint"
             />
           </div>
-          <div className="max-h-72 overflow-y-auto p-1.5">
-            {filtered.length === 0 ? (
+          <div className="max-h-80 overflow-y-auto p-1.5">
+            {totalMatches === 0 ? (
               <p className="px-3 py-3 text-[12.5px] text-faint">No industry matches &ldquo;{query}&rdquo;.</p>
             ) : (
-              filtered.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => {
-                    onChange(p.key);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "focus-ring flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors hover:bg-raised",
-                    p.key === value ? "text-ink" : "text-muted"
-                  )}
-                >
-                  <span className="truncate">{p.label}</span>
-                  {p.key === value ? <Check className="h-3.5 w-3.5 shrink-0 text-iris-soft" aria-hidden /> : null}
-                </button>
+              groups.map(([category, items]) => (
+                <div key={category} className="mb-1 last:mb-0">
+                  <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-faint first:pt-1">
+                    {category}
+                  </p>
+                  {items.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => {
+                        onChange(p.key);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "focus-ring flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors hover:bg-raised",
+                        p.key === value ? "text-ink" : "text-muted"
+                      )}
+                    >
+                      <span className="truncate">{p.label}</span>
+                      {p.key === value ? <Check className="h-3.5 w-3.5 shrink-0 text-iris-soft" aria-hidden /> : null}
+                    </button>
+                  ))}
+                </div>
               ))
             )}
           </div>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { findProspects, normalizeBusinessName, REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
-import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { industryLabel, isKnownIndustry } from "@/lib/sitegen/industry-lookup";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { assertWithinLimit, recordUsage } from "@/lib/admin/usage";
 import { requireAdminApi } from "@/lib/auth/access";
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   const industry = parsed.data.industry as IndustryKey;
-  if (!(industry in INDUSTRIES)) {
+  if (!isKnownIndustry(industry)) {
     return NextResponse.json({ error: "Unknown industry." }, { status: 400 });
   }
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     .from("projects")
     .select("name")
     .eq("organization_id", organizationId)
-    .eq("industry", INDUSTRIES[industry].label);
+    .eq("industry", industryLabel(industry));
 
   const excludeNormalizedNames = new Set(
     (alreadyQueued ?? []).map((p) => normalizeBusinessName(p.name))
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
         .insert({
           organization_id: organizationId,
           name: business.name,
-          industry: INDUSTRIES[industry].label,
+          industry: industryLabel(industry),
           primary_goal: "Generate leads",
           primary_cta: "Call now",
           created_by: user.id,

@@ -28,7 +28,7 @@ import type { AccessRole } from "@/lib/auth/access";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
 import { INDUSTRY_LIST, INDUSTRIES } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
-import type { Business, IndustryKey } from "@/lib/sitegen/types";
+import type { Business, IndustryKey, SiteGenIndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
 
 /* ------------------------------------------------------------------ */
@@ -185,7 +185,10 @@ export function OnboardClient({ role }: { role: AccessRole }) {
     setBiz((b) => ({ ...b, name: "", city: "", state: "", phone: "", address: "" }));
   }
 
-  const profile = INDUSTRIES[biz.industry];
+  // Onboard's own two selects (below) only ever offer INDUSTRY_LIST's 14 —
+  // Gallery industries aren't wired into this flow, so this cast is exact,
+  // not a widening.
+  const profile = INDUSTRIES[biz.industry as SiteGenIndustryKey];
 
   return (
     <PageShell role={role}>

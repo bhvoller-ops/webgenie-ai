@@ -1,5 +1,6 @@
 import { generateSite } from "@/lib/sitegen/generate";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { GALLERY_INDUSTRIES } from "@/lib/sitegen/gallery-industries";
 import type { Business } from "@/lib/sitegen/types";
 
 /**
@@ -16,7 +17,7 @@ function decode(param: string): Business | null {
   try {
     const json = Buffer.from(param, "base64url").toString("utf8");
     const b = JSON.parse(json) as Business;
-    if (!b?.name || !b?.industry || !(b.industry in INDUSTRIES)) return null;
+    if (!b?.name || !b?.industry || !(b.industry in INDUSTRIES || b.industry in GALLERY_INDUSTRIES)) return null;
     return b;
   } catch {
     return null;

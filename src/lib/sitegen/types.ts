@@ -28,7 +28,14 @@ export interface Business {
   secondaryImageOverride?: string;
 }
 
-export type IndustryKey =
+/**
+ * The original 14 — full IndustryProfile content (services, trust, FAQ)
+ * written and curated for the core Motion A/B trades, rendered by
+ * lib/sitegen/generate.ts. Kept as its own named type (not just "the
+ * first 14 of IndustryKey") because INDUSTRIES in industries.ts is keyed
+ * to exactly this set, not the broader one below.
+ */
+export type SiteGenIndustryKey =
   | "plumber"
   | "hvac"
   | "electrician"
@@ -43,6 +50,81 @@ export type IndustryKey =
   | "restoration"
   | "contractor"
   | "salon";
+
+/**
+ * The other 59 industries from the Gallery template library
+ * (data/gallery/industries/), rendered via lib/sitegen/gallery-site.ts
+ * instead — same "generate a real client site" job, different content
+ * source. This is 64 Gallery niches minus the 5 that already have a
+ * better-suited SiteGenIndustryKey equivalent (auto-repair, chiropractic,
+ * dental, med-spa, restoration) — kept out so the picker never offers two
+ * confusingly similar options for the same real-world trade. IDs match
+ * data/gallery/industries/index.ts's keys exactly (kebab-case, unlike
+ * SiteGenIndustryKey's snake_case) — that's what tells generateSite()
+ * which pipeline to use, see lib/sitegen/generate.ts.
+ */
+export type GalleryIndustryKey =
+  | "accounting-tax"
+  | "appliance-repair"
+  | "author-writer"
+  | "auto-body"
+  | "auto-detailing"
+  | "bakery"
+  | "barber-shop"
+  | "boutique"
+  | "car-wash"
+  | "catering"
+  | "coach-consultant"
+  | "coffee-shop"
+  | "dance-studio"
+  | "deck-patio"
+  | "dj-entertainment"
+  | "dog-training"
+  | "driving-school"
+  | "drywall"
+  | "event-planning"
+  | "financial-advisor"
+  | "flooring"
+  | "florist"
+  | "gift-shop"
+  | "gutters"
+  | "hair-braiding"
+  | "home-inspection"
+  | "insurance-agency"
+  | "interior-design"
+  | "it-services"
+  | "junk-removal"
+  | "legal-services"
+  | "locksmith"
+  | "makeup-artist"
+  | "marketing-agency"
+  | "masonry"
+  | "medical-wellness"
+  | "mental-health"
+  | "mortgage-broker"
+  | "moving"
+  | "music-lessons"
+  | "nail-salon"
+  | "nonprofit-charity"
+  | "optometry"
+  | "pest-control"
+  | "pet-boarding"
+  | "photographer-videographer"
+  | "physical-therapy"
+  | "pressure-washing"
+  | "property-management"
+  | "restaurants-cafes"
+  | "spa-massage"
+  | "tattoo-studio"
+  | "tire-shop"
+  | "towing"
+  | "tutoring"
+  | "urgent-care"
+  | "veterinary-clinic"
+  | "wedding-services"
+  | "windows-doors";
+
+export type IndustryKey = SiteGenIndustryKey | GalleryIndustryKey;
 
 export interface ServiceSpec {
   name: string;
@@ -83,7 +165,7 @@ export interface FaqItem {
 }
 
 export interface IndustryProfile {
-  key: IndustryKey;
+  key: SiteGenIndustryKey;
   /** How the business describes itself: "Licensed Plumber" */
   label: string;
   /** Plural for search: "Plumbers" */
