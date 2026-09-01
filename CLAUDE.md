@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **14-day free trial enforced 1 Sep** (§2r) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) both confirmed applied to production. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1472,6 +1472,22 @@ non-stale trial expiry** — no organization has reached 14 days old under
 the new logic yet, so the redirect-to-`/trial-expired` path has been
 proven correct by code review and by the near-miss check above, not by
 watching a real expiry happen.
+
+**Update, same day — shortened to 7 days.** Cassey: match VibeLabs'
+own marketing claim ("overwhelm to business owner in just 7 days")
+rather than the generic 14-day SaaS default migration 011 picked before
+that positioning existed. **Migration 027** changes `trial_ends_at`'s
+default to `now() + 7 days` — future organizations only, same
+non-retroactive reasoning as every other default-only migration in this
+project; no org had reached the old 14-day window yet, so unlike
+migration 026 there was no existing row to fix. Also fixed the
+hardcoded "14-day" wording on `/trial-expired`. Full build/typecheck/
+lint pass clean. **Migration 027 has not been run against production
+yet** — until it is, `trial_ends_at` for any new signup still gets the
+old 14-day default; the app-level enforcement logic itself doesn't
+care what the number is, it just reads whatever `trial_ends_at` ended
+up as, so nothing is broken by the delay, new signups just get a
+longer trial than intended until this runs.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
