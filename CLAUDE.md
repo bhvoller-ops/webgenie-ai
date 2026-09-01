@@ -2,7 +2,8 @@
 
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
-> Last updated: 1 September 2026 (previous update: 31 August 2026).
+> Last updated: 1 September 2026 (previous update: 31 August 2026, same-day
+> revisions later on 1 September for §2n–§2p).
 
 ---
 
@@ -44,6 +45,7 @@ more per client. Both are real; A is the priority.
 | Onboarding (`/onboard`) | **Built**, 10-step flow (site gen is real, GHL-equivalent steps still simulated — see §8) |
 | Site generator | **Built**, 14 industries, per-client photo override, two-column hero with an embedded lead-capture form (§2c), a shared "How It Works" 5-step section on every site (§2e). **9 of 14 have a real curated hero photo** (Roofer/Landscaper/Tree Care/Restoration/Salon still on generic stock — see §2e) |
 | New Project bulk intake (`/projects/new`) | **Built, 1 Sep** — paste one or more Google Business Profile links, plain names, or website URLs (up to 25); no-website results get a Finder-style demo site, has-website results get queued for a real audit. See §2n |
+| Industry picker (Finder / Audit / New Project) | **73 industries, 1 Sep** — the original 14 plus 59 more from the Gallery template library, each generating a real site with working lead capture (not just a preview). Searchable, grouped by category. See §2o (picker UI) and §2p (the industry expansion + the real lead-capture fix it required). |
 | Audit funnel (`/audit`) | **Built**, matches `/finder` design, queues real analysis jobs |
 | Call tracker (`/calls`) | **Built** — dial outcomes, follow-ups, "Collect payment" (pay on your device), and "Copy payment link" (short branded link to text/email a client) — see §7 |
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
@@ -1205,6 +1207,107 @@ account. A Vercel preview build was confirmed to deploy and serve
 `/projects/new` (redirecting an unauthenticated request, the expected
 admin-gate behavior) before merging.
 
+### 2p. All 64 Gallery industries wired into the picker, with real lead capture — 1 Sep 2026
+
+The follow-up to §2o's deliberately-deferred piece. Cassey's answer when
+asked how to handle it: wire in all 64, with real lead capture — not the
+faster but broken option (add the names, leave the decorative form as-is)
+and not "leave it at 14."
+
+**The picker is now 73 industries** — the original 14 (`SiteGenIndustryKey`,
+unchanged, still the richer hand-written content) plus 59 from the Gallery
+(`GalleryIndustryKey`) — 64 Gallery niches minus 5 that already have a
+better core-trade equivalent (auto-repair, chiropractic, dental, med-spa,
+restoration — kept out so the picker never shows two confusingly similar
+options for the same real-world trade).
+
+**The real blocker, found and fixed before shipping, not glossed over:**
+`renderIndustryPage()` (the Gallery's renderer, used only by `/gallery`'s
+public showcase before this) had a lead-capture form that never sent
+data anywhere — `handleLeadSubmit` just swapped in a client-side "Thank
+You!" message. Wiring those 64 niches into Finder/New Project as-is would
+have meant a real prospect's submitted name/phone/email on one of those
+59 additional generated sites silently vanished instead of landing in
+`/leads` — a real functional regression, not cosmetic. Fixed at the
+source: `renderIndustryPage(cfg, opts)` takes a new `opts.live` flag —
+off (the default, unchanged) for `/gallery`'s own preview calls, since a
+stranger just browsing the showcase shouldn't be able to create a real
+lead for a placeholder business like "BrightSmile Dental"; on for an
+actual generated site, where it posts to `/api/site-lead` — same
+endpoint, same payload shape the original 14's `lead-form.ts` already
+uses, so a submission lands in the same inbox either way.
+
+**Architecture:**
+- `lib/sitegen/types.ts` — `IndustryKey` is now `SiteGenIndustryKey |
+  GalleryIndustryKey`. `INDUSTRIES` (the 14) is untouched, still keyed to
+  exactly `SiteGenIndustryKey`.
+- `lib/sitegen/gallery-site.ts` — `generateGallerySite()`, the Gallery
+  path's sibling to `generateSite()`: builds a live `IndustryConfig` from
+  a real `Business` + the matching Gallery template (name/phone/service
+  area overridden, curated copy/photo/testimonials/FAQ/pricing kept as
+  written), renders via `renderIndustryPage(cfg, {live:true})`.
+- `lib/sitegen/generate.ts` — `generateSite()` (the one entry point both
+  existing callers, `/api/demo-site` and the Vercel publisher, already
+  used) now dispatches on which industry space `business.industry`
+  belongs to. Neither caller's own code changed.
+- Every place that assumed "every IndustryKey is in INDUSTRIES" — `/api/
+  demo-site`'s validation, `/api/prospects`, `/api/audits/queue`, `/api/
+  projects/bulk`, Finder's photo-override placeholders, `/onboard`,
+  `/samples` — now goes through new `lib/sitegen/industry-lookup.ts`
+  helpers (`isKnownIndustry`/`industryLabel`/`industrySearchTerm`/
+  `industryHeroImage`) instead of indexing `INDUSTRIES` directly, so none
+  of them 400 or crash on a Gallery industry. `/onboard` and `/samples`
+  specifically stay scoped to the 14 on purpose (their own pickers never
+  offer a Gallery industry) — fixed with a narrowing cast/helper call
+  rather than widened, since actually supporting Gallery industries in
+  onboarding wasn't asked for here.
+- `guessIndustry()` (New Project's bulk auto-detect, §2n) now also
+  matches against the 59 Gallery industries' own real names as a second
+  pass, after the 14's hand-picked keyword table.
+- `IndustryPicker` groups all 73 by category (Core Trades first, then the
+  Gallery's 11 categories) instead of one flat alphabetical list.
+
+**A real bug caught and fixed before shipping, found by actually
+measuring, not assumed correct:** the first version imported the full
+Gallery `IndustryConfig` objects — testimonials, FAQs, pricing tiers, a
+per-industry chatbot knowledge base, genuinely large — into whatever
+imported the shared lookup helpers, which included Finder, Audit, and
+New Project's **client** bundles, purely to read a label for the picker.
+Rebuilding and checking real bundle sizes (not assumed) showed this
+roughly tripled those three pages' First Load JS, up to 338KB. Fixed by
+physically splitting the heavy configs into `gallery-industries.ts`
+(server-only, imported only by `gallery-site.ts`) from a small,
+generated-not-hand-typed `{key, label, heroImage, category}` extract in
+`gallery-industry-summary.ts` that every client-reachable file uses
+instead. Rebuilt again afterward and confirmed the three pages back to
+their normal 132–141KB range.
+
+**Verified against real, live data:**
+- `generateSite()` dispatched correctly to the new Gallery path for a
+  real bakery business — the real name and phone appeared in the output,
+  the real curated hero photo was used, and the lead form's script
+  genuinely posts to `/api/site-lead` (confirmed present in the HTML).
+- `/gallery`'s own preview call was confirmed **unchanged** — still the
+  decorative-only "Thank You!" swap, no fetch call — proving the `live`
+  flag actually gates the behavior rather than always firing.
+- A real Google Places lookup ("Dunkin, Atlanta GA") resolved to the real
+  business, and `guessIndustry` correctly categorized it as `"bakery"`
+  from Google's own returned data — the exact real-world path New
+  Project's bulk-add box uses.
+- A real HTTP request to `/api/demo-site` with a bakery-industry business
+  returned 200 with the real content — this exact request would have
+  400'd ("Invalid or malformed business data") before the `decode()`
+  fix, so this specifically proves the route-level validation gap was
+  closed, not just the generator function in isolation.
+- Excluded-overlap check confirmed directly: `"dental"` is not a
+  selectable `GalleryIndustryKey`, `"bakery"` is.
+- Full production build, typecheck, and lint all pass clean.
+- **Not click-tested through a logged-in session** — same reason as
+  §2n/§2o: would require creating an account or entering a password,
+  which doesn't happen even for a throwaway test account. A Vercel
+  preview build was confirmed to reach `READY` (compiles and serves)
+  before merging.
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -1884,6 +1987,25 @@ mind for the paid options.
   account was created and no password was entered for this round. See
   §2n for why, and what's still genuinely unconfirmed (a real click-through
   by Cassey).
+- **Nav/picker redesign + all 64 Gallery industries wired in (1 Sep
+  2026):** the demo-site route the new preview iframes point at, real
+  HTML confirmed via a local dev server (§2o). For the industry
+  expansion (§2p): `generateSite()` confirmed dispatching correctly to
+  the new Gallery path for a real bakery business (correct name/phone/
+  photo, live lead form genuinely posting to `/api/site-lead`); `/
+  gallery`'s own preview confirmed unchanged (still decorative, no
+  fetch); a real Places lookup ("Dunkin, Atlanta GA") resolved and
+  `guessIndustry` correctly categorized it `"bakery"` from Google's own
+  data; a real HTTP request to `/api/demo-site` with a bakery-industry
+  business returned 200 (this exact request 400'd before the fix). A
+  real, measured bundle-size regression (Finder/Audit/New Project's
+  First Load JS roughly tripled to 338KB from importing the full Gallery
+  configs into client bundles) was caught and fixed, confirmed by
+  rebuilding and checking actual sizes both before and after, not
+  assumed. Neither round was click-tested through a logged-in session —
+  no temporary account was created and no password was entered; a
+  Vercel preview build reaching `READY` was the deploy-health check
+  used instead.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
