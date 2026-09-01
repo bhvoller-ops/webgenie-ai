@@ -3,7 +3,7 @@
 > Read this first. It is the handoff from the ongoing build and contains
 > decisions, verified facts, and traps that are not obvious from the code.
 > Last updated: 1 September 2026 (previous update: 31 August 2026, same-day
-> revisions later on 1 September for §2n–§2p).
+> revisions later on 1 September for §2n–§2q).
 
 ---
 
@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). **Public self-serve "Create account" removed 30 Aug** — new accounts now only come through an admin or partner invite (§2j). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Invites stored, never sent. Send manually |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1308,6 +1308,94 @@ their normal 132–141KB range.
   preview build was confirmed to reach `READY` (compiles and serves)
   before merging.
 
+### 2q. Public signup (email + Google), homepage becomes a funnel — 1 Sep 2026
+
+Cassey: create a WebGenie signup option, with a Google-account option,
+make the homepage a funnel, and move the current homepage content into
+New Project, consolidated. This deliberately **reopens** §2j's invite-only
+decision — not a silent reversion of it. Two things were confirmed with
+Cassey before building, since guessing wrong here was expensive to
+unwind: what a new signup actually grants (**full immediate access, no
+payment gate** — reuses `getUserAndOrganization()`'s auto-bootstrap,
+which has sat unused in `actions.ts` since before §2j, built for exactly
+this), and Google OAuth credentials (she provided the Client ID; the
+Client Secret still needs to go into the Supabase dashboard — see below).
+
+**Shipped:**
+- `/signup` — email/password + "Sign up with Google". Reuses the
+  existing `/api/auth/create-account` route unchanged (pre-confirmed
+  account, no confirmation email — same reasoning as §2b's OTP-lockout
+  history). `/login` gets "Continue with Google" too, plus a "Create an
+  account" link it didn't have since §2j removed the toggle.
+- New `components/google-signin-button.tsx`, shared by both pages —
+  Supabase auto-creates the account on first OAuth login, so there's no
+  separate "sign up with Google" code path to build, just the one
+  `signInWithOAuth` call.
+- `/` is now a public marketing funnel (hero, a "how it works" 4-stage
+  section, a toolset feature grid, a closing CTA) instead of the
+  signed-in Dashboard. A signed-in visitor never sees it — `/` redirects
+  them to their real home first (`/projects/new` for admin,
+  `/partners/portal`, `/trial/portal`), same branch-then-redirect
+  structure the old page already had, just inverted: guest sees content,
+  everyone else gets bounced.
+- The old Dashboard (the 4 stat cards + project list) moved into
+  `/projects/new`, consolidating it with §2n's bulk business-intake box
+  — `ProjectCard` extracted to `components/project-card.tsx` so it's not
+  duplicated. `/projects/new` is now the admin's real post-login home;
+  the nav's "Projects" link points there instead of `/`.
+
+**Two real bugs found and fixed before shipping, not after:**
+1. **Privilege escalation by accident.** The first version of the
+   bootstrap logic didn't check role before calling
+   `bootstrap_organization` — meaning a **partner or beta tester**
+   signing in with the new Google button on `/login` (the same button
+   serves everyone, not just new signups) would have silently been
+   handed a brand-new admin organization alongside their existing role.
+   Partners and beta testers deliberately have no
+   `organization_members` row (§2j/§2m — that's the whole point of
+   keeping them out of it), so the bootstrap RPC would never find their
+   real role and would create a spurious second one. Fixed: the new
+   `/api/auth/bootstrap` route (called from both `/signup` and
+   `/auth/callback`) only fires for role `"guest"` — genuinely nothing
+   assigned yet.
+2. **Cost exposure.** `bootstrap_organization` (migration 013) inserts a
+   new organization with no `plan_key`, so the column DEFAULT decides —
+   and migration 015 set that default to `'agency'` (500 projects, 2000
+   analyses/month, 250k API requests), deliberately, back when there was
+   exactly one real organization in the system. Left alone, every
+   anonymous public signup would get the largest paid tier for $0,
+   including unmetered runs against a real, billed Google Places key.
+   **Migration 025** changes the default to `'starter'` for new
+   organizations only (`alter column ... set default` never touches
+   existing rows) — Cassey's own organization's plan is untouched.
+
+**Verified:** full production build, typecheck, and lint all pass clean.
+Confirmed via a local dev server, real HTTP requests: `/` now returns
+real funnel content to an anonymous request (a plain 200 with the actual
+hero/pitch copy — previously a redirect to `/login`); `/signup` and the
+updated `/login` render with their Google buttons; `/api/auth/bootstrap`
+correctly 401s an unauthenticated request; `/projects/new` still
+correctly redirects an unauthenticated request to `/login` (admin gate
+unaffected by any of this). **Not exercised end-to-end with a real
+account** — creating one, even a throwaway test account, isn't something
+this session does, so the actual signup → bootstrap → land-on-
+`/projects/new` chain has only been verified by code review, not by
+watching it happen. Real Google sign-in is not live yet either.
+
+**What's still needed, concretely, before this is fully live:**
+1. Supabase Dashboard → Authentication → Providers → Google: toggle it
+   on, paste the Client ID (already have it) and the Client Secret.
+   Google OAuth won't work at all until this is done — the code path is
+   built and waiting, not a placeholder.
+2. Run migration 025 against production (below) — not yet applied.
+3. A real signup and a real Google sign-in, once both of the above are
+   done, to confirm the bootstrap chain actually behaves as verified in
+   code — the one piece this pass couldn't prove directly.
+
+```sql
+alter table public.organizations alter column plan_key set default 'starter';
+```
+
 ### 2a. Stripe — corrected 22 Aug 2026
 
 The 10 Aug session's claim of "Stripe billing connected" was **not actually
@@ -1438,7 +1526,9 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │   │                            projects/new is the bulk business-intake
 │   │   │                            box (Google profile link / name / URL,
 │   │   │                            up to 25 at once) — see §2n
-│   │   ├── login/, auth/           Auth. Sign-in only — no self-serve signup (§2j)
+│   │   ├── login/, signup/, auth/  Auth. Public self-serve signup + Google
+│   │   │                          OAuth — see §2q (reopened; §2j is the
+│   │   │                          history of why it was ever removed)
 │   │   ├── forgot-password/, reset-password/  Password reset — see §2k
 │   │   ├── settings/               Account settings
 │   │   └── api/
@@ -1448,9 +1538,13 @@ C:\Projects\webgenie-ai\            ← THIS REPO. Git → github.com/bhvoller-o
 │   │       ├── site-chat/               AI intake chat widget backend
 │   │       ├── site-lead/               Hero quote-form backend
 │   │       ├── publish-site/            Real Vercel deployment, agency-only
-│   │       ├── auth/create-account/     Server-side pre-confirmed account creation. No public UI
-│   │       │                            entry point since 30 Aug (§2j) — reused internally by the
-│   │       │                            invite-accept pattern, not called directly from /login anymore
+│   │       ├── auth/create-account/     Server-side pre-confirmed account creation. Had no public UI
+│   │       │                            entry point 30 Aug–1 Sep (§2j) — public again via /signup
+│   │       │                            (§2q), and still reused internally by invite-accept
+│   │       ├── auth/bootstrap/          Public, authenticated-only — creates a fresh signup's
+│   │       │                            organization right after their first sign-in. Guarded to
+│   │       │                            role "guest" only — see §2q for the privilege-escalation
+│   │       │                            bug this guard fixes
 │   │       ├── auth/request-reset/      Public — generates + emails a password-reset link (§2k)
 │   │       ├── team/invite/             Admin-only — generates an agency-staff invite link (§2k;
 │   │       │                            replaced the original inviteTeamMemberAction, which had a
@@ -2006,6 +2100,19 @@ mind for the paid options.
   no temporary account was created and no password was entered; a
   Vercel preview build reaching `READY` was the deploy-health check
   used instead.
+- **Public signup + homepage funnel (1 Sep 2026):** confirmed via a local
+  dev server with real HTTP requests — `/` returns real funnel content
+  (200, actual hero/pitch copy) to an anonymous request where it used to
+  redirect to `/login`; `/signup` and the updated `/login` render with
+  their Google buttons; `/api/auth/bootstrap` correctly 401s an
+  unauthenticated request; `/projects/new` still redirects an
+  unauthenticated request (admin gate unaffected). Also confirmed live
+  on real production after merging: `/` and `/signup` both 200,
+  `/projects/new` still redirects an unauthenticated visitor. **Not**
+  exercised end-to-end with a real account or a real Google sign-in —
+  see §2q for exactly what that leaves unconfirmed and the two manual
+  steps (Supabase Google provider credentials, running migration 025)
+  still needed first.
 
 **Assumed, not verified — do this before trusting the state above:**
 - That `audit_logs` inserts actually work. `019` is applied and the policy
