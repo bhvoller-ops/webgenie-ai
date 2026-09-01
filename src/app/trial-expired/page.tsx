@@ -23,7 +23,7 @@ export default async function TrialExpiredPage() {
         <p className="text-sm uppercase tracking-[0.2em] text-slate-400">WebGenie AI</p>
         <h1 className="mt-3 text-2xl font-semibold">Your free trial has ended</h1>
         <p className="mt-3 text-sm leading-relaxed text-slate-400">
-          Your 14-day trial is over, so your workspace is paused. Reach out and we&apos;ll get you upgraded —
+          Your 7-day trial is over, so your workspace is paused. Reach out and we&apos;ll get you upgraded —
           your projects, audits, and prompt packages are all still here waiting.
         </p>
 
