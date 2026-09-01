@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CheckCircle2,
   Download,
@@ -15,11 +16,12 @@ import {
   Star,
   XCircle,
 } from "lucide-react";
+import Link from "next/link";
 import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
-import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { IndustryPicker } from "@/components/industry-picker";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import { createProject } from "@/app/actions";
@@ -45,7 +47,7 @@ const AGENCY = "VibeLabs Agency";
 
 export function NewProjectClient({ role }: { role: AccessRole }) {
   const [lines, setLines] = useState("");
-  const [defaultIndustry, setDefaultIndustry] = useState<IndustryKey | "">("");
+  const [defaultIndustry, setDefaultIndustry] = useState<IndustryKey>("contractor");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BulkResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function NewProjectClient({ role }: { role: AccessRole }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lines: parsedLines,
-          defaultIndustry: defaultIndustry || undefined,
+          defaultIndustry,
         }),
       });
       if (res.status === 401) {
@@ -152,23 +154,14 @@ export function NewProjectClient({ role }: { role: AccessRole }) {
               />
             </label>
 
-            <label className="mt-3 block max-w-xs">
+            <div className="mt-3 max-w-xs">
               <span className="text-[11px] font-medium uppercase tracking-widest text-faint">
                 If we can&rsquo;t tell the industry
               </span>
-              <select
-                value={defaultIndustry}
-                onChange={(e) => setDefaultIndustry(e.target.value as IndustryKey | "")}
-                className="focus-ring mt-2 w-full appearance-none rounded-xl border border-hairline bg-surface py-2.5 px-3 text-left text-sm text-ink transition-colors hover:border-iris/40"
-              >
-                <option value="">General Contractor (default)</option>
-                {INDUSTRY_LIST.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="mt-2">
+                <IndustryPicker value={defaultIndustry} onChange={setDefaultIndustry} />
+              </div>
+            </div>
 
             <button
               onClick={run}
@@ -205,124 +198,141 @@ export function NewProjectClient({ role }: { role: AccessRole }) {
         <div className="mt-10 animate-fade-up space-y-10">
           {result.generated.length ? (
             <div>
-              <h2 className="text-display-md font-semibold text-ink">Ready for outreach</h2>
-              <p className="mt-1.5 text-sm text-muted">
-                {result.generated.length} business{result.generated.length === 1 ? "" : "es"} with no
-                website — a demo site is already built for each.
-              </p>
-              <div className="mt-6 overflow-x-auto rounded-panel border border-hairline">
-                <table className="w-full min-w-[900px] text-left">
-                  <thead className="bg-raised">
-                    <tr>
-                      {["Business", "Industry", "Phone", "Address", "Rating", "Demo site"].map((h) => (
-                        <th key={h} className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.generated.map((b) => {
-                      const biz = withIndustry(b);
-                      return (
-                        <tr key={b.id} className="border-t border-hairline transition-colors hover:bg-raised/40">
-                          <td className="px-5 py-4">
-                            <div className="flex items-start gap-3">
-                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/30 bg-iris/10 text-[13px] font-semibold text-iris-soft">
-                                {biz.name.charAt(0)}
-                              </span>
-                              <span className="text-[13px] font-medium text-ink">{biz.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <select
-                              value={biz.industry}
-                              onChange={(e) =>
-                                setIndustryOverrides((prev) => ({ ...prev, [b.id]: e.target.value as IndustryKey }))
-                              }
-                              className="focus-ring rounded-lg border border-hairline bg-surface px-2 py-1.5 text-[12px] text-ink"
-                              title="Correct the guessed industry if it's wrong — updates the demo site immediately"
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-display-md font-semibold text-ink">Ready for outreach</h2>
+                  <p className="mt-1.5 text-sm text-muted">
+                    {result.generated.length} business{result.generated.length === 1 ? "" : "es"} with no
+                    website — a demo site is already built for each.
+                  </p>
+                </div>
+                <Link
+                  href="/"
+                  className="focus-ring inline-flex items-center gap-2 rounded-xl border border-hairline bg-raised px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-iris/50"
+                >
+                  Dashboard
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </div>
+
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {result.generated.map((b) => {
+                  const biz = withIndustry(b);
+                  return (
+                    <div key={b.id} className="overflow-hidden rounded-2xl border border-hairline bg-surface">
+                      <a
+                        href={demoSiteUrl(biz, { by: AGENCY })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Open ${biz.name}'s demo site`}
+                        className="focus-ring relative block h-40 w-full overflow-hidden border-b border-hairline bg-white"
+                      >
+                        <iframe
+                          src={demoSiteUrl(biz, { by: AGENCY, badge: false })}
+                          title={`Preview of ${biz.name}`}
+                          loading="lazy"
+                          tabIndex={-1}
+                          aria-hidden
+                          className="pointer-events-none origin-top-left"
+                          style={{ width: "400%", height: "400%", transform: "scale(0.25)", border: "none" }}
+                        />
+                        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-[11px] font-medium text-white opacity-0 transition-opacity hover:opacity-100">
+                          Open live preview
+                        </span>
+                      </a>
+
+                      <div className="p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/30 bg-iris/10 text-[13px] font-semibold text-iris-soft">
+                            {biz.name.charAt(0)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[13.5px] font-semibold text-ink">{biz.name}</p>
+                            <p className="truncate text-[11.5px] text-faint">{biz.address || "No address on file"}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <IndustryPicker
+                            compact
+                            value={biz.industry}
+                            onChange={(key) => setIndustryOverrides((prev) => ({ ...prev, [b.id]: key }))}
+                          />
+                          {typeof biz.rating === "number" ? (
+                            <span className="inline-flex items-center gap-1 text-[11.5px] text-muted">
+                              <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
+                              <span className="font-mono text-ink">{biz.rating}</span>
+                              <span className="text-faint">({biz.reviewCount})</span>
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {biz.phone ? (
+                          <button
+                            onClick={() => copy(biz.phone, biz.id + "p")}
+                            className="focus-ring mt-2.5 inline-flex items-center gap-1.5 rounded font-mono text-[12px] text-muted transition-colors hover:text-neon-soft"
+                          >
+                            <Phone className="h-3 w-3" aria-hidden />
+                            {biz.phone}
+                            {copied === biz.id + "p" ? <span className="text-[10px] text-signal-good">copied</span> : null}
+                          </button>
+                        ) : null}
+
+                        <div className="mt-3.5 flex flex-wrap items-center gap-1.5 border-t border-hairline pt-3.5">
+                          {biz.phone ? (
+                            <a
+                              href={smsHref(biz)}
+                              className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-2.5 py-1.5 text-[12px] font-medium text-iris-soft transition-colors hover:bg-iris/20"
                             >
-                              {INDUSTRY_LIST.map((p) => (
-                                <option key={p.key} value={p.key}>
-                                  {p.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-5 py-4">
-                            {biz.phone ? (
-                              <button
-                                onClick={() => copy(biz.phone, biz.id + "p")}
-                                className="focus-ring inline-flex items-center gap-2 rounded font-mono text-[12px] text-muted transition-colors hover:text-neon-soft"
-                              >
-                                <Phone className="h-3 w-3" aria-hidden />
-                                {biz.phone}
-                                {copied === biz.id + "p" ? <span className="text-[10px] text-signal-good">copied</span> : null}
-                              </button>
-                            ) : (
-                              <span className="text-[12px] text-faint">—</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4 text-[12px] text-muted">{biz.address || "—"}</td>
-                          <td className="px-5 py-4">
-                            {typeof biz.rating === "number" ? (
-                              <span className="inline-flex items-center gap-1.5 text-[12px]">
-                                <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
-                                <span className="font-mono text-ink">{biz.rating}</span>
-                                <span className="text-faint">({biz.reviewCount})</span>
-                              </span>
-                            ) : (
-                              <span className="text-[12px] text-faint">—</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              {biz.phone ? (
-                                <a
-                                  href={smsHref(biz)}
-                                  className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-3 py-1.5 text-[12px] font-medium text-iris-soft transition-colors hover:bg-iris/20"
-                                >
-                                  <MessageSquare className="h-3 w-3" aria-hidden />
-                                  Text
-                                </a>
-                              ) : null}
-                              <a
-                                href={demoSiteUrl(biz, { by: AGENCY })}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
-                              >
-                                <ExternalLink className="h-3 w-3" aria-hidden />
-                                View site
-                              </a>
-                              <a
-                                href={demoSiteUrl(biz, { by: AGENCY, download: true })}
-                                className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-ink"
-                                title="Download the HTML file"
-                              >
-                                <Download className="h-3 w-3" aria-hidden />
-                              </a>
-                              <PublishButton business={biz} />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              <MessageSquare className="h-3 w-3" aria-hidden />
+                              Text
+                            </a>
+                          ) : null}
+                          <a
+                            href={demoSiteUrl(biz, { by: AGENCY })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-2.5 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
+                          >
+                            <ExternalLink className="h-3 w-3" aria-hidden />
+                            View site
+                          </a>
+                          <a
+                            href={demoSiteUrl(biz, { by: AGENCY, download: true })}
+                            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-ink"
+                            title="Download the HTML file"
+                          >
+                            <Download className="h-3 w-3" aria-hidden />
+                          </a>
+                          <PublishButton business={biz} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
 
           {result.queued.length ? (
             <div>
-              <h2 className="text-display-md font-semibold text-ink">Now analyzing</h2>
-              <p className="mt-1.5 text-sm text-muted">
-                {result.queued.length} business{result.queued.length === 1 ? "" : "es"} with an
-                existing site, queued for a real 11-module scan — scores appear on your dashboard a
-                minute or two apart.
-              </p>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-display-md font-semibold text-ink">Now analyzing</h2>
+                  <p className="mt-1.5 text-sm text-muted">
+                    {result.queued.length} business{result.queued.length === 1 ? "" : "es"} with an
+                    existing site, queued for a real 11-module scan — scores appear on your dashboard a
+                    minute or two apart.
+                  </p>
+                </div>
+                <Link
+                  href="/"
+                  className="focus-ring inline-flex items-center gap-2 rounded-xl bg-iris px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-iris-soft"
+                >
+                  Dashboard
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </div>
               <div className="mt-6 overflow-x-auto rounded-panel border border-hairline">
                 <table className="w-full min-w-[640px] text-left">
                   <thead className="bg-raised">

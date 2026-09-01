@@ -24,6 +24,7 @@ import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
+import { IndustryPicker } from "@/components/industry-picker";
 import { INDUSTRIES, INDUSTRY_LIST } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
@@ -184,20 +185,7 @@ export function FinderClient({ role }: { role: AccessRole }) {
           {/* Search */}
           <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="relative block">
-                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
-                <select
-                  value={industry}
-                  onChange={(e) => setIndustry(e.target.value as IndustryKey)}
-                  className="focus-ring w-full appearance-none rounded-xl border border-hairline bg-surface py-3 pl-10 pr-9 text-left text-sm text-ink transition-colors hover:border-iris/40"
-                >
-                  {INDUSTRY_LIST.map((p) => (
-                    <option key={p.key} value={p.key} className="bg-surface">
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <IndustryPicker value={industry} onChange={setIndustry} />
 
               <label className="relative block">
                 <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />

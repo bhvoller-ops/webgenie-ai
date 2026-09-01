@@ -1,8 +1,19 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Plus, Settings, Sparkles } from "lucide-react";
+import {
+  FolderKanban,
+  Handshake,
+  Inbox,
+  Phone,
+  Plus,
+  Radar,
+  Search,
+  Settings,
+  Sparkles,
+  UserPlus,
+} from "lucide-react";
 import { Button } from "@/components/ui";
-import { NavGroup } from "@/components/nav-group";
+import { NavGroup, type NavGroupItem } from "@/components/nav-group";
 import { MobileNav } from "@/components/mobile-nav";
 import { signOut } from "@/app/actions";
 import type { AccessRole } from "@/lib/auth/access";
@@ -22,17 +33,52 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-const PROSPECTOR_ITEMS = [
-  { href: "/finder", label: "Find Clients" },
-  { href: "/audit", label: "Find Audits" },
+const PROSPECTOR_ITEMS: NavGroupItem[] = [
+  {
+    href: "/finder",
+    label: "Find Clients",
+    description: "Scan Google Maps for businesses with no website — build each one a demo site instantly.",
+    icon: <Search className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/audit",
+    label: "Find Audits",
+    description: "Find businesses with a bad website and queue a real 11-module intelligence scan.",
+    icon: <Radar className="h-4 w-4" aria-hidden />,
+  },
 ];
 
-const DASHBOARD_ITEMS = [
-  { href: "/calls", label: "Call Tracker" },
-  { href: "/leads", label: "Leads" },
-  { href: "/onboard", label: "Onboard" },
-  { href: "/partners", label: "Partners" },
-  { href: "/", label: "Projects" },
+const DASHBOARD_ITEMS: NavGroupItem[] = [
+  {
+    href: "/calls",
+    label: "Call Tracker",
+    description: "Log dial outcomes, follow-ups, and collect payment on the spot.",
+    icon: <Phone className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/leads",
+    label: "Leads",
+    description: "Every lead a generated site's chat widget or quote form has captured.",
+    icon: <Inbox className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/onboard",
+    label: "Onboard",
+    description: "Walk a new client through the 10-step setup flow.",
+    icon: <UserPlus className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/partners",
+    label: "Partners",
+    description: "Manage referral partners, invites, and commission payouts.",
+    icon: <Handshake className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/",
+    label: "Projects",
+    description: "Every audit, blueprint, and prompt package you've generated.",
+    icon: <FolderKanban className="h-4 w-4" aria-hidden />,
+  },
 ];
 
 const PUBLIC_ITEMS = [

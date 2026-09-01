@@ -5,8 +5,9 @@ import { useState } from "react";
 import { Menu, Settings, X } from "lucide-react";
 import { signOut } from "@/app/actions";
 import type { AccessRole } from "@/lib/auth/access";
+import type { NavGroupItem as NavItem } from "@/components/nav-group";
 
-interface NavItem {
+interface SimpleNavItem {
   href: string;
   label: string;
 }
@@ -28,7 +29,7 @@ export function MobileNav({
   role: AccessRole;
   prospectorItems: NavItem[];
   dashboardItems: NavItem[];
-  publicItems: NavItem[];
+  publicItems: SimpleNavItem[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -51,14 +52,22 @@ export function MobileNav({
               <>
                 <p className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Prospector</p>
                 {prospectorItems.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
-                    {item.label}
+                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-raised">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/25 bg-iris/10 text-iris-soft">{item.icon}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-ink">{item.label}</span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-faint">{item.description}</span>
+                    </span>
                   </Link>
                 ))}
                 <p className="mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Dashboard</p>
                 {dashboardItems.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
-                    {item.label}
+                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-raised">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/25 bg-iris/10 text-iris-soft">{item.icon}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-ink">{item.label}</span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-faint">{item.description}</span>
+                    </span>
                   </Link>
                 ))}
                 <Link href="/settings" onClick={() => setOpen(false)} className="focus-ring mt-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">

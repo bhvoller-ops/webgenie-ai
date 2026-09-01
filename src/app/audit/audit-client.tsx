@@ -18,7 +18,7 @@ import {
 import { PageShell } from "@/components/shell";
 import type { AccessRole } from "@/lib/auth/access";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
-import { INDUSTRY_LIST } from "@/lib/sitegen/industries";
+import { IndustryPicker } from "@/components/industry-picker";
 import { REVIEW_TIERS, type ReviewTierKey } from "@/lib/prospect/finder";
 import type { IndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
@@ -156,20 +156,7 @@ export function AuditClient({ role }: { role: AccessRole }) {
           {/* Search */}
           <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="relative block">
-                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
-                <select
-                  value={industry}
-                  onChange={(e) => setIndustry(e.target.value as IndustryKey)}
-                  className="focus-ring w-full appearance-none rounded-xl border border-hairline bg-surface py-3 pl-10 pr-9 text-left text-sm text-ink transition-colors hover:border-iris/40"
-                >
-                  {INDUSTRY_LIST.map((p) => (
-                    <option key={p.key} value={p.key} className="bg-surface">
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <IndustryPicker value={industry} onChange={setIndustry} />
 
               <label className="relative block">
                 <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
@@ -304,7 +291,7 @@ export function AuditClient({ role }: { role: AccessRole }) {
 
           {result.totalCandidates === 0 ? (
             <div className="mb-6 rounded-xl border border-hairline bg-surface/60 px-4 py-3 text-[13px] text-muted">
-              No new businesses in this tier for this industry/city — you've likely already queued
+              No new businesses in this tier for this industry/city — you&apos;ve likely already queued
               everyone available here. Try a different tier, city, or industry.
             </div>
           ) : null}
@@ -461,7 +448,7 @@ export function AuditClient({ role }: { role: AccessRole }) {
               <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-muted">
                 Give each job a minute or two, then open its report from the dashboard. The{" "}
                 <span className="text-ink">Foot in the door</span> panel at the top lists only
-                gaps you can show the owner in their own browser in ten seconds — that's your
+                gaps you can show the owner in their own browser in ten seconds — that&apos;s your
                 opener on the call.
               </p>
             </div>
