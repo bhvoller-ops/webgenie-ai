@@ -463,6 +463,123 @@ export async function findProspects(q: FinderQuery): Promise<FinderResult> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Single-business resolution — New Project's bulk-add box             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Keyword match against whatever text Google actually returns (primaryType,
+ * types[], displayName) rather than hardcoded Places enum strings — safer
+ * than guessing Google's exact type spelling from memory, and it still works
+ * if Google's category text is slightly different from the enum name.
+ */
+const INDUSTRY_KEYWORDS: Record<IndustryKey, string[]> = {
+  plumber: ["plumb"],
+  hvac: ["hvac", "heating", "air condition", "furnace"],
+  electrician: ["electric"],
+  roofer: ["roof"],
+  landscaper: ["landscap", "lawn", "garden"],
+  tree_care: ["tree service", "tree care", "arborist", "tree removal"],
+  cleaning: ["clean", "maid", "janitor"],
+  auto_repair: ["auto repair", "car repair", "mechanic", "auto shop", "automotive"],
+  dentist: ["dent"],
+  med_spa: ["med spa", "medspa", "medical spa", "aesthetic", "skin care"],
+  chiropractor: ["chiropract"],
+  restoration: ["restoration", "water damage", "fire damage", "disaster recovery"],
+  contractor: ["contractor", "construction", "remodel", "builder", "renovation"],
+  salon: ["salon", "hair", "beauty", "barber"],
+};
+
+export function guessIndustry(text: string): IndustryKey | null {
+  const t = text.toLowerCase();
+  for (const [key, words] of Object.entries(INDUSTRY_KEYWORDS) as [IndustryKey, string[]][]) {
+    if (words.some((w) => t.includes(w))) return key;
+  }
+  return null;
+}
+
+interface PlacesPlaceFull extends PlacesPlace {
+  primaryType?: string;
+  types?: string[];
+}
+
+/**
+ * Resolves one free-text query (a business name, optionally with a city) to
+ * a single real Business via Places Text Search — the single-result sibling
+ * of placesSearch's bulk category search. Used by New Project's bulk-add box,
+ * where each pasted line is its own targeted lookup rather than a category
+ * scan. Returns null on no match or no configured key — the caller decides
+ * how to report that (there's no sample-data fallback for a specific named
+ * business, unlike the category search above).
+ */
+export async function resolveBusiness(
+  query: string,
+  opts: { fallbackIndustry?: IndustryKey } = {}
+): Promise<Business | null> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  const trimmed = query.trim();
+  if (!key || !trimmed) return null;
+
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": key,
+        "X-Goog-FieldMask": [
+          "places.id",
+          "places.displayName",
+          "places.formattedAddress",
+          "places.nationalPhoneNumber",
+          "places.rating",
+          "places.userRatingCount",
+          "places.websiteUri",
+          "places.googleMapsUri",
+          "places.regularOpeningHours",
+          "places.primaryType",
+          "places.types",
+        ].join(","),
+      },
+      body: JSON.stringify({ textQuery: trimmed, maxResultCount: 1 }),
+    });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { places?: PlacesPlaceFull[] };
+    const pl = data.places?.[0];
+    if (!pl) return null;
+
+    const full = pl.formattedAddress ?? "";
+    const parts = full.split(",").map((s) => s.trim());
+    const street = parts[0] ?? full;
+    // Best-effort split of "Street, City, ST ZIP, Country" — same level of
+    // address parsing placesSearch already does above, just one part deeper
+    // since a bulk-add row has no city/state supplied by a search form.
+    const city = parts.length >= 3 ? parts[parts.length - 3] : "";
+    const state = parts.length >= 2 ? (parts[parts.length - 2].match(/[A-Z]{2}\b/)?.[0] ?? "") : "";
+
+    const guessed = guessIndustry(`${pl.primaryType ?? ""} ${(pl.types ?? []).join(" ")} ${pl.displayName?.text ?? ""}`);
+
+    return {
+      id: pl.id ?? `place_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: pl.displayName?.text ?? trimmed,
+      industry: guessed ?? opts.fallbackIndustry ?? "contractor",
+      phone: pl.nationalPhoneNumber ?? "",
+      address: street,
+      city,
+      state,
+      rating: pl.rating,
+      reviewCount: pl.userRatingCount,
+      hours: pl.regularOpeningHours?.weekdayDescriptions?.[0],
+      open24Hours: isOpen24Hours(pl.regularOpeningHours?.weekdayDescriptions),
+      website: pl.websiteUri ?? null,
+      placeUrl: pl.googleMapsUri,
+      source: "places",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* CSV export                                                          */
 /* ------------------------------------------------------------------ */
 
