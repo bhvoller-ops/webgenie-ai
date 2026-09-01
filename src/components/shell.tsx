@@ -74,9 +74,9 @@ const DASHBOARD_ITEMS: NavGroupItem[] = [
     icon: <Handshake className="h-4 w-4" aria-hidden />,
   },
   {
-    href: "/",
+    href: "/projects/new",
     label: "Projects",
-    description: "Every audit, blueprint, and prompt package you've generated.",
+    description: "Add a business, then browse every audit, blueprint, and prompt package you've generated.",
     icon: <FolderKanban className="h-4 w-4" aria-hidden />,
   },
 ];
@@ -143,7 +143,15 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
             </>
           ) : null}
           {role === "guest" ? (
-            <Button href="/login">Sign in</Button>
+            <>
+              <Link
+                href="/login"
+                className="focus-ring hidden rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:text-ink sm:inline-flex"
+              >
+                Sign in
+              </Link>
+              <Button href="/signup">Get started free</Button>
+            </>
           ) : (
             <form action={signOut}>
               <button

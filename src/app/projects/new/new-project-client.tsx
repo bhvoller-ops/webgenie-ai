@@ -18,12 +18,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@/components/shell";
-import { Eyebrow, Panel, Pill } from "@/components/ui";
+import { Eyebrow, Panel, Pill, SectionHeading, Stat } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
 import { IndustryPicker } from "@/components/industry-picker";
+import { ProjectCard } from "@/components/project-card";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
+import type { ProjectSummary } from "@/lib/types";
+import type { getPortfolioStats } from "@/lib/data/provider";
 import { createProject } from "@/app/actions";
 import { cn } from "@/lib/format";
 
@@ -45,7 +48,17 @@ interface BulkResponse {
 
 const AGENCY = "VibeLabs Agency";
 
-export function NewProjectClient({ role }: { role: AccessRole }) {
+type PortfolioStats = Awaited<ReturnType<typeof getPortfolioStats>>;
+
+export function NewProjectClient({
+  role,
+  projects,
+  stats,
+}: {
+  role: AccessRole;
+  projects: ProjectSummary[];
+  stats: PortfolioStats;
+}) {
   const [lines, setLines] = useState("");
   const [defaultIndustry, setDefaultIndustry] = useState<IndustryKey>("contractor");
   const [running, setRunning] = useState(false);
@@ -427,6 +440,43 @@ export function NewProjectClient({ role }: { role: AccessRole }) {
           ) : null}
         </div>
       ) : null}
+
+      <div className="mt-16">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Projects" value={stats.projectCount} hint="Across the workspace" />
+          <Stat label="Runs in flight" value={stats.activeRuns} hint="Capture and analysis" tone="warn" />
+          <Stat label="Mean score" value={stats.averageScore} hint="Weighted across 11 modules" />
+          <Stat
+            label="Critical findings"
+            value={stats.criticalFindings}
+            hint="Blocking conversion or performance"
+            tone="bad"
+          />
+        </div>
+
+        <div className="mt-10">
+          <SectionHeading
+            eyebrow="Workspace"
+            title="Every project"
+            description="Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package."
+          />
+
+          {projects.length ? (
+            <div className="mt-8 grid gap-4 lg:grid-cols-2">
+              {projects.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-8 rounded-panel border border-dashed border-hairline p-10 text-center">
+              <h3 className="text-lg font-semibold text-ink">No projects yet</h3>
+              <p className="mt-2 text-sm text-muted">
+                Add a business above — an audit or a demo site becomes a project here.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="mt-10">
         <button

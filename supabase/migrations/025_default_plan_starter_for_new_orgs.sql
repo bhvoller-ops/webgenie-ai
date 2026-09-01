@@ -1,0 +1,13 @@
+-- Public self-serve signup (CLAUDE.md §2q) means bootstrap_organization()
+-- (migration 013) can now fire for a genuine stranger, not just Cassey's own
+-- account. It inserts into organizations with no plan_key specified, so the
+-- column DEFAULT decides — and migration 015 set that default to 'agency'
+-- (500 projects, 2000 analyses/month, 250k API requests), deliberately, back
+-- when there was exactly one real organization in the whole system. That
+-- default now means every anonymous signup gets the largest paid tier for
+-- $0, including unmetered runs against a real, billed Google Places key.
+--
+-- This only changes the default for FUTURE inserts — `alter column ...
+-- set default` never touches existing rows, so Cassey's own organization's
+-- current plan_key is untouched.
+alter table public.organizations alter column plan_key set default 'starter';

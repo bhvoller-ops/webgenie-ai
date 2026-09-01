@@ -94,9 +94,14 @@ export function MobileNav({
             ))}
             <div className="mt-3 border-t border-hairline pt-3">
               {role === "guest" ? (
-                <Link href="/login" onClick={() => setOpen(false)} className="focus-ring block rounded-lg bg-iris px-3 py-2.5 text-center text-sm font-semibold text-white">
-                  Sign in
-                </Link>
+                <div className="space-y-2">
+                  <Link href="/signup" onClick={() => setOpen(false)} className="focus-ring block rounded-lg bg-iris px-3 py-2.5 text-center text-sm font-semibold text-white">
+                    Get started free
+                  </Link>
+                  <Link href="/login" onClick={() => setOpen(false)} className="focus-ring block rounded-lg border border-hairline px-3 py-2.5 text-center text-sm text-muted hover:text-ink">
+                    Sign in
+                  </Link>
+                </div>
               ) : (
                 <form action={signOut}>
                   <button type="submit" className="focus-ring w-full rounded-lg border border-hairline px-3 py-2.5 text-sm text-muted hover:text-ink">
