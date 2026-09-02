@@ -56,7 +56,7 @@ more per client. Both are real; A is the priority.
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
 
-| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep, committed on branch `vibelabs-membership-phase0`** (not merged to `main` as of this writing). Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`030` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. In-app playbooks library also done, §2t. **Not started:** real support tickets, self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s, §2t |
+| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep, committed on branch `vibelabs-membership-phase0`** (not merged to `main` as of this writing). Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`031` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. In-app playbooks library (§2t) and real ticket-based support (§2u) also done. **Not started:** self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s, §2t, §2u |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -1694,6 +1694,46 @@ corrupting) the same `.next` directory when run concurrently, not a code
 bug — resolved by a clean dev-server restart, re-verified clean after.
 Per-member progress tracking ("mark this SOP read") deliberately not
 built — a real but separable feature, add only if asked.
+
+### 2u. VibeLabs Agency: real ticket-based support — 2 Sep 2026
+
+Phase 7 of §2s's plan — PRODUCT.md commits to "ticket-based" support;
+nothing resembling it existed before this. Migration `031_support_tickets.sql`
+adds `support_tickets` + `support_ticket_messages`, both RLS-gated, plus a
+new `is_platform_staff(uid)` SECURITY DEFINER helper. Same discipline as
+`assign_founding_seat` (028) and `mark_vibelabs_onboarding_complete` (030):
+resolve staff-ness in one trusted function rather than a policy that joins
+back through `organization_members` from inside another table's policy,
+which is the recursion class of bug `bootstrap_organization`'s own comment
+already warns about.
+
+`/support` — a member opens a ticket (auto-flagged `guarantee_risk`
+priority when their guarantee deadline is within 10 days and nothing's
+won yet) and threads replies. `/admin/support` — cross-org staff queue,
+`is_platform_staff()`-gated, guarantee-risk tickets sorted first. Both
+directions notify by email (`lib/support/notify.ts`, Resend, same
+best-effort/never-throws pattern as every other email helper in this app).
+Added to `components/shell.tsx`'s Dashboard nav group.
+
+**One manual step, deliberately not automated:** `is_platform_operator`
+must be flipped to `true` by hand on Cassey's real organization — a
+migration silently deciding who gets cross-org visibility into every
+member's tickets is the wrong place for that decision.
+
+**Verified live** with three real sandbox orgs (A, B, a flagged STAFF
+org), not just by a clean build: org A opens a ticket and posts a
+message; org B's session gets zero rows querying org A's tickets *and*
+a real RLS error attempting to insert a ticket under org A's
+`organization_id` (isolation proven both ways, not just read-side);
+`is_platform_staff()` confirmed `false` for org A and `true` for the
+flagged org; the staff session's query sees org A's ticket cross-org
+(mirrors `/admin/support`'s real query, not a mocked one); staff replies
+and updates status; both `notifyNewSupportTicket` and `notifyStaffReply`
+confirmed firing with no error logged (the helper `console.error`s
+synchronously on a real Resend failure but never throws, so a clean
+console during the call — not just "the promise didn't throw" — is the
+actual signal checked here). All three sandbox orgs and their auth users
+deleted afterward via `cleanup-test-org.ts`.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 

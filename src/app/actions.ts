@@ -659,3 +659,127 @@ export async function updateChatLeadStatusAction(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/leads");
 }
+
+const ticketCategorySchema = z.enum(["billing", "technical", "guarantee", "general"]);
+
+/**
+ * Opens a ticket AND its first message in one action — a ticket with zero
+ * messages is a broken/empty thread the UI would have to special-case, so
+ * this never leaves that state possible.
+ */
+export async function openSupportTicketAction(formData: FormData) {
+  const subject = z.string().min(1).max(200).parse(formData.get("subject"));
+  const category = ticketCategorySchema.parse(formData.get("category"));
+  const body = z.string().min(1).max(4000).parse(formData.get("body"));
+
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name, guarantee_status, guarantee_deadline_at")
+    .eq("id", organizationId)
+    .single();
+
+  // Auto-flags a ticket from a member whose guarantee window is within 10
+  // days with nothing won yet — lets /admin/support surface at-risk members
+  // without staff having to cross-reference the guarantee state by hand.
+  const daysToDeadline = org?.guarantee_deadline_at
+    ? Math.ceil((new Date(org.guarantee_deadline_at).getTime() - Date.now()) / 86400000)
+    : null;
+  const priority =
+    org?.guarantee_status === "pending" && daysToDeadline !== null && daysToDeadline <= 10
+      ? "guarantee_risk"
+      : "normal";
+
+  const { data: ticket, error } = await supabase
+    .from("support_tickets")
+    .insert({ organization_id: organizationId, opened_by: user.id, subject, category, priority })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const { error: msgError } = await supabase
+    .from("support_ticket_messages")
+    .insert({ ticket_id: ticket.id, author_type: "member", author_user_id: user.id, body });
+  if (msgError) throw new Error(msgError.message);
+
+  const { notifyNewSupportTicket } = await import("@/lib/support/notify");
+  await notifyNewSupportTicket({
+    ticketId: ticket.id,
+    organizationName: org?.name ?? "Unknown org",
+    subject,
+    category,
+    priority
+  });
+
+  redirect(`/support/${ticket.id}`);
+}
+
+/**
+ * One action for both directions (member and staff) — author_type is
+ * derived from is_platform_staff(), never trusted from the client, so
+ * there's no way to forge a "staff" reply by tampering with form data.
+ */
+export async function replySupportTicketAction(formData: FormData) {
+  const ticketId = z.string().uuid().parse(formData.get("ticketId"));
+  const body = z.string().min(1).max(4000).parse(formData.get("body"));
+
+  const { supabase, user } = await getUserAndOrganization();
+  const { data: isStaff } = await supabase.rpc("is_platform_staff", { uid: user.id });
+  const authorType = isStaff ? "staff" : "member";
+
+  const { data: message, error } = await supabase
+    .from("support_ticket_messages")
+    .insert({ ticket_id: ticketId, author_type: authorType, author_user_id: user.id, body })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const nextStatus = authorType === "staff" ? "awaiting_member" : "awaiting_staff";
+  await supabase
+    .from("support_tickets")
+    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .eq("id", ticketId);
+
+  if (authorType === "staff") {
+    const { data: ticket } = await supabase
+      .from("support_tickets")
+      .select("subject, opened_by")
+      .eq("id", ticketId)
+      .single();
+    if (ticket?.opened_by) {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const admin = createAdminClient();
+      const { data: memberUser } = await admin.auth.admin.getUserById(ticket.opened_by);
+      if (memberUser.user?.email) {
+        const { notifyStaffReply } = await import("@/lib/support/notify");
+        await notifyStaffReply({
+          ticketId,
+          messageId: message.id,
+          memberEmail: memberUser.user.email,
+          subject: ticket.subject
+        });
+      }
+    }
+  }
+
+  revalidatePath(`/support/${ticketId}`);
+}
+
+const ticketStatusSchema = z.enum(["open", "awaiting_member", "awaiting_staff", "resolved", "closed"]);
+
+/** Staff-only in practice — RLS on support_tickets scopes the update to staff or the ticket's own org either way. */
+export async function updateSupportTicketStatusAction(formData: FormData) {
+  const ticketId = z.string().uuid().parse(formData.get("ticketId"));
+  const status = ticketStatusSchema.parse(formData.get("status"));
+
+  const { supabase } = await getUserAndOrganization();
+  const { error } = await supabase
+    .from("support_tickets")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", ticketId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/support/${ticketId}`);
+  revalidatePath("/admin/support");
+}

@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Handshake,
   Inbox,
+  LifeBuoy,
   Phone,
   Plus,
   Radar,
@@ -85,6 +86,12 @@ const DASHBOARD_ITEMS: NavGroupItem[] = [
     label: "Playbooks",
     description: "The plan, scripts, and templates this program actually runs on.",
     icon: <BookOpen className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/support",
+    label: "Support",
+    description: "Open a ticket — real people, not a bot.",
+    icon: <LifeBuoy className="h-4 w-4" aria-hidden />,
   },
 ];
 
