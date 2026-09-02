@@ -79,6 +79,66 @@ body {
   .focus-ring {
     @apply outline-none ring-offset-0 focus-visible:ring-2 focus-visible:ring-iris/70;
   }
+
+  /* Rendered launch-kit/*.md content on /playbooks/[slug] — no Tailwind
+     Typography plugin in this project, hand-rolled to match the rest of
+     the design system's tokens rather than pulling one in for one page. */
+  .prose-playbook {
+    @apply text-[14.5px] leading-relaxed text-muted;
+  }
+  .prose-playbook h1 {
+    @apply mt-8 text-2xl font-semibold text-ink first:mt-0;
+  }
+  .prose-playbook h2 {
+    @apply mt-8 text-xl font-semibold text-ink first:mt-0;
+  }
+  .prose-playbook h3 {
+    @apply mt-6 text-base font-semibold text-ink;
+  }
+  .prose-playbook p {
+    @apply mt-3;
+  }
+  .prose-playbook strong {
+    @apply font-semibold text-ink;
+  }
+  .prose-playbook a {
+    @apply text-iris-soft underline decoration-dotted underline-offset-4;
+  }
+  .prose-playbook ul,
+  .prose-playbook ol {
+    @apply mt-3 space-y-1.5 pl-5;
+  }
+  .prose-playbook ul {
+    @apply list-disc;
+  }
+  .prose-playbook ol {
+    @apply list-decimal;
+  }
+  .prose-playbook hr {
+    @apply my-8 border-hairline;
+  }
+  .prose-playbook code {
+    @apply rounded bg-raised px-1.5 py-0.5 font-mono text-[13px] text-ink;
+  }
+  .prose-playbook pre {
+    @apply mt-3 overflow-x-auto rounded-lg border border-hairline bg-raised p-4;
+  }
+  .prose-playbook pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-playbook blockquote {
+    @apply mt-3 border-l-2 border-iris/40 pl-4 text-faint;
+  }
+  .prose-playbook table {
+    @apply mt-4 w-full border-collapse text-[13.5px];
+  }
+  .prose-playbook th,
+  .prose-playbook td {
+    @apply border border-hairline px-3 py-2 text-left align-top;
+  }
+  .prose-playbook th {
+    @apply bg-raised font-semibold text-ink;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

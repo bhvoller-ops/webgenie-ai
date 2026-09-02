@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  BookOpen,
   FolderKanban,
   Handshake,
   Inbox,
@@ -78,6 +79,12 @@ const DASHBOARD_ITEMS: NavGroupItem[] = [
     label: "Projects",
     description: "Add a business, then browse every audit, blueprint, and prompt package you've generated.",
     icon: <FolderKanban className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/playbooks",
+    label: "Playbooks",
+    description: "The plan, scripts, and templates this program actually runs on.",
+    icon: <BookOpen className="h-4 w-4" aria-hidden />,
   },
 ];
 

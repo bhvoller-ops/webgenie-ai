@@ -56,7 +56,7 @@ more per client. Both are real; A is the priority.
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
 
-| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep — not yet committed to git as of this writing, see §2s.** Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`030` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. **Not started:** in-app playbooks, real support tickets, self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s |
+| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep, committed on branch `vibelabs-membership-phase0`** (not merged to `main` as of this writing). Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`030` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. In-app playbooks library also done, §2t. **Not started:** real support tickets, self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s, §2t |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -1638,12 +1638,62 @@ existed, and a real `?cancelled=1` state) is what VibeLabs-v2's three CTAs
 now point at, each tagged with its own `utm_content` for attribution. Both
 sides verified live and rebuilt clean.
 
-**What's still open:** Phases 6 (in-app SOP/playbook library from
-`launch-kit/`), 7 (real ticket-based support), 8 (self-serve Stripe billing
-portal), and 11 (rate limiting, ToS-acceptance UI, ownership of the
-still-placeholder `plan_catalog` row) haven't been started. VibeLabs-v2's
-`/legal/privacy`, `/legal/terms`, `/legal/earnings` are still placeholder
-stubs — a real launch blocker, not a build item for this repo.
+**What's still open:** Phases 7 (real ticket-based support), 8 (self-serve
+Stripe billing portal), and 11 (rate limiting, ToS-acceptance UI, ownership
+of the still-placeholder `plan_catalog` row) haven't been started (Phase 6
+— see §2t — shipped the same day). VibeLabs-v2's `/legal/privacy`,
+`/legal/terms`, `/legal/earnings` are still placeholder stubs — a real
+launch blocker, not a build item for this repo.
+
+### 2t. VibeLabs Agency: playbooks library — 2 Sep 2026
+
+Phase 6 of §2s's plan — `launch-kit/*` (the canonical sales/ops playbook)
+surfaced inside the product, member-facing, instead of only ever living as
+repo-only docs. New `lib/playbooks/content.ts` is a fixed registry (not a
+directory scan — the 8 real SOP files only, explicitly excluding
+`launch-kit/prospects/` and `launch-kit/samples/`, which are working data
+and reference output, not instructions) grouped to match
+`00-START-HERE.md`'s own §11 "The kit" table (Start Here / Motion A /
+Motion B / General). `/playbooks` lists them, `/playbooks/[slug]` renders
+one — `.md` files through `marked` + `isomorphic-dompurify` (this is
+first-party trusted content, not user input, but sanitized anyway as cheap
+insurance), the two `.html` files (already-complete standalone documents,
+not fragments) through a sandboxed, admin-gated `<iframe>` hitting a new
+`/api/playbooks/raw/[slug]` route rather than injected inline. Added to
+`components/shell.tsx`'s Dashboard nav group.
+
+**Two real build failures hit and fixed, not just planned around:**
+- `launch-kit/` is real content read off disk at request time — without
+  `outputFileTracingIncludes` in `next.config.ts` it works in dev (repo
+  files are just... there) and 404s in a real Vercel deployment, since
+  Next's tracer doesn't know to ship it. Added the config; **not yet
+  verified against an actual Vercel deployment**, only confirmed the local
+  production build's route manifest includes the pages — the file-tracing
+  behavior itself is standard/documented, not independently re-verified
+  here.
+- `isomorphic-dompurify` bundles `jsdom` for server-side sanitization, and
+  `jsdom` ships non-JS assets (`browser/default-stylesheet.css`) that
+  webpack can't resolve when bundled into the server build — a real
+  production build failed with `ENOENT` on that exact file. Fixed with
+  `serverExternalPackages: ["isomorphic-dompurify", "jsdom"]`, which loads
+  it from `node_modules` at runtime instead of bundling it.
+
+No Tailwind Typography plugin in this project — added a small hand-rolled
+`.prose-playbook` block in `globals.css` (`@layer components`, using the
+existing design-token classes) rather than pull one in for one page.
+
+**Verified live**, not just by a clean build: signed in as a real sandbox
+admin, loaded `/playbooks`, opened `start-here` (an `.md` entry) and
+confirmed headings/tables/blockquotes render correctly against the actual
+source file, then opened `client-audit-report` (an `.html` entry) and
+confirmed the sandboxed iframe loads the real standalone document. One
+false alarm along the way, disclosed rather than quietly worked around: a
+real-looking `TypeError: Cannot read properties of undefined (reading
+'call')` turned out to be `next dev` and `next build` sharing (and
+corrupting) the same `.next` directory when run concurrently, not a code
+bug — resolved by a clean dev-server restart, re-verified clean after.
+Per-member progress tracking ("mark this SOP read") deliberately not
+built — a real but separable feature, add only if asked.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
