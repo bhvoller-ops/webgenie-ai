@@ -15,6 +15,7 @@ export function leadFormStyles(): string {
     box-shadow:0 30px 70px -24px rgba(0,0,0,.55);width:100%}
   .quoteform-head{background:var(--brand-dark);color:#fff;padding:22px 26px}
   .qf-eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.82}
+  .qf-builtby{font-size:.72rem;opacity:.7;margin-top:2px}
   .quoteform-body{padding:22px 26px 26px}
   .qf-field{margin-bottom:11px}
   .qf-field input,.qf-field textarea{
@@ -34,11 +35,12 @@ export function leadFormStyles(): string {
   .qf-msg.err{color:#B91C1C}`;
 }
 
-export function leadFormMarkup(): string {
+export function leadFormMarkup(builtBy?: string): string {
   return `
 <div class="quoteform">
   <div class="quoteform-head">
     <div class="qf-eyebrow">Free, No-Obligation Quote</div>
+    ${builtBy ? `<div class="qf-builtby">via ${builtBy}</div>` : ""}
   </div>
   <form class="quoteform-body" id="wg-quote-form" novalidate>
     <div class="qf-field"><input type="text" name="name" placeholder="Name *" required maxlength="160" autocomplete="name"></div>
@@ -52,10 +54,14 @@ export function leadFormMarkup(): string {
 </div>`;
 }
 
-export function leadFormScript(business: { name: string; industryLabel: string; phone: string }): string {
+export function leadFormScript(
+  business: { name: string; industryLabel: string; phone: string },
+  organizationId?: string
+): string {
   return `
 (function(){
   var BUSINESS = ${safeJson(business)};
+  var ORG_ID = ${safeJson(organizationId ?? null)};
   var API_URL = ${safeJson(LEAD_API_URL)};
   var form = document.getElementById('wg-quote-form');
   var submitBtn = document.getElementById('wg-quote-submit');
@@ -84,6 +90,7 @@ export function leadFormScript(business: { name: string; industryLabel: string; 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         business: BUSINESS,
+        organizationId: ORG_ID,
         name: name,
         email: (data.get('email') || '').toString().trim(),
         phone: phone,

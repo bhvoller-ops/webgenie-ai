@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
 import { requireAdminApi } from "@/lib/auth/access";
+import { sendTeamInviteEmail } from "@/lib/team/invite-email";
 
 /**
  * Admin-only. Generates a portal-login invite for one existing partner row,
@@ -66,5 +67,10 @@ export async function POST(request: Request) {
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 400 });
 
   const origin = new URL(request.url).origin;
-  return NextResponse.json({ ok: true, url: `${origin}/invite/${rawToken}`, email });
+  const url = `${origin}/invite/${rawToken}`;
+
+  const { data: org } = await supabase.from("organizations").select("name").eq("id", organizationId).single();
+  await sendTeamInviteEmail({ email, url, role: "partner", organizationName: org?.name ?? "WebGenie AI" });
+
+  return NextResponse.json({ ok: true, url, email });
 }

@@ -38,7 +38,7 @@ more per client. Both are real; A is the priority.
 | Engine (capture → intelligence → blueprint → prompts → orchestration → delivery) | **Built**, Sprint 10 complete |
 | v2 UI merge (design system, finder, onboard, sitegen, prospect finder) | **Done** — merged into this repo, no longer a separate folder |
 | Data seam (`lib/data/provider.ts`) | **Live on Supabase** (`DATA_MODE = "supabase"`), not fixtures |
-| Database migrations `001`–`019` | Written and committed. `012`, `013`, `015`, `016`, `017`, `018` **confirmed run** against production (checked live via the Supabase API). `014`'s `usage_events` insert policy is confirmed live; its `audit_logs` insert policy was confirmed missing, and `019` (applied 27 Aug) re-added it — but **audit_logs inserts are still confirmed broken in production even after `019`**, root cause not found. See §2g before trusting audit logging |
+| Database migrations `001`–`019` | Written and committed. `012`, `013`, `015`, `016`, `017`, `018` **confirmed run** against production (checked live via the Supabase API). `014`'s `usage_events` insert policy is confirmed live; its `audit_logs` insert policy was confirmed missing, and `019` (applied 27 Aug) re-added it — but **audit_logs inserts are still confirmed broken in production even after `019`**, root cause not found. See §2g before trusting audit logging. Migrations `028`–`030` (VibeLabs Agency membership, §2s) **confirmed run against production** 2 Sep — verified directly via the schema and a live trigger/RPC test, not assumed |
 | Deployed to Vercel | Yes, production — **`https://app.vibelabsagency.com`** (renamed from `genie.vibelabsagency.com` 30 Aug 2026; the auto-generated `webgenie-ai-sooty.vercel.app` still works too, Vercel never stops serving it, but all in-app code now points at the branded domain — see §2i) |
 | Analysis worker (`src/workers/analysis-worker.ts`) | **Implemented and confirmed running** — checked live via the Railway API (29 Aug 2026), not assumed. Deployed on Railway (`production` environment, service "worker"), instance status `RUNNING`, built from `Dockerfile.worker`, `numReplicas: 1` (correctly matches the "exactly one worker" constraint in §10), `restartPolicyType: ON_FAILURE`. Real logs show genuine claim→complete job cycles, not a crash loop. Account is on Railway's **trial plan** — worth checking that hasn't hit a time/usage limit if this ever silently stops. |
 | Prospect Finder (`/finder`) | **Built**, real Google Places integration, distance-radius control, chain filtering, review-count tiers, text-the-link button, one-click "Publish" to a real hosted site — see §2d. Places API 403 (fell back to sample data) **fixed and confirmed live again on 23 Aug** — see §7's Google Places section for the actual cause. "No AI Receptionist" / "No 24/7 Coverage" pitch badges on every result (`/audit` too) — see §2f |
@@ -52,9 +52,11 @@ more per client. Both are real; A is the priority.
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
 | Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
-| Transactional email | Invites stored, never sent. Send manually |
+| Transactional email | Team/partner invites now actually send (2 Sep, §2s) — previously stored, never sent, manual copy-link only; that UI stays as a fallback. VibeLabs welcome email (§2s) is a separate, new send |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
+
+| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep — not yet committed to git as of this writing, see §2s.** Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`030` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. **Not started:** in-app playbooks, real support tickets, self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -1488,6 +1490,160 @@ old 14-day default; the app-level enforcement logic itself doesn't
 care what the number is, it just reads whatever `trial_ends_at` ended
 up as, so nothing is broken by the delay, new signups just get a
 longer trial than intended until this runs.
+
+### 2s. VibeLabs Agency membership: backend, CRM, dashboard, onboarding — 2 Sep 2026
+
+The VibeLabs marketing site (a separate project, `C:\Projects\VibeLabs-v2`)
+sells a "done-for-you white-label AI agency" — $97/mo, 14-day trial, 25
+founding spots, a real 60-day client guarantee — but had never been
+connected to any backend. Rather than build a parallel one, extended this
+app in place: its lead finder, audit engine, site generator, and CRM-ish
+pipeline already map directly onto the four tools VibeLabs promises. Full
+plan and phase breakdown was written up front and approved before any code
+changed; summarized here is what actually shipped and was verified, not the
+plan itself.
+
+**Two things found before writing a line of code that would have made this
+launch unsafe:**
+- Generated sites carried no `organizationId` at all — `/api/site-chat` and
+  `/api/site-lead` fell back to `select().limit(1).single()` on
+  `organizations`, i.e. "whichever org comes back first." Invisible with one
+  real org; would have silently misrouted every founding member's leads to
+  a random other member the moment a second org existed.
+- `organizations` has never had an UPDATE RLS policy — only SELECT (001)
+  and INSERT (002). Every existing write to it went through the admin
+  client or `bootstrap_organization`'s `SECURITY DEFINER` RPC; nothing had
+  ever attempted a direct authenticated-client update before this build did.
+
+**Phase 1 — fixed the attribution bug.** Threaded `organizationId` through
+`SiteOptions` and both site-generation paths (`lib/sitegen/generate.ts` for
+the core 14 industries, `lib/renderIndustryPage.ts` for the 59 Gallery
+ones) into the embedded chat widget and lead form, and from there into
+`/api/site-chat` and `/api/site-lead`, which now validate the id against a
+real `organizations` row rather than trusting it blind — with a loud
+`console.error` fallback (never silent) for any old, unmigrated site.
+**Verified live**, not just by code review: seeded two real sandbox orgs,
+generated one core-industry and one Gallery-industry site each, submitted
+real leads on each, confirmed each landed only in its own org's `/leads` —
+zero cross-contamination. Also submitted a lead with no org id at all to
+prove the fallback still works and logs visibly; it landed under Cassey's
+real org as expected, found and deleted.
+
+**Phase 2 — the `vibelabs` offer itself.** Migration `028` adds `offer_key`
+(`'webgenie'`/`'vibelabs'`), `founding_member_seat`, the guarantee columns,
+`is_platform_operator`, and ToS-acceptance columns to `organizations`, plus
+an advisory-locked `assign_founding_seat()` trigger enforcing the real
+25-seat cap atomically. `guarantee_deadline_at` is a **plain column, not
+generated** — `timestamptz + interval` is STABLE not IMMUTABLE in Postgres
+(DST makes it timezone-dependent), so a `GENERATED ALWAYS ... STORED`
+column on it fails with `42P17`; found this by running the migration for
+real, fixed it, re-ran clean. New `/api/vibelabs/start-trial` creates a
+real Stripe Checkout Session (`payment_method_collection: "always"` is what
+makes "card required, not charged for 14 days" literally true, not just
+copy). The webhook (`api/billing/webhook/route.ts`) gained a
+`handleVibelabsCheckoutCompleted` branch, `checkout.session.completed`
+gated on `metadata.offer === "vibelabs"`, that provisions the org, invites
+the user (`generateLink({type:"invite"})`), and emails them
+(`lib/vibelabs/welcome-email.ts`) — all only once Checkout actually
+completes, never at session-creation time.
+
+**The live Stripe restricted key turned out to have almost nothing
+enabled** — Products write worked, but Prices read/write and Subscriptions
+read/write were all denied one at a time as each was hit, several rounds of
+"grant this permission" back and forth with Cassey. Rather than keep
+chasing key permissions, removed the dependency instead: the webhook
+originally called `stripe.subscriptions.retrieve()` just to read back a
+trial length it had set itself moments earlier at Checkout — now both
+`start-trial` and the webhook read a shared `VIBELABS_TRIAL_DAYS` constant
+(`lib/vibelabs/constants.ts`) and compute `trial_ends_at` directly, needing
+zero Subscription permissions. **Fully verified end-to-end, live, for
+real**: a real Checkout Session was created and immediately expired
+(cleanup, so it could never be paid against); then a real
+`checkout.session.completed` event, signed with the real webhook secret
+(`stripe.webhooks.generateTestHeaderString`), was POSTed at the actual
+running webhook route — it provisioned a real organization row with the
+correct `offer_key`, `plan_key`, `subscription_status: 'trialing'`, a
+correctly-computed `trial_ends_at` (14 days out) and `guarantee_deadline_at`
+(60 days out), **seat 1** correctly assigned by the trigger, and a correct
+`organization_members` owner row. All test data (org, user, Stripe
+customer) cleaned up after.
+
+**Phase 3 — invite emails actually send now.** `api/team/invite` and
+`api/partners/invite` previously only ever stored a `team_invitations` row
+and returned the link for the admin to copy by hand ("Invites stored,
+never sent. Send manually" — see the old status table below). Both now
+call `lib/team/invite-email.ts` (same Resend pattern as
+`lib/auth/reset-email.ts`) after a successful insert; the copy-link UI
+stays as a fallback.
+
+**Phase 4 — white-label branding kit, scoped to what a member's own
+clients see** (not this app's own dashboard chrome — `PRODUCT.md` on the
+VibeLabs side records the rebrandable product's name/scope as still an
+open decision, so that piece is deliberately not built). Migration `029`
+adds `org_branding` (RLS: an org's own owner/admin only) and a public
+`org-branding` storage bucket. New `/settings/branding` lets an admin
+upload a logo/favicon and set brand name, colors, and contact info — files
+upload straight from the browser to storage under the user's own session,
+never proxied through a Next.js route. Propagates into generated sites
+(footer credit, chat widget subtitle, lead-form byline) via `builtBy`,
+already-threaded from Phase 1's `organizationId` work.
+
+**A real RLS bug found and fixed in the same phase**: the upload code used
+`{ upsert: true }`, which makes the Storage API check for an existing
+object first — a SELECT — and this bucket had no SELECT policy, so even a
+brand-new, first-time, entirely-legitimate upload failed with an RLS
+violation. Upload paths already include a timestamp, so nothing was ever
+actually being "upserted" — removed the flag instead of adding a policy.
+**Verified live** with two real sandbox orgs signed in for real (not the
+service-role client, which bypasses RLS and would prove nothing): own-org
+upload succeeds, cross-org upload correctly blocked, and the public logo
+URL actually resolves (`200`) for a real uploaded file.
+
+**Phase 5 — post-purchase onboarding, two different things.** New
+`/vibelabs/welcome` (gated: real `vibelabs` org, `onboarding_completed_at`
+still null) is the member's own one-time welcome — guarantee explained in
+the marketing site's exact wording (never "refund"), a short branding/niche
+setup, then a deep link into the real `/finder` prefilled with that niche.
+Separately, **honestly rescoped `/onboard`** (the *member's* tool for
+onboarding *their own* client, unrelated to the page above) —
+`onboard-client.tsx`'s "done" screen used to show all 10 simulated
+capabilities with a green checkmark and summed all of them into a "$2,800+
+in automated services/month" claim, regardless of whether anything was
+actually provisioned (nothing was, beyond the site itself — no Twilio, no
+GoHighLevel, no calendar provider exists anywhere in this codebase). Now
+split into "Live now" (site, chat widget, a real `call_log` pipeline
+insert, the leads inbox — genuinely real) and "Not yet automated — on the
+roadmap" (voice AI, text-back, review automation, booking, follow-ups —
+honestly labeled, no checkmark), and the dollar figure sums only the real
+ones: **$1,300+, ~4x ROI**, not the old $2,800+/~9x.
+
+**A second RLS gap found testing this one**: `/vibelabs/welcome`'s
+"mark done" action tried a direct `.update()` on `organizations` — the
+same missing-UPDATE-policy problem noted at the top, now hit for real. Same
+fix discipline as `bootstrap_organization`: rather than a blanket UPDATE
+policy (which would let a client update *any* column on their org row,
+billing ids included), added a narrow `mark_vibelabs_onboarding_complete()`
+`SECURITY DEFINER` RPC (migration `030`) that can only ever touch
+`onboarding_completed_at`. **Verified live**, both pieces: clicked through
+the actual `/onboard` wizard end-to-end in a real browser as a real
+sandbox admin and confirmed the test business genuinely appeared in
+`/calls` with correct fields; separately confirmed the new RPC actually
+sets the flag, is idempotent (a second call is a safe no-op, timestamp
+unchanged, no error), and doesn't touch a different org's row.
+
+**Phase 9 — the actual front door.** New public `/join` (real live seat
+count pulled from `organizations`, exact guarantee wording, honest error
+states — including "Signups aren't configured yet" before the Stripe price
+existed, and a real `?cancelled=1` state) is what VibeLabs-v2's three CTAs
+now point at, each tagged with its own `utm_content` for attribution. Both
+sides verified live and rebuilt clean.
+
+**What's still open:** Phases 6 (in-app SOP/playbook library from
+`launch-kit/`), 7 (real ticket-based support), 8 (self-serve Stripe billing
+portal), and 11 (rate limiting, ToS-acceptance UI, ownership of the
+still-placeholder `plan_catalog` row) haven't been started. VibeLabs-v2's
+`/legal/privacy`, `/legal/terms`, `/legal/earnings` are still placeholder
+stubs — a real launch blocker, not a build item for this repo.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 

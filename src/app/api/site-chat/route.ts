@@ -25,6 +25,7 @@ const schema = z.object({
     services: z.array(z.object({ name: z.string().max(100), blurb: z.string().max(300) })).max(12),
     faq: z.array(z.object({ q: z.string().max(300), a: z.string().max(600) })).max(12)
   }),
+  organizationId: z.string().uuid().nullish(),
   messages: z.array(messageSchema).max(20)
 });
 
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
     return corsJson({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { business, messages } = parsed.data;
+  const { business, organizationId, messages } = parsed.data;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -121,10 +122,30 @@ export async function POST(request: Request) {
       if (args.name && args.phone) {
         try {
           const supabase = createAdminClient();
-          const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
-          if (org) {
+
+          let orgId: string | null = null;
+          if (organizationId) {
+            const { data: validOrg } = await supabase
+              .from("organizations")
+              .select("id")
+              .eq("id", organizationId)
+              .single();
+            orgId = validOrg?.id ?? null;
+            if (!orgId) {
+              console.error(`site-chat: organizationId "${organizationId}" doesn't match a real organization.`);
+            }
+          }
+          if (!orgId) {
+            console.error(
+              `site-chat: no valid organizationId provided for business "${business.name}" — falling back to the first organization. This lead may be misattributed.`
+            );
+            const { data: fallbackOrg } = await supabase.from("organizations").select("id").limit(1).single();
+            orgId = fallbackOrg?.id ?? null;
+          }
+
+          if (orgId) {
             await supabase.from("chat_leads").insert({
-              organization_id: org.id,
+              organization_id: orgId,
               business_name: business.name,
               business_industry: business.industryLabel,
               business_phone: business.phone,

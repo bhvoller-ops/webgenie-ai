@@ -1,6 +1,7 @@
 import "server-only";
 
 import { generateSite } from "@/lib/sitegen/generate";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Business } from "@/lib/sitegen/types";
 
 /**
@@ -54,9 +55,20 @@ function slugify(input: string, maxLength: number): string {
   return slug.slice(0, maxLength).replace(/-+$/g, "");
 }
 
-export async function publishBusinessSite(business: Business): Promise<PublishResult> {
+export async function publishBusinessSite(business: Business, organizationId?: string): Promise<PublishResult> {
   const domain = requireEnv("VERCEL_PUBLISH_DOMAIN");
-  const site = generateSite(business, { demoBadge: false });
+
+  let builtBy: string | undefined;
+  if (organizationId) {
+    const { data: branding } = await createAdminClient()
+      .from("org_branding")
+      .select("brand_name")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    builtBy = branding?.brand_name ?? undefined;
+  }
+
+  const site = generateSite(business, { demoBadge: false, builtBy, organizationId });
   const projectName = `wg-${slugify(business.id, 50) || "site"}`;
 
   const deployRes = await fetch(`${VERCEL_API}/v13/deployments${teamQuery()}`, {

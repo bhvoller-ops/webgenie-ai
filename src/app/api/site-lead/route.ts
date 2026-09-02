@@ -8,11 +8,13 @@ import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
  * origin by design once a site is deployed to a client's own domain — see
  * lib/sitegen/cors.ts.
  *
- * Known limitation: generated sites don't yet carry which agency
- * (organization_id) built them, so — same as the chat widget — this
- * attributes every lead to whichever organization comes back first from the
- * database. Harmless with one agency using WebGenie; needs real attribution
- * threaded through Business/generateSite before a second agency signs on.
+ * Attribution: `organizationId` is embedded into the generated site by
+ * lib/sitegen (see SiteOptions.organizationId) and validated against a real
+ * organizations row below. A site generated before that threading landed —
+ * or any caller that still omits it — has no organizationId at all; that
+ * case falls back to the old "whichever organization comes back first"
+ * behavior, loudly logged so it stays visible rather than silently masking
+ * misattributed leads.
  */
 const schema = z.object({
   business: z.object({
@@ -20,6 +22,7 @@ const schema = z.object({
     industryLabel: z.string().max(100),
     phone: z.string().max(40)
   }),
+  organizationId: z.string().uuid().nullish(),
   name: z.string().min(1).max(160),
   email: z.string().email().max(200).optional().or(z.literal("")),
   phone: z.string().min(1).max(40),
@@ -37,17 +40,36 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return corsJson({ error: "Please fill in your name and phone number." }, { status: 400 });
   }
-  const { business, name, email, phone, city, service, message } = parsed.data;
+  const { business, organizationId, name, email, phone, city, service, message } = parsed.data;
 
   try {
     const supabase = createAdminClient();
-    const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
-    if (!org) {
+
+    let orgId: string | null = null;
+    if (organizationId) {
+      const { data: validOrg } = await supabase
+        .from("organizations")
+        .select("id")
+        .eq("id", organizationId)
+        .single();
+      orgId = validOrg?.id ?? null;
+      if (!orgId) {
+        console.error(`site-lead: organizationId "${organizationId}" doesn't match a real organization.`);
+      }
+    }
+    if (!orgId) {
+      console.error(
+        `site-lead: no valid organizationId provided for business "${business.name}" — falling back to the first organization. This lead may be misattributed.`
+      );
+      const { data: fallbackOrg } = await supabase.from("organizations").select("id").limit(1).single();
+      orgId = fallbackOrg?.id ?? null;
+    }
+    if (!orgId) {
       return corsJson({ error: "This site isn't accepting requests right now." }, { status: 503 });
     }
 
     const { error } = await supabase.from("chat_leads").insert({
-      organization_id: org.id,
+      organization_id: orgId,
       source: "form",
       business_name: business.name,
       business_industry: business.industryLabel,

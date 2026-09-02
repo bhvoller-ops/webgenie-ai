@@ -195,6 +195,16 @@ export interface SiteOptions {
   builtBy?: string;
   /** Adds a subtle "demo" ribbon so a prospect knows it is a preview. */
   demoBadge?: boolean;
+  /**
+   * The organization that generated this site — embedded into the chat
+   * widget and lead form so a real submission on this site attributes to
+   * the agency that built it, not "whichever organization comes back
+   * first" (the bug this field exists to fix; see /api/site-chat and
+   * /api/site-lead). Optional only for backward compatibility with any
+   * caller that hasn't been updated yet — those still fall back to the
+   * old, broken behavior, loudly logged server-side when they do.
+   */
+  organizationId?: string;
 }
 
 export interface GeneratedSite {

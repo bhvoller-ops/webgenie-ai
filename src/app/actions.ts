@@ -279,6 +279,104 @@ export async function updateMemberRoleAction(formData: FormData) {
   revalidatePath("/settings");
 }
 
+const brandingSchema = z.object({
+  brandName: z.string().max(160).optional().or(z.literal("")),
+  logoUrl: z.string().url().max(2000).optional().or(z.literal("")),
+  faviconUrl: z.string().url().max(2000).optional().or(z.literal("")),
+  primaryColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional()
+    .or(z.literal("")),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional()
+    .or(z.literal("")),
+  supportEmail: z.string().email().max(200).optional().or(z.literal("")),
+  supportPhone: z.string().max(40).optional().or(z.literal("")),
+  primaryNiche: z.string().max(120).optional().or(z.literal(""))
+});
+
+/**
+ * Any field left blank clears that field (null), not "leave unchanged" —
+ * the form always submits the full current state, unlike a PATCH. Logo/
+ * favicon URLs arrive already-uploaded (branding-form.tsx uploads directly
+ * to the org-branding storage bucket client-side, under this org's own
+ * RLS-scoped prefix, before submitting this action with the resulting
+ * public URL) — this action never touches file bytes.
+ */
+export async function updateOrgBrandingAction(formData: FormData) {
+  const { supabase, user, organizationId } = await getUserAndOrganization();
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", organizationId)
+    .eq("user_id", user.id)
+    .single();
+  if (!membership || !["owner", "admin"].includes(membership.role)) {
+    throw new Error("Only an owner or admin can change branding.");
+  }
+
+  const parsed = brandingSchema.parse({
+    brandName: formData.get("brandName") ?? "",
+    logoUrl: formData.get("logoUrl") ?? "",
+    faviconUrl: formData.get("faviconUrl") ?? "",
+    primaryColor: formData.get("primaryColor") ?? "",
+    accentColor: formData.get("accentColor") ?? "",
+    supportEmail: formData.get("supportEmail") ?? "",
+    supportPhone: formData.get("supportPhone") ?? "",
+    primaryNiche: formData.get("primaryNiche") ?? ""
+  });
+
+  const { error } = await supabase.from("org_branding").upsert(
+    {
+      organization_id: organizationId,
+      brand_name: parsed.brandName || null,
+      logo_url: parsed.logoUrl || null,
+      favicon_url: parsed.faviconUrl || null,
+      primary_color: parsed.primaryColor || null,
+      accent_color: parsed.accentColor || null,
+      support_email: parsed.supportEmail || null,
+      support_phone: parsed.supportPhone || null,
+      primary_niche: parsed.primaryNiche || null,
+      updated_at: new Date().toISOString()
+    },
+    { onConflict: "organization_id" }
+  );
+  if (error) throw new Error(error.message);
+
+  await supabase.from("audit_logs").insert({
+    organization_id: organizationId,
+    actor_user_id: user.id,
+    action: "branding.updated",
+    target_type: "organization",
+    target_id: organizationId,
+    metadata: {}
+  });
+
+  revalidatePath("/settings/branding");
+}
+
+/**
+ * Marks the one-time VibeLabs welcome sequence (/vibelabs/welcome) done —
+ * never re-shown after. Does not redirect itself: welcome-client.tsx calls
+ * this before navigating on EVERY exit path (both "Open Lead Finder" and
+ * "Skip to dashboard"), not just the skip path, so the flag reliably
+ * reflects "did they get through this page" regardless of which way they
+ * left it.
+ *
+ * Goes through the mark_vibelabs_onboarding_complete() RPC (migration
+ * 030), not a direct .update() — organizations has never had an UPDATE
+ * RLS policy, so a direct client update here silently affects zero rows
+ * (confirmed live) rather than throwing, which is worse than an error.
+ */
+export async function completeVibelabsOnboardingAction() {
+  const { supabase } = await getUserAndOrganization();
+  const { error } = await supabase.rpc("mark_vibelabs_onboarding_complete");
+  if (error) throw new Error(error.message);
+}
+
 export async function deleteMyAccountAction() {
   const { user } = await getUserAndOrganization();
   const { createAdminClient } = await import("@/lib/supabase/admin");

@@ -6,7 +6,7 @@ import { NewProjectClient } from "./new-project-client";
 // / became the public marketing funnel — see CLAUDE.md §2q. This is now the
 // admin's real post-login landing page.
 export default async function NewProjectPage() {
-  await requireAdminPage();
+  const { organizationId } = await requireAdminPage();
   const [projects, stats] = await Promise.all([getProjects(), getPortfolioStats()]);
-  return <NewProjectClient role="admin" projects={projects} stats={stats} />;
+  return <NewProjectClient role="admin" organizationId={organizationId} projects={projects} stats={stats} />;
 }

@@ -30,6 +30,7 @@ import { INDUSTRY_LIST, INDUSTRIES } from "@/lib/sitegen/industries";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey, SiteGenIndustryKey } from "@/lib/sitegen/types";
 import { cn } from "@/lib/format";
+import { addCallLogEntryAction } from "@/app/actions";
 
 /* ------------------------------------------------------------------ */
 /* Provisioning steps                                                  */
@@ -48,20 +49,32 @@ const STEPS = [
   { label: "Configuring follow-up sequences", sub: "Email + SMS nurture, estimate follow-up, reactivation", ms: 1200 },
 ];
 
+/**
+ * `real: true` means this genuinely happened when onboarding runs — the
+ * site is actually generated and live, the chat widget actually ships in
+ * it, the call_log row actually gets inserted. `real: false` means nothing
+ * was provisioned — no voice/SMS/calendar/review-automation integration
+ * exists anywhere in this codebase (confirmed: no Twilio, no GoHighLevel,
+ * no calendar provider). Previously every item here showed a green
+ * checkmark regardless — a number a member could relay directly to their
+ * own paying client. See the "Not yet automated" section below.
+ */
 const ACTIVE = [
-  { icon: Globe, title: "Professional Website", sub: "Live with real reviews & AI chat", value: 800 },
-  { icon: MessageSquare, title: "AI Chat Widget", sub: "24/7 lead qualification", value: 300 },
-  { icon: Phone, title: "Voice AI Receptionist", sub: "Answers calls, books appointments", value: 600 },
-  { icon: PhoneMissed, title: "Missed Call Text-Back", sub: "Auto-texts missed calls", value: 200 },
-  { icon: Star, title: "Review Automation", sub: "Google review requests after jobs", value: 300 },
-  { icon: CalendarCheck, title: "Online Booking", sub: "3 calendars configured", value: 150 },
-  { icon: Workflow, title: "Follow-Up Sequences", sub: "Email + SMS nurture flows", value: 250 },
-  { icon: TrendingUp, title: "Lead Pipeline", sub: "9-stage pipeline tracking", value: 100 },
-  { icon: Inbox, title: "Unified Inbox", sub: "All channels in one place", value: 100 },
-  { icon: Users, title: "CRM & Contacts", sub: "Ready for lead import", value: 0 },
+  { icon: Globe, title: "Professional Website", sub: "Live with real reviews & AI chat", value: 800, real: true },
+  { icon: MessageSquare, title: "AI Chat Widget", sub: "24/7 lead qualification", value: 300, real: true },
+  { icon: TrendingUp, title: "Lead Pipeline", sub: "Added to your Calls pipeline", value: 100, real: true },
+  { icon: Inbox, title: "Unified Inbox", sub: "Site leads land in your Leads inbox", value: 100, real: true },
+  { icon: Phone, title: "Voice AI Receptionist", sub: "Answers calls, books appointments", value: 600, real: false },
+  { icon: PhoneMissed, title: "Missed Call Text-Back", sub: "Auto-texts missed calls", value: 200, real: false },
+  { icon: Star, title: "Review Automation", sub: "Google review requests after jobs", value: 300, real: false },
+  { icon: CalendarCheck, title: "Online Booking", sub: "Appointment calendars", value: 150, real: false },
+  { icon: Workflow, title: "Follow-Up Sequences", sub: "Email + SMS nurture flows", value: 250, real: false },
+  { icon: Users, title: "CRM & Contacts", sub: "Ready for lead import", value: 0, real: true },
 ];
 
-const MONTHLY_VALUE = ACTIVE.reduce((n, a) => n + a.value, 0);
+// Only sums what's actually running — previously summed all 10 items
+// unconditionally regardless of this list's own `real` flags.
+const MONTHLY_VALUE = ACTIVE.filter((a) => a.real).reduce((n, a) => n + a.value, 0);
 const CLIENT_PRICE = 297;
 
 /* ------------------------------------------------------------------ */
@@ -92,7 +105,7 @@ function parseMapsLink(url: string): { name: string; city: string; state: string
 
 type Phase = "input" | "confirm" | "running" | "done";
 
-export function OnboardClient({ role }: { role: AccessRole }) {
+export function OnboardClient({ role, organizationId }: { role: AccessRole; organizationId: string }) {
   const [phase, setPhase] = useState<Phase>("input");
   const [mode, setMode] = useState<"link" | "manual">("link");
   const [link, setLink] = useState("");
@@ -151,6 +164,32 @@ export function OnboardClient({ role }: { role: AccessRole }) {
     }, 1200);
   }
 
+  /**
+   * "Setting up lead pipeline" used to be a fake timer with no database
+   * write at all — now it actually inserts a call_log row, reusing the
+   * exact action /calls' own "add prospect" flow uses, so this client
+   * genuinely shows up in the pipeline rather than only appearing to.
+   */
+  async function addToPipeline() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const demoUrl = `${origin}${demoSiteUrl(biz, { by: "VibeLabs Agency", badge: false, org: organizationId })}`;
+    const formData = new FormData();
+    formData.set("businessName", biz.name);
+    formData.set("phone", biz.phone || "");
+    formData.set("industry", profile.label);
+    formData.set("city", biz.city || "");
+    formData.set("state", biz.state || "");
+    formData.set("demoUrl", demoUrl);
+    try {
+      await addCallLogEntryAction(formData);
+    } catch (err) {
+      // Non-fatal: the site is real regardless of whether the pipeline
+      // entry saved — surfacing this as a hard failure would block a
+      // client who's actually done from seeing their finished site.
+      console.error("Failed to add client to pipeline:", err);
+    }
+  }
+
   function onboard() {
     setPhase("running");
     setStepIndex(0);
@@ -166,7 +205,7 @@ export function OnboardClient({ role }: { role: AccessRole }) {
           if (i === STEPS.length - 1) {
             if (tick.current) clearInterval(tick.current);
             setStepIndex(STEPS.length);
-            setPhase("done");
+            addToPipeline().finally(() => setPhase("done"));
           } else {
             setStepIndex(i + 1);
           }
@@ -488,14 +527,15 @@ export function OnboardClient({ role }: { role: AccessRole }) {
             </span>
             <h1 className="mt-6 text-display-md font-semibold text-ink">{biz.name} is live</h1>
             <p className="mx-auto mt-3 max-w-lg text-sm text-muted">
-              Every service below is running automatically. Nothing else needs configuring.
+              The site and lead capture below are running now. The rest needs a connected
+              voice/SMS/calendar provider before it&apos;s real — see what&rsquo;s not automated yet below.
             </p>
           </div>
 
           <Panel className="mt-10">
-            <Eyebrow>What&rsquo;s now active</Eyebrow>
+            <Eyebrow>Live now</Eyebrow>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {ACTIVE.map((a) => (
+              {ACTIVE.filter((a) => a.real).map((a) => (
                 <div
                   key={a.title}
                   className="flex items-center gap-3.5 rounded-xl border border-hairline bg-canvas/50 px-4 py-3.5"
@@ -513,16 +553,44 @@ export function OnboardClient({ role }: { role: AccessRole }) {
             </div>
           </Panel>
 
+          <Panel className="mt-4">
+            <Eyebrow>Not yet automated — on the roadmap</Eyebrow>
+            <p className="mt-2 text-[12px] text-faint">
+              No voice, SMS, or calendar provider is connected yet. These need real integration
+              work before they run for real — flagged here rather than shown as done.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {ACTIVE.filter((a) => !a.real).map((a) => (
+                <div
+                  key={a.title}
+                  className="flex items-center gap-3.5 rounded-xl border border-hairline bg-canvas/30 px-4 py-3.5 opacity-70"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-hairline bg-raised">
+                    <a.icon className="h-4 w-4 text-faint" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-medium text-muted">{a.title}</div>
+                    <div className="text-[11.5px] text-faint">{a.sub}</div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-hairline px-2 py-0.5 text-[10.5px] text-faint">
+                    <Clock className="h-3 w-3" aria-hidden />
+                    Roadmap
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
           <div className="mt-6 rounded-panel border border-signal-warn/30 bg-signal-warn/[0.07] p-7">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-signal-warn" aria-hidden />
-              <Eyebrow className="text-signal-warn">Monthly value delivered</Eyebrow>
+              <Eyebrow className="text-signal-warn">Monthly value delivered, live today</Eyebrow>
             </div>
             <div className="mt-4 flex flex-wrap items-baseline gap-3">
               <span className="font-mono text-5xl font-semibold tracking-tight text-ink">
                 ${MONTHLY_VALUE.toLocaleString()}+
               </span>
-              <span className="text-sm text-muted">in automated services / month</span>
+              <span className="text-sm text-muted">in services actually running / month</span>
             </div>
             <p className="mt-3 text-[13px] text-muted">
               Client pays{" "}
@@ -530,13 +598,13 @@ export function OnboardClient({ role }: { role: AccessRole }) {
               <span className="font-semibold text-signal-good">
                 ~{Math.round(MONTHLY_VALUE / CLIENT_PRICE)}x ROI
               </span>
-              . Every feature is running automatically.
+              , counting only what&rsquo;s actually live today.
             </p>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href={demoSiteUrl(biz, { by: "VibeLabs Agency", badge: false })}
+              href={demoSiteUrl(biz, { by: "VibeLabs Agency", badge: false, org: organizationId })}
               target="_blank"
               rel="noopener noreferrer"
               className="focus-ring inline-flex items-center gap-2 rounded-xl bg-iris px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-colors hover:bg-iris-soft"

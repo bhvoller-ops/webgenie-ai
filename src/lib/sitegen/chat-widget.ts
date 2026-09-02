@@ -40,18 +40,22 @@ export function chatWidgetStyles(): string {
   }`;
 }
 
-export function chatWidgetMarkup(business: {
-  name: string;
-  phone: string;
-  city: string;
-  state: string;
-}): string {
+export function chatWidgetMarkup(
+  business: {
+    name: string;
+    phone: string;
+    city: string;
+    state: string;
+  },
+  builtBy?: string
+): string {
+  const subtitle = builtBy ? `${business.name} &middot; powered by ${builtBy}` : business.name;
   return `
 <button id="wg-chat-launcher" aria-label="Chat with us">
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
 </button>
 <div id="wg-chat-panel">
-  <div id="wg-chat-head">How Can We Help You<span>${business.name}</span></div>
+  <div id="wg-chat-head">How Can We Help You<span>${subtitle}</span></div>
   <div id="wg-chat-msgs"></div>
   <form id="wg-chat-form">
     <input id="wg-chat-input" autocomplete="off" placeholder="Ask a question…" />
@@ -62,7 +66,8 @@ export function chatWidgetMarkup(business: {
 
 export function chatWidgetScript(
   business: { name: string; phone: string; city: string; state: string; hours?: string },
-  profile: Pick<IndustryProfile, "label" | "services" | "faq">
+  profile: Pick<IndustryProfile, "label" | "services" | "faq">,
+  organizationId?: string
 ): string {
   const payload = {
     name: business.name,
@@ -78,6 +83,7 @@ export function chatWidgetScript(
   return `
 (function(){
   var BUSINESS = ${safeJson(payload)};
+  var ORG_ID = ${safeJson(organizationId ?? null)};
   var API_URL = ${safeJson(CHAT_API_URL)};
   var messages = [];
   var launcher = document.getElementById('wg-chat-launcher');
@@ -116,7 +122,7 @@ export function chatWidgetScript(
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business: BUSINESS, messages: messages.slice(-20) })
+      body: JSON.stringify({ business: BUSINESS, organizationId: ORG_ID, messages: messages.slice(-20) })
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

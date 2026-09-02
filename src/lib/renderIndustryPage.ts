@@ -29,7 +29,7 @@ function stars(n: number): string {
  *     industries' lead-form.ts already uses, so a submission here lands in
  *     the same /leads inbox instead of vanishing.
  */
-function leadSubmitScript(cfg: IndustryConfig, live: boolean): string {
+function leadSubmitScript(cfg: IndustryConfig, live: boolean, organizationId?: string): string {
   const c = cfg.colors;
   const thankYou = `'<div style="text-align:center;padding:40px 20px"><div style="font-size:3rem;margin-bottom:16px">✓</div><h3 style="font-size:1.4rem;color:${c.text};margin-bottom:8px">Thank You!</h3><p style="color:${c.textMuted};font-size:.95rem">We received your request and will call you within one business day. Talk soon!</p></div>'`;
 
@@ -43,6 +43,7 @@ function leadSubmitScript(cfg: IndustryConfig, live: boolean): string {
 
   const apiUrl = JSON.stringify(`${SITE_ORIGIN}/api/site-lead`);
   const business = JSON.stringify({ name: cfg.businessName, industryLabel: cfg.industryName, phone: cfg.phone });
+  const orgId = JSON.stringify(organizationId ?? null);
 
   return `function handleLeadSubmit(e){
   e.preventDefault();
@@ -68,6 +69,7 @@ function leadSubmitScript(cfg: IndustryConfig, live: boolean): string {
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       business:${business},
+      organizationId:${orgId},
       name:name,
       email:(data.get('email')||'').toString().trim(),
       phone:phone,
@@ -93,7 +95,10 @@ function leadSubmitScript(cfg: IndustryConfig, live: boolean): string {
 }`;
 }
 
-export function renderIndustryPage(cfg: IndustryConfig, opts: { live?: boolean } = {}): string {
+export function renderIndustryPage(
+  cfg: IndustryConfig,
+  opts: { live?: boolean; organizationId?: string } = {}
+): string {
   const c = cfg.colors;
 
   const serviceCards = cfg.services
@@ -721,7 +726,7 @@ function askChat(q){
   document.getElementById('chatInput').value=q;
   sendChat();
 }
-${leadSubmitScript(cfg, opts.live ?? false)}
+${leadSubmitScript(cfg, opts.live ?? false, opts.organizationId)}
 </script>
 </body>
 </html>`;

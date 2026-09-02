@@ -29,7 +29,7 @@ const businessSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { response } = await requireAdminApi();
+  const { ctx, response } = await requireAdminApi();
   if (response) return response;
 
   const parsed = businessSchema.safeParse((await request.json().catch(() => null))?.business);
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await publishBusinessSite(parsed.data as Business);
+    const result = await publishBusinessSite(parsed.data as Business, ctx.organizationId);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Publish to Vercel failed:", error);

@@ -15,9 +15,9 @@ import type { IndustryConfig } from "@/data/gallery/types";
  * than silently skipped): the "DEMO" preview ribbon and a "Site by <agency>"
  * footer credit. Both are cosmetic — SiteOptions.demoBadge/builtBy are
  * accepted for signature compatibility with generateSite() but currently
- * unused here.
+ * unused here. options.organizationId IS used (threaded into the lead
+ * form's submission so it attributes correctly — see renderIndustryPage).
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for signature parity with generateSite()
 export function generateGallerySite(business: Business, options: SiteOptions = {}): GeneratedSite {
   const template = GALLERY_INDUSTRIES[business.industry as GalleryIndustryKey];
   if (!template) {
@@ -37,7 +37,7 @@ export function generateGallerySite(business: Business, options: SiteOptions = {
     heroImage: business.heroImageOverride || template.heroImage,
   };
 
-  const html = renderIndustryPage(cfg, { live: true });
+  const html = renderIndustryPage(cfg, { live: true, organizationId: options.organizationId });
 
   return {
     business,

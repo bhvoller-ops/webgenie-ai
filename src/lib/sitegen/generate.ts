@@ -368,7 +368,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
           : ""
       }
     </div>
-    ${leadFormMarkup()}
+    ${leadFormMarkup(builtBy ? esc(builtBy) : undefined)}
   </div>
 </div>
 
@@ -551,9 +551,9 @@ ${
   <a href="${telHref(business.phone)}">${icon("phone", 19, "#fff")} Call ${esc(business.phone)}</a>
 </div>
 
-${chatWidgetMarkup(business)}
-<script>${chatWidgetScript(business, p)}</script>
-<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone })}</script>
+${chatWidgetMarkup(business, builtBy ? esc(builtBy) : undefined)}
+<script>${chatWidgetScript(business, p, options.organizationId)}</script>
+<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId)}</script>
 
 </body>
 </html>`;

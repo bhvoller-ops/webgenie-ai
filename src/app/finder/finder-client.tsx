@@ -55,7 +55,7 @@ const RADIUS_OPTIONS = [
   { label: "Within 31 miles (max)", value: "31" },
 ];
 
-export function FinderClient({ role }: { role: AccessRole }) {
+export function FinderClient({ role, organizationId }: { role: AccessRole; organizationId: string }) {
   const [industry, setIndustry] = useState<IndustryKey>("plumber");
   const [location, setLocation] = useState("");
   const [radiusMiles, setRadiusMiles] = useState("");
@@ -87,7 +87,7 @@ export function FinderClient({ role }: { role: AccessRole }) {
 
   function smsHref(b: Business) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}${demoSiteUrl(b, { by: agency })}`;
+    const url = `${origin}${demoSiteUrl(b, { by: agency, org: organizationId })}`;
     const body = `Hi, this is Cassey — here's the site I mentioned for ${b.name}: ${url}`;
     return `sms:${b.phone.replace(/[^\d+]/g, "")}?body=${encodeURIComponent(body)}`;
   }
@@ -397,7 +397,7 @@ export function FinderClient({ role }: { role: AccessRole }) {
                           Text
                         </a>
                         <a
-                          href={demoSiteUrl(withOverrides(b), { by: agency })}
+                          href={demoSiteUrl(withOverrides(b), { by: agency, org: organizationId })}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-3 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
@@ -406,7 +406,7 @@ export function FinderClient({ role }: { role: AccessRole }) {
                           View site
                         </a>
                         <a
-                          href={demoSiteUrl(withOverrides(b), { by: agency, download: true })}
+                          href={demoSiteUrl(withOverrides(b), { by: agency, download: true, org: organizationId })}
                           className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-ink"
                           title="Download the HTML file"
                         >

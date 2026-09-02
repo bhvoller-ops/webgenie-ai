@@ -52,10 +52,12 @@ type PortfolioStats = Awaited<ReturnType<typeof getPortfolioStats>>;
 
 export function NewProjectClient({
   role,
+  organizationId,
   projects,
   stats,
 }: {
   role: AccessRole;
+  organizationId: string;
   projects: ProjectSummary[];
   stats: PortfolioStats;
 }) {
@@ -84,7 +86,7 @@ export function NewProjectClient({
 
   function smsHref(b: Business) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}${demoSiteUrl(b, { by: AGENCY })}`;
+    const url = `${origin}${demoSiteUrl(b, { by: AGENCY, org: organizationId })}`;
     const body = `Hi, this is Cassey — here's the site I mentioned for ${b.name}: ${url}`;
     return `sms:${b.phone.replace(/[^\d+]/g, "")}?body=${encodeURIComponent(body)}`;
   }
@@ -234,14 +236,14 @@ export function NewProjectClient({
                   return (
                     <div key={b.id} className="overflow-hidden rounded-2xl border border-hairline bg-surface">
                       <a
-                        href={demoSiteUrl(biz, { by: AGENCY })}
+                        href={demoSiteUrl(biz, { by: AGENCY, org: organizationId })}
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`Open ${biz.name}'s demo site`}
                         className="focus-ring relative block h-40 w-full overflow-hidden border-b border-hairline bg-white"
                       >
                         <iframe
-                          src={demoSiteUrl(biz, { by: AGENCY, badge: false })}
+                          src={demoSiteUrl(biz, { by: AGENCY, badge: false, org: organizationId })}
                           title={`Preview of ${biz.name}`}
                           loading="lazy"
                           tabIndex={-1}
@@ -302,7 +304,7 @@ export function NewProjectClient({
                             </a>
                           ) : null}
                           <a
-                            href={demoSiteUrl(biz, { by: AGENCY })}
+                            href={demoSiteUrl(biz, { by: AGENCY, org: organizationId })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-signal-good/35 bg-signal-good/10 px-2.5 py-1.5 text-[12px] font-medium text-signal-good transition-colors hover:bg-signal-good/20"
@@ -311,7 +313,7 @@ export function NewProjectClient({
                             View site
                           </a>
                           <a
-                            href={demoSiteUrl(biz, { by: AGENCY, download: true })}
+                            href={demoSiteUrl(biz, { by: AGENCY, download: true, org: organizationId })}
                             className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[12px] text-muted transition-colors hover:text-ink"
                             title="Download the HTML file"
                           >
