@@ -1944,6 +1944,45 @@ the chat-launcher icon, and the footer credit line reading exactly
 "[logo] Managed by Test Agency Verify · +14703769804 ·
 hello@testagency.example" on both templates. Sandbox org deleted after.
 
+### 2x. `/playbooks` real production outage, real fix — 3 Sep 2026
+
+§2t's `serverExternalPackages: ["isomorphic-dompurify", "jsdom"]` fix
+carried an explicit, disclosed caveat: "not yet verified against an actual
+Vercel deployment, only confirmed locally." That caveat was correct to
+raise — the moment `vibelabs-membership-phase0` was merged to `main` and
+actually deployed to production (3 Sep), `/playbooks` started 500ing for
+real. **Confirmed live via `vercel logs --follow` while re-triggering the
+request** (not guessed from the code):
+
+```
+Error: require() of ES Module /var/task/node_modules/@exodus/bytes/encoding-lite.js
+from .../isomorphic-dompurify/node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js
+not supported. ... code: 'ERR_REQUIRE_ESM'
+```
+
+Different bug than the one §2t fixed, and it only reproduces in Vercel's
+actual production Node runtime — a clean local `next build` (or `next
+start`) never hits it, same as it never caught this until a real deploy did.
+Root cause: `isomorphic-dompurify` bundles its **own nested copy** of
+jsdom's dependency tree (`isomorphic-dompurify/node_modules/...`, distinct
+from the top-level `jsdom` package `lib/capture/` genuinely needs), and one
+of its transitive deps (`html-encoding-sniffer` → `@exodus/bytes`) ships
+ESM-only, which Node's CJS `require()` loader can't load once externalized.
+
+**Real fix, not another workaround**: swapped `isomorphic-dompurify` for
+`sanitize-html` in `lib/playbooks/content.ts` — no jsdom dependency at all,
+so this removes the whole class of bug rather than patching around it a
+third time. `next.config.ts`'s `serverExternalPackages` dropped back to
+just `["jsdom"]` (still required — confirmed by grep, `lib/capture/
+extract-features.ts` and `playwright-provider.ts` import it directly and
+that usage predates and is unrelated to this bug).
+
+Local build is clean, but that alone was already proven insufficient once
+for this exact code path — this fix is not being called done until it's
+re-deployed to real production and the same `vercel logs --follow` + live
+request cycle that reproduced the original error comes back clean. See the
+next entry once that's actually run.
+
 ---
 
 ## 3. Repository map

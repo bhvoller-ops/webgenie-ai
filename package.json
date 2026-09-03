@@ -14,7 +14,6 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^16.4.7",
-    "isomorphic-dompurify": "^4.1.0",
     "jsdom": "^25.0.1",
     "lucide-react": "^0.468.0",
     "marked": "^18.0.11",
@@ -23,6 +22,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "resend": "^6.24.0",
+    "sanitize-html": "^2.17.7",
     "stripe": "^22.4.0",
     "zod": "^3.24.1"
   },
@@ -31,6 +31,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
+    "@types/sanitize-html": "^2.16.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.22",

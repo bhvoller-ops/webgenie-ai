@@ -41,6 +41,6 @@ export default async function PlaybookDetailPage({ params }: { params: Promise<{
 
 async function PlaybookMarkdown({ entry }: { entry: NonNullable<ReturnType<typeof getPlaybook>> }) {
   const html = await readPlaybookMarkdownHtml(entry);
-  // Sanitized server-side via DOMPurify in readPlaybookMarkdownHtml.
+  // Sanitized server-side via sanitize-html in readPlaybookMarkdownHtml.
   return <div className="prose-playbook" dangerouslySetInnerHTML={{ __html: html }} />;
 }

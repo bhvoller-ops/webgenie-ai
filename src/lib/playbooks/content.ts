@@ -2,7 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
 /**
  * Surfaces launch-kit/ — the canonical sales/ops playbook (CLAUDE.md §9
@@ -111,10 +111,32 @@ function resolvePlaybookPath(entry: PlaybookEntry): string {
   return path.join(LAUNCH_KIT_DIR, entry.file);
 }
 
+/**
+ * sanitize-html, not isomorphic-dompurify — that package's bundled jsdom
+ * (nested under its own node_modules, distinct from the top-level jsdom
+ * lib/capture/ genuinely needs) pulls in an ESM-only transitive dependency
+ * that fails to `require()` specifically under Vercel's production Node
+ * runtime (confirmed live, 3 Sep — `ERR_REQUIRE_ESM` on
+ * html-encoding-sniffer's use of @exodus/bytes), even though it built and
+ * ran fine locally. sanitize-html has no jsdom dependency at all, so this
+ * removes the whole class of bug rather than patching around it again.
+ * Playbooks are first-party trusted content, not user input — sanitized
+ * anyway as cheap insurance against a markdown-rendering bug producing raw
+ * HTML, not because the source is untrusted.
+ */
+const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img"]),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    img: ["src", "alt", "title", "width", "height"],
+    "*": ["id"]
+  }
+};
+
 export async function readPlaybookMarkdownHtml(entry: PlaybookEntry): Promise<string> {
   const raw = await readFile(resolvePlaybookPath(entry), "utf8");
   const html = await marked.parse(raw);
-  return DOMPurify.sanitize(html);
+  return sanitizeHtml(html, SANITIZE_OPTIONS);
 }
 
 export async function readPlaybookRawHtml(entry: PlaybookEntry): Promise<string> {
