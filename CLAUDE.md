@@ -1584,9 +1584,11 @@ adds `org_branding` (RLS: an org's own owner/admin only) and a public
 `org-branding` storage bucket. New `/settings/branding` lets an admin
 upload a logo/favicon and set brand name, colors, and contact info — files
 upload straight from the browser to storage under the user's own session,
-never proxied through a Next.js route. Propagates into generated sites
-(footer credit, chat widget subtitle, lead-form byline) via `builtBy`,
-already-threaded from Phase 1's `organizationId` work.
+never proxied through a Next.js route. `brand_name` propagated into
+generated sites (footer credit, chat widget subtitle, lead-form byline) via
+`builtBy` from day one — **the other 5 fields (logo, favicon, colors,
+support email/phone) saved successfully but were never read anywhere until
+§2w (3 Sep) actually wired them in**, across both rendering paths.
 
 **A real RLS bug found and fixed in the same phase**: the upload code used
 `{ upsert: true }`, which makes the Storage API check for an existing
@@ -1887,6 +1889,60 @@ this is *correct*, not a bug (confirmed while investigating whether the
 key needed to be broader). If a future feature needs a Stripe capability
 beyond creating Checkout Sessions, the key's scope will need widening in
 the Dashboard, not just re-used as-is.
+
+### 2w. Branding kit actually wired into generated sites — 3 Sep 2026
+
+`/settings/branding` (§2 above, "Branding kit" section) has saved 8 fields
+since it was built, but only `brand_name` ever rendered anywhere — logo,
+favicon, primary/accent color, and support email/phone all saved
+successfully into `org_branding` and were never read again by anything.
+Confirmed by a fresh audit before touching any code (grepped every
+non-settings-page usage of those columns — zero hits).
+
+Now all 6 flow into every generated site, both rendering paths:
+
+- **Favicon** — a real `<link rel="icon">` in `<head>`.
+- **Primary/accent color** — overrides the industry palette's default
+  brand color. Core-14 path (`generate.ts`) just swaps the `--brand`/
+  `--brand-dark` CSS custom properties the templates already use (all
+  color derivation — hover states, tinted icon backgrounds — happens live
+  via CSS `color-mix()`, so nothing else needed changing). The Gallery
+  path (`renderIndustryPage.ts`, 59 of the 73 industries) bakes colors
+  into inline styles server-side with no `color-mix()` available, so a new
+  `lib/sitegen/color.ts` derives `primaryLight`/`primaryDark` from
+  whichever single color a member actually set, via real hex math
+  (`applyBrandColors()`), rather than reusing the industry default's tint
+  against a totally different hue.
+- **Logo** — the chat-widget launcher button (both paths) and a new
+  footer/contact "Managed by {brand}" credit line.
+- **Support email/phone** — same credit line, as `tel:`/`mailto:` links,
+  replacing the old bare "Site by {agency}." text-only credit.
+
+**Second real gap found and closed in the same pass, not just the
+originally-reported one:** the Gallery template path (`gallery-site.ts`)
+didn't even use `builtBy`/`demoBadge` yet — its own comment said so
+explicitly ("Not yet ported here... deliberately"). Branding without an
+agency name to attach it to doesn't mean anything, so `builtBy` (and now
+`branding`) got threaded through that path too, not just the color/logo
+fields — meaning this fix covers all 73 industries, not 14 of them.
+
+`SiteOptions` gained a `branding?: SiteBranding` field (types.ts); the two
+real callers (`/api/demo-site`, `lib/publish/vercel.ts`) now select all 7
+`org_branding` columns instead of just `brand_name` and build that object.
+
+**Verified live**, not just by a clean build: a real sandbox org with a
+full `org_branding` row (every field set to a distinct test value) was
+created, `generateSite()` called directly for both a core-14 business
+(plumber) and a Gallery business (bakery), and the actual HTML output
+grepped for every field — favicon link, both color hexes, the logo `src`,
+support email, and support phone all present on both paths (14 checks,
+0 failed). Beyond the string-match check, both sites were also rendered
+to real files and viewed in a browser to confirm it doesn't just contain
+the right values but actually looks like a real white-label result — brand
+purple flowing through every button/badge/accent, the logo appearing as
+the chat-launcher icon, and the footer credit line reading exactly
+"[logo] Managed by Test Agency Verify · +14703769804 ·
+hello@testagency.example" on both templates. Sandbox org deleted after.
 
 ---
 

@@ -11,12 +11,12 @@ import type { IndustryConfig } from "@/data/gallery/types";
  * curated copy/services/testimonials/FAQ stay as written, only the fields
  * that identify THIS business are overridden.
  *
- * Not yet ported here from the 14's generator, deliberately (noted rather
- * than silently skipped): the "DEMO" preview ribbon and a "Site by <agency>"
- * footer credit. Both are cosmetic — SiteOptions.demoBadge/builtBy are
- * accepted for signature compatibility with generateSite() but currently
- * unused here. options.organizationId IS used (threaded into the lead
- * form's submission so it attributes correctly — see renderIndustryPage).
+ * builtBy and branding (logo/colors/favicon/support contact — see
+ * SiteBranding) are threaded into renderIndustryPage the same way the 14's
+ * generator uses them. Still not ported here, deliberately (noted rather
+ * than silently skipped): the "DEMO" preview ribbon — SiteOptions.demoBadge
+ * is accepted for signature compatibility with generateSite() but currently
+ * unused here.
  */
 export function generateGallerySite(business: Business, options: SiteOptions = {}): GeneratedSite {
   const template = GALLERY_INDUSTRIES[business.industry as GalleryIndustryKey];
@@ -37,7 +37,12 @@ export function generateGallerySite(business: Business, options: SiteOptions = {
     heroImage: business.heroImageOverride || template.heroImage,
   };
 
-  const html = renderIndustryPage(cfg, { live: true, organizationId: options.organizationId });
+  const html = renderIndustryPage(cfg, {
+    live: true,
+    organizationId: options.organizationId,
+    builtBy: options.builtBy,
+    branding: options.branding,
+  });
 
   return {
     business,

@@ -17,8 +17,9 @@ export function chatWidgetStyles(): string {
   return `
   #wg-chat-launcher{position:fixed;right:20px;bottom:24px;z-index:80;width:58px;height:58px;
     border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;
-    box-shadow:0 10px 28px -8px rgba(0,0,0,.4);cursor:pointer;border:none;transition:.2s}
+    box-shadow:0 10px 28px -8px rgba(0,0,0,.4);cursor:pointer;border:none;transition:.2s;overflow:hidden}
   #wg-chat-launcher:hover{transform:scale(1.06)}
+  #wg-chat-launcher img{width:100%;height:100%;object-fit:cover}
   #wg-chat-panel{position:fixed;right:20px;bottom:92px;z-index:80;width:340px;max-width:calc(100vw - 40px);
     max-height:min(480px,70vh);background:#fff;border-radius:16px;box-shadow:0 20px 50px -12px rgba(0,0,0,.35);
     display:none;flex-direction:column;overflow:hidden;border:1px solid var(--line)}
@@ -47,12 +48,16 @@ export function chatWidgetMarkup(
     city: string;
     state: string;
   },
-  builtBy?: string
+  builtBy?: string,
+  logoUrl?: string
 ): string {
   const subtitle = builtBy ? `${business.name} &middot; powered by ${builtBy}` : business.name;
+  const launcherIcon = logoUrl
+    ? `<img src="${logoUrl}" alt="" />`
+    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`;
   return `
 <button id="wg-chat-launcher" aria-label="Chat with us">
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+  ${launcherIcon}
 </button>
 <div id="wg-chat-panel">
   <div id="wg-chat-head">How Can We Help You<span>${subtitle}</span></div>

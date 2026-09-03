@@ -1,5 +1,7 @@
 import type { IndustryConfig } from "@/data/gallery/types";
+import type { SiteBranding } from "@/lib/sitegen/types";
 import { SITE_ORIGIN } from "@/lib/site-url";
+import { applyBrandColors } from "@/lib/sitegen/color";
 
 function escapeHtml(str: string): string {
   return str
@@ -97,9 +99,11 @@ function leadSubmitScript(cfg: IndustryConfig, live: boolean, organizationId?: s
 
 export function renderIndustryPage(
   cfg: IndustryConfig,
-  opts: { live?: boolean; organizationId?: string } = {}
+  opts: { live?: boolean; organizationId?: string; builtBy?: string; branding?: SiteBranding } = {}
 ): string {
-  const c = cfg.colors;
+  const c = applyBrandColors(cfg.colors, opts.branding);
+  const builtBy = opts.builtBy;
+  const branding = opts.branding;
 
   const serviceCards = cfg.services
     .map(
@@ -226,6 +230,7 @@ export function renderIndustryPage(
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>${escapeHtml(cfg.businessName)} | ${escapeHtml(cfg.industryName)}</title>
+${branding?.faviconUrl ? `<link rel="icon" href="${escapeHtml(branding.faviconUrl)}" />` : ""}
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:60px}
@@ -414,8 +419,11 @@ section{padding:64px 20px;max-width:1100px;margin:0 auto}
 .sticky-cta-phone{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;font-size:.85rem}
 
 /* Chatbot */
-.chat-toggle{position:fixed;bottom:80px;right:20px;width:56px;height:56px;border-radius:50%;background:${c.primary};color:#fff;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:60;display:flex;align-items:center;justify-content:center;font-size:1.5rem;transition:transform .2s}
+.chat-toggle{position:fixed;bottom:80px;right:20px;width:56px;height:56px;border-radius:50%;background:${c.primary};color:#fff;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:60;display:flex;align-items:center;justify-content:center;font-size:1.5rem;transition:transform .2s;overflow:hidden}
 .chat-toggle:hover{transform:scale(1.1)}
+.chat-toggle img{width:100%;height:100%;object-fit:cover}
+.footer-credit{margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;font-size:.85rem;opacity:.85}
+.footer-credit img{height:22px;width:auto;border-radius:4px}
 .chat-toggle .chat-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:.65rem;display:flex;align-items:center;justify-content:center;font-weight:700}
 .chat-window{position:fixed;bottom:80px;right:20px;width:340px;max-width:calc(100vw - 40px);height:440px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);z-index:61;display:none;flex-direction:column;overflow:hidden}
 .chat-window.open{display:flex;animation:slideIn .3s ease-out}
@@ -643,6 +651,24 @@ section{padding:64px 20px;max-width:1100px;margin:0 auto}
   <p>${escapeHtml(cfg.serviceArea)}</p>
   <p>${escapeHtml(cfg.hours)}</p>
   <p style="margin-top:16px;font-size:.8rem;opacity:.7">License #${escapeHtml(cfg.licenseNumber)}</p>
+  ${
+    builtBy && (branding?.logoUrl || branding?.supportEmail || branding?.supportPhone)
+      ? `<div class="footer-credit">
+    ${branding?.logoUrl ? `<img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(builtBy)}" />` : ""}
+    <span>Managed by ${escapeHtml(builtBy)}${
+          branding?.supportPhone
+            ? ` &middot; <a href="tel:${escapeHtml(branding.supportPhone.replace(/[^\d+]/g, ""))}">${escapeHtml(branding.supportPhone)}</a>`
+            : ""
+        }${
+          branding?.supportEmail
+            ? ` &middot; <a href="mailto:${escapeHtml(branding.supportEmail)}">${escapeHtml(branding.supportEmail)}</a>`
+            : ""
+        }</span>
+  </div>`
+      : builtBy
+        ? `<p style="margin-top:16px;font-size:.8rem;opacity:.7">Site by ${escapeHtml(builtBy)}</p>`
+        : ""
+  }
 </div>
 
 <a href="tel:${escapeHtml(cfg.phone)}" class="sticky-cta">
@@ -651,7 +677,7 @@ section{padding:64px 20px;max-width:1100px;margin:0 auto}
 </a>
 
 <button class="chat-toggle" onclick="toggleChat()" aria-label="Open chat">
-  💬<span class="chat-badge">1</span>
+  ${branding?.logoUrl ? `<img src="${escapeHtml(branding.logoUrl)}" alt="" />` : "💬"}<span class="chat-badge">1</span>
 </button>
 
 <div class="chat-window" id="chatWindow">

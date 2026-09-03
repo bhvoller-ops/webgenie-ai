@@ -190,6 +190,24 @@ export interface IndustryProfile {
   faq: FaqItem[];
 }
 
+/**
+ * The org_branding kit (migration 029), threaded through so a generated
+ * site actually reflects it — previously these 6 fields saved successfully
+ * in Settings but nothing downstream ever read them. `null`/undefined
+ * fields each fall back to the industry template's own default; nothing
+ * here is required.
+ */
+export interface SiteBranding {
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+  /** Hex, e.g. "#2f6bff" — validated with isValidHex() before use, never trusted raw. */
+  primaryColor?: string | null;
+  /** Hex — paired with primaryColor as the two-tone brand system both templates use. */
+  accentColor?: string | null;
+  supportEmail?: string | null;
+  supportPhone?: string | null;
+}
+
 export interface SiteOptions {
   /** Agency attribution shown in the footer of the demo. */
   builtBy?: string;
@@ -205,6 +223,8 @@ export interface SiteOptions {
    * old, broken behavior, loudly logged server-side when they do.
    */
   organizationId?: string;
+  /** White-label branding kit — see SiteBranding. */
+  branding?: SiteBranding;
 }
 
 export interface GeneratedSite {

@@ -8,6 +8,7 @@ import { INDUSTRIES, industryOf } from "@/lib/sitegen/industries";
 import { chatWidgetMarkup, chatWidgetScript, chatWidgetStyles } from "@/lib/sitegen/chat-widget";
 import { leadFormMarkup, leadFormScript, leadFormStyles } from "@/lib/sitegen/lead-form";
 import { generateGallerySite } from "@/lib/sitegen/gallery-site";
+import { isValidHex } from "@/lib/sitegen/color";
 
 /* ------------------------------------------------------------------ */
 /* Icons                                                               */
@@ -101,6 +102,9 @@ export function generateSite(
   const faq = p.faq.map((f) => ({ q: f.q, a: f.a.replace(/\{city\}/g, city) }));
   const hasRating = typeof business.rating === "number" && !!business.reviewCount;
   const builtBy = options.builtBy ?? "";
+  const branding = options.branding;
+  const brandPrimary = isValidHex(branding?.primaryColor) ? branding.primaryColor : p.primary;
+  const brandAccent = isValidHex(branding?.accentColor) ? branding.accentColor : p.primaryDark;
 
   const localBusinessSchema = {
     "@context": "https://schema.org",
@@ -155,6 +159,7 @@ export function generateSite(
 <meta property="og:title" content="${esc(title)}" />
 <meta property="og:description" content="${esc(description)}" />
 <meta property="og:type" content="website" />
+${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />` : ""}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -162,7 +167,7 @@ export function generateSite(
 <script type="application/ld+json">${JSON.stringify(faqSchema)}</script>
 <style>
   :root{
-    --brand:${p.primary}; --brand-dark:${p.primaryDark};
+    --brand:${brandPrimary}; --brand-dark:${brandAccent};
     --ink:#0F172A; --body:#475569; --muted:#64748B; --line:#E2E8F0;
     --bg:#FFFFFF; --soft:#F8FAFC;
   }
@@ -541,8 +546,26 @@ ${
     </div>
     <div class="fbot">
       © ${new Date().getFullYear()} ${esc(business.name)}. Serving ${esc(city)} and surrounding areas.${
-    builtBy ? ` Site by ${esc(builtBy)}.` : ""
+    builtBy && !branding?.logoUrl && !branding?.supportEmail && !branding?.supportPhone
+      ? ` Site by ${esc(builtBy)}.`
+      : ""
   }
+      ${
+        builtBy && (branding?.logoUrl || branding?.supportEmail || branding?.supportPhone)
+          ? `<div style="margin-top:12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(builtBy)}" style="height:22px;width:auto;border-radius:4px" />` : ""}
+        <span>Managed by ${esc(builtBy)}${
+              branding.supportPhone
+                ? ` &middot; <a href="${telHref(branding.supportPhone)}">${esc(branding.supportPhone)}</a>`
+                : ""
+            }${
+              branding.supportEmail
+                ? ` &middot; <a href="mailto:${esc(branding.supportEmail)}">${esc(branding.supportEmail)}</a>`
+                : ""
+            }</span>
+      </div>`
+          : ""
+      }
     </div>
   </div>
 </footer>
@@ -551,7 +574,7 @@ ${
   <a href="${telHref(business.phone)}">${icon("phone", 19, "#fff")} Call ${esc(business.phone)}</a>
 </div>
 
-${chatWidgetMarkup(business, builtBy ? esc(builtBy) : undefined)}
+${chatWidgetMarkup(business, builtBy ? esc(builtBy) : undefined, branding?.logoUrl ? esc(branding.logoUrl) : undefined)}
 <script>${chatWidgetScript(business, p, options.organizationId)}</script>
 <script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId)}</script>
 

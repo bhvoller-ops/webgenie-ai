@@ -2,7 +2,7 @@ import "server-only";
 
 import { generateSite } from "@/lib/sitegen/generate";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Business } from "@/lib/sitegen/types";
+import type { Business, SiteBranding } from "@/lib/sitegen/types";
 
 /**
  * Publishes a generated site as a real, permanent, live-hosted Vercel
@@ -59,16 +59,27 @@ export async function publishBusinessSite(business: Business, organizationId?: s
   const domain = requireEnv("VERCEL_PUBLISH_DOMAIN");
 
   let builtBy: string | undefined;
+  let branding: SiteBranding | undefined;
   if (organizationId) {
-    const { data: branding } = await createAdminClient()
+    const { data: row } = await createAdminClient()
       .from("org_branding")
-      .select("brand_name")
+      .select("brand_name, logo_url, favicon_url, primary_color, accent_color, support_email, support_phone")
       .eq("organization_id", organizationId)
       .maybeSingle();
-    builtBy = branding?.brand_name ?? undefined;
+    builtBy = row?.brand_name ?? undefined;
+    if (row) {
+      branding = {
+        logoUrl: row.logo_url,
+        faviconUrl: row.favicon_url,
+        primaryColor: row.primary_color,
+        accentColor: row.accent_color,
+        supportEmail: row.support_email,
+        supportPhone: row.support_phone,
+      };
+    }
   }
 
-  const site = generateSite(business, { demoBadge: false, builtBy, organizationId });
+  const site = generateSite(business, { demoBadge: false, builtBy, organizationId, branding });
   const projectName = `wg-${slugify(business.id, 50) || "site"}`;
 
   const deployRes = await fetch(`${VERCEL_API}/v13/deployments${teamQuery()}`, {
