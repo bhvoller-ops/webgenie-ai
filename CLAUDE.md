@@ -1993,6 +1993,54 @@ normal auth-gate code executes first, not just that something superficially
 stopped 500ing. A clean local build was deliberately not treated as
 sufficient proof this time, per the lesson this exact bug just taught.
 
+### 2y. Post-deploy QA pass across everything shipped tonight — 3 Sep 2026
+
+After §2w/§2x landed on real production, ran a real end-to-end QA pass
+against `app.vibelabsagency.com` (via its stable `webgenie-ai-sooty.vercel.app`
+alias — same production deployment, same DB) rather than trusting the
+individual live-verifications each feature already got during its own build
+phase. Three disposable sandbox orgs (member A with branding + a real Stripe
+test customer, member B, a staff-flagged org), each with a real password set
+via the admin API so the actual `/login` email+password UI could be driven —
+not the Supabase magic-link primitive, which this app's login form no longer
+uses (switched to password auth 23 Aug, per §2b).
+
+**Real, authenticated-session pass through the actual browser**, not curl:
+- `/playbooks` and `/playbooks/[slug]` (both an `.md` and an `.html` entry) —
+  real content rendered correctly, closing the one gap §2x's verification
+  didn't cover (that was unauthenticated-only, proving the module loads but
+  not that real content renders)
+- `/settings/branding` — every field the sandbox org's branding kit set
+  loaded correctly into the form
+- `/finder` and `/audit` — bonus confirmation the branding kit's
+  `primary_niche` correctly prefilled the industry picker on both
+- `/support` — opened a real ticket as member A; confirmed member B sees
+  zero tickets both in the list AND via direct URL to member A's ticket id
+  (blank 404, RLS blocking the row entirely, not just hidden from a query)
+- `/admin/support` as the staff org — saw member A's ticket cross-org
+  (**found a real bug here, see below**)
+- `/settings` → "Manage billing" — real click-through to a real
+  `billing.stripe.com` portal session, branded "WebGenie", loaded correctly
+- `/join` — public offer page renders correctly with live `PRODUCT.md`
+  values ($97/mo, 60-day guarantee, 14-day trial, 25 spots)
+- `/calls`, `/leads` — regression-checked, both load cleanly
+
+**Real bug found, not from code review — from actually looking at the
+screen**: the staff queue at `/admin/support` labeled every single ticket
+"Unknown org", including one from a real, correctly-named test org. Root
+cause: `organizations(name)` joined inside the ticket query silently returns
+null under RLS, because the only SELECT policy on `organizations`
+(`001_foundation.sql`) requires the requester to be a member of that
+specific org — `is_platform_staff()` grants ticket visibility but was never
+given a matching `organizations` read grant. Fixed same-session: migration
+`032_staff_read_organizations.sql` adds a narrow staff-only SELECT policy,
+same pattern as every other staff-visibility grant in this project.
+
+All sandbox orgs, the sandbox Stripe customer, and the test ticket
+(cascaded on org deletion) removed after. Migration 032 needs to be run in
+the Supabase SQL editor before the staff queue actually shows real org
+names in production — not yet confirmed applied as of this writing.
+
 ---
 
 ## 3. Repository map
