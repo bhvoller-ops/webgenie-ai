@@ -2037,9 +2037,12 @@ given a matching `organizations` read grant. Fixed same-session: migration
 same pattern as every other staff-visibility grant in this project.
 
 All sandbox orgs, the sandbox Stripe customer, and the test ticket
-(cascaded on org deletion) removed after. Migration 032 needs to be run in
-the Supabase SQL editor before the staff queue actually shows real org
-names in production — not yet confirmed applied as of this writing.
+(cascaded on org deletion) removed after.
+
+**Migration 032 confirmed applied and verified live**, same day: a fresh
+member org + staff org, a real ticket, and a real staff-session query —
+`organizations(name)` now correctly resolves to the real org name instead
+of null/"Unknown org". Both sandbox orgs deleted after.
 
 ---
 
