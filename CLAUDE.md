@@ -1977,11 +1977,21 @@ just `["jsdom"]` (still required — confirmed by grep, `lib/capture/
 extract-features.ts` and `playwright-provider.ts` import it directly and
 that usage predates and is unrelated to this bug).
 
-Local build is clean, but that alone was already proven insufficient once
-for this exact code path — this fix is not being called done until it's
-re-deployed to real production and the same `vercel logs --follow` + live
-request cycle that reproduced the original error comes back clean. See the
-next entry once that's actually run.
+**Verified live, correctly this time**: pushed straight to `main`, watched
+the real Vercel production deployment build and go Ready, then re-ran the
+exact `vercel logs --follow` + live request cycle that reproduced the
+original error. Zero error lines across 4 requests (`/playbooks`,
+`/playbooks/[slug]` for both an `.md` and an `.html` entry,
+`/api/playbooks/raw/[slug]`). Stronger evidence than "no crash" alone: the
+HTTP status itself changed in a way that pins the root cause precisely —
+before the fix, even a fully **unauthenticated** request 500'd, because the
+broken `import` crashed at module-evaluation time, before the page's own
+`requireAdminPage()` redirect logic ever got to run. After the fix, the
+same unauthenticated request correctly 307-redirects to `/login` (and the
+API route correctly 401s) — proving the module now loads cleanly and the
+normal auth-gate code executes first, not just that something superficially
+stopped 500ing. A clean local build was deliberately not treated as
+sufficient proof this time, per the lesson this exact bug just taught.
 
 ---
 
