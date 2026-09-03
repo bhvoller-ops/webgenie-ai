@@ -2044,6 +2044,59 @@ member org + staff org, a real ticket, and a real staff-session query —
 `organizations(name)` now correctly resolves to the real org name instead
 of null/"Unknown org". Both sandbox orgs deleted after.
 
+### 2z. Real test-mode Checkout environment for beta testers — 3 Sep 2026
+
+Live-mode Stripe hard-blocks test card numbers (a fraud safeguard), so
+`app.vibelabsagency.com`'s real `/join` → Checkout can't be used by beta
+testers without risking a real charge. Built a genuinely separate test-mode
+path instead of a mocked one, reusing the existing `beta` git branch /
+`beta.vibelabsagency.com` domain as a **Preview**-environment alias of this
+same app/DB (not a separate app):
+
+- New Stripe **test-mode** Product/Price (`prod_VC74OsWztKaHRg` /
+  `price_1UBipwCwvOQv0LhT2pTyacdn`) — `STRIPE_VIBELABS_PRICE_ID` set to this
+  on Preview only (Production keeps the live price).
+- New Stripe test-mode webhook endpoint (`we_1UBiwKCwvOQv0LhTrmuyRayA`)
+  targeting `https://beta.vibelabsagency.com/api/billing/webhook` for
+  `checkout.session.completed`/`customer.subscription.updated`/`.deleted` —
+  Preview had none before this. Its signing secret set as Preview's
+  `STRIPE_WEBHOOK_SECRET`.
+- `beta.vibelabsagency.com` had to be registered as a real project domain
+  (`vercel domains add`, not just `alias set`) to clear Vercel's SSO wall —
+  **doing that once silently reset the domain's target to Production**;
+  re-running `alias set` afterward fixed it and it held.
+
+**Verified with a real, full, browser-driven Checkout** (not curl) using
+Stripe's `4242 4242 4242 4242` test card through the actual `/join` UI on
+`beta.vibelabsagency.com`: real `cs_test_...` session → real webhook
+delivery → real `organizations` row provisioned with correct
+`billing_customer_id`, `subscription_status: trialing`, seat number, and
+guarantee dates computed off real `checkout.session.completed` handling —
+the same code path a real paying member goes through, just against a
+test-mode price. Cleaned up after (deleted the test org + auth user,
+cancelled the test subscription, deleted the test customer).
+
+**Two real, non-obvious findings from this exercise, not fixed here:**
+1. `start-trial`'s `success_url`/`cancel_url` use the hardcoded
+   `SITE_ORIGIN` constant (`site-url.ts`, intentionally fixed to
+   `app.vibelabsagency.com` for other reasons — see that file's own
+   comment), so a beta-domain Checkout redirects back to **Production**,
+   not `beta.vibelabsagency.com`, after completing. Harmless (same DB, same
+   login) but means a beta tester lands on `/login` on the production
+   domain rather than `/vibelabs/welcome`, and needs their real invite
+   email to actually get in.
+2. **The founding-seat trigger (`assign_founding_seat`, §2 migration 028) is
+   not partitioned between real and test-mode signups** — it's
+   `max(founding_member_seat) + 1` across every `offer_key='vibelabs'` row
+   regardless of which Stripe mode created it. Every beta tester who
+   completes this flow consumes a real seat off the real 25-seat cap unless
+   their org is deleted afterward. There is no sandbox/test flag on this
+   path (unlike `[SANDBOX] `-prefixed orgs from `seed-sandbox-org.ts`), so
+   cleanup has to be done by hand, by org id, same way this session did it.
+   **Flag to the user before handing the beta link to more than one or two
+   testers** — either accept the seat cost, or add a cleanup step to the
+   tester instructions.
+
 ---
 
 ## 3. Repository map
