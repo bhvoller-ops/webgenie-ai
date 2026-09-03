@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { createClientCheckoutSession } from "@/lib/stripe";
+import { createClientCheckoutSession, createBillingPortalSession } from "@/lib/stripe";
 import { generatePromptsForBlueprint } from "@/lib/jobs/generate-prompts";
 import { promptPlatforms } from "@/lib/prompts/types";
 import { generateContentForBlueprint } from "@/lib/jobs/generate-content";
@@ -645,6 +645,31 @@ export async function startClientCheckoutAction(formData: FormData) {
   const { supabase, organizationId } = await getUserAndOrganization();
   const baseUrl = await getBaseUrl();
   const url = await createClientCheckoutSession({ supabase, callLogId, organizationId, baseUrl });
+  redirect(url);
+}
+
+/**
+ * "Manage billing" on /settings — own org's subscription, not a client's
+ * (that's startClientCheckoutAction above). billing_customer_id is set by
+ * the checkout webhook the first time an org actually pays, so this throws
+ * for an org that's never completed Checkout rather than silently no-op'ing;
+ * the settings page only renders the button when the id is present.
+ */
+export async function manageBillingAction() {
+  const { supabase, organizationId } = await getUserAndOrganization();
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("billing_customer_id")
+    .eq("id", organizationId)
+    .single();
+  if (!org?.billing_customer_id) {
+    throw new Error("No billing account on file yet.");
+  }
+  const baseUrl = await getBaseUrl();
+  const url = await createBillingPortalSession({
+    customerId: org.billing_customer_id,
+    returnUrl: `${baseUrl}/settings`
+  });
   redirect(url);
 }
 

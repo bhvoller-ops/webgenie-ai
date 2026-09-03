@@ -77,3 +77,26 @@ export async function createClientCheckoutSession({
   if (!session.url) throw new Error("Stripe did not return a checkout URL.");
   return session.url;
 }
+
+/**
+ * Self-serve Stripe Customer Portal — payment method + cancel + invoice
+ * history only. No plan-switching offered: every org on a paid plan here
+ * (WebGenie $297/mo, VibeLabs $97/mo) has exactly one price, so there is
+ * nothing to switch between. Requires a portal Configuration to already
+ * exist on the account (see scripts/stripe-setup-billing-portal.ts) — the
+ * Stripe API rejects billingPortal.sessions.create with no configuration
+ * present, live mode especially.
+ */
+export async function createBillingPortalSession({
+  customerId,
+  returnUrl
+}: {
+  customerId: string;
+  returnUrl: string;
+}): Promise<string> {
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl
+  });
+  return session.url;
+}

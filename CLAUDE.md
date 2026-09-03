@@ -56,7 +56,7 @@ more per client. Both are real; A is the priority.
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
 
-| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep, committed on branch `vibelabs-membership-phase0`** (not merged to `main` as of this writing). Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`031` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. In-app playbooks library (§2t) and real ticket-based support (§2u) also done. **Not started:** self-serve billing portal, rate limiting. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). See §2s, §2t, §2u |
+| VibeLabs Agency membership (backend for the separate `VibeLabs-v2` marketing site) | **Built and live-verified end-to-end, 2 Sep, committed on branch `vibelabs-membership-phase0`** (not merged to `main` as of this writing). Real Checkout → real signed webhook → real org provisioning all proven live (correct plan, seat, trial, guarantee dates). Migrations `028`–`031` confirmed applied to production. `/join` is the real public front door; VibeLabs-v2's three CTAs point at it. In-app playbooks library (§2t), real ticket-based support (§2u), and a self-serve Stripe billing portal (§2v) all done. **Not started:** rate limiting, ToS-acceptance UI. `plan_catalog`'s `vibelabs` row still missing (cosmetic only, that table is read nowhere in the app). `STRIPE_VIBELABS_PRICE_ID` is still only in local `.env.local` — **not yet added to Vercel**, so `/join`'s real signup flow won't work in production until it is. See §2s, §2t, §2u, §2v |
 
 **Status of first sale:** unconfirmed from this repo — check with Cassey directly rather than assuming either way.
 
@@ -1734,6 +1734,51 @@ synchronously on a real Resend failure but never throws, so a clean
 console during the call — not just "the promise didn't throw" — is the
 actual signal checked here). All three sandbox orgs and their auth users
 deleted afterward via `cleanup-test-org.ts`.
+
+### 2v. VibeLabs Agency: self-serve Stripe billing portal — 2 Sep 2026
+
+Phase 8 of §2s's plan. `lib/stripe.ts` gains `createBillingPortalSession()`
+(`stripe.billingPortal.sessions.create`), a `manageBillingAction` server
+action in `actions.ts`, and a "Manage billing" button on `/settings`'s
+Subscription card — shown only when `organizations.billing_customer_id`
+is set (i.e. the org has actually completed a real Checkout at least
+once). Deliberately no plan-switching feature offered: every org this app
+bills (WebGenie $297/mo, VibeLabs $97/mo) sits on exactly one price, so
+there's nothing to switch between — portal scoped to payment-method
+update, invoice history, and cancel only.
+
+Two real setup steps needed before this worked, neither of them code:
+1. **Activating the Customer Portal itself** — a one-time, account-level,
+   Dashboard-only toggle (Settings → Billing → Customer portal). No API
+   key involved. `scripts/stripe-setup-billing-portal.ts` exists as a
+   documented alternative (creates the Configuration via API instead) but
+   was deliberately not run — the harness's own auto-mode classifier
+   blocks any command that mutates the live Stripe account outright, same
+   as the earlier Supabase `migration repair` block, so the Dashboard path
+   was the actual route taken.
+2. **A separate, narrower restricted-key permission**: `billingPortal.sessions.create`
+   needs *Customer Portal → Write* specifically — not covered by any of
+   the Products/Prices/Subscriptions permissions granted in §2a-live or
+   §2s. Took several attempts to land: the user twice reported the
+   permission "enabled" and saved, and the live verification script threw
+   the identical `more_permissions_required` error both times. Root cause
+   turned out to be a Stripe dashboard UI trap, confirmed via screenshots —
+   the restricted key's row has a `...` menu with both **"Manage access
+   policy"** (an IP/location allowlist feature, unrelated) and **"Edit
+   key"** (the actual resource-permission editor); the user had twice
+   saved changes on the wrong one. Once corrected, it worked immediately —
+   not a propagation delay.
+
+**Verified live**, not just by a clean build: a real Stripe test customer
+was created via the API, a disposable sandbox org pointed at it
+(`billing_customer_id` set directly, no need to run a full Checkout for
+this), then `stripe.billingPortal.sessions.create()` — the identical call
+`createBillingPortalSession()` wraps, called directly since `lib/stripe.ts`
+is guarded with the `server-only` package and can't be imported from a
+plain `tsx` script (same reason the existing `stripe-setup-*.ts` scripts
+call the Stripe SDK directly rather than importing app code) — returned a
+real `https://billing.stripe.com/p/session?...` URL. Both the test
+customer and the sandbox org were deleted afterward.
 
 ### 2a. Stripe — corrected 22 Aug 2026
 
