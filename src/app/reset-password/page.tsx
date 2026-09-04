@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { Panel } from "@/components/ui";
+import { Logo } from "@/components/shell";
 
 type Status = "checking" | "ready" | "invalid";
 
@@ -59,16 +62,16 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="grid min-h-screen place-items-center px-6">
-      <section className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">WebGenie AI</p>
-        <h1 className="mt-3 text-3xl font-semibold">Set a new password</h1>
+      <Panel className="w-full max-w-md">
+        <Logo />
+        <h1 className="mt-6 text-display-md font-semibold text-ink">Set a new password</h1>
 
-        {status === "checking" ? <p className="mt-4 text-sm text-slate-400">Checking your link…</p> : null}
+        {status === "checking" ? <p className="mt-4 text-sm text-muted">Checking your link…</p> : null}
 
         {status === "ready" ? (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <label className="block">
-              <span className="text-sm text-slate-300">New password</span>
+              <span className="text-sm text-muted">New password</span>
               <input
                 type="password"
                 required
@@ -76,13 +79,13 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-2 w-full rounded-lg px-3 py-2"
+                className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
                 placeholder="••••••••"
               />
             </label>
             <button
               disabled={loading}
-              className="w-full rounded-lg bg-white px-4 py-2 font-medium text-slate-950 disabled:opacity-60"
+              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-iris px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)] transition-all duration-200 hover:bg-iris-soft disabled:opacity-60"
             >
               {loading ? "Please wait…" : "Set password and continue"}
             </button>
@@ -90,13 +93,17 @@ export default function ResetPasswordPage() {
         ) : null}
 
         {status === "invalid" ? (
-          <p className="mt-4 text-sm text-slate-400">
-            This link is invalid or has expired. <a href="/forgot-password" className="underline decoration-dotted underline-offset-4">Request a new one</a>.
+          <p className="mt-4 text-sm text-muted">
+            This link is invalid or has expired.{" "}
+            <Link href="/forgot-password" className="text-ink underline decoration-dotted underline-offset-4 hover:text-iris-soft">
+              Request a new one
+            </Link>
+            .
           </p>
         ) : null}
 
-        {message ? <p className="mt-4 text-sm text-slate-300">{message}</p> : null}
-      </section>
+        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
+      </Panel>
     </main>
   );
 }

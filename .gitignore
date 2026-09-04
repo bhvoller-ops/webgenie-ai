@@ -14,3 +14,13 @@ supabase/.temp
 .claude
 skills-lock.json
 /industry-photos
+
+# impeccable's own runtime state for its live-overlay/critique tooling —
+# session artifacts, not project content. Unanchored so a copy nested
+# under the vendored .github/skills/impeccable/ install is caught too.
+**/.impeccable/live/
+**/.impeccable/hook.cache.json
+
+# Playwright MCP's own scratch output (screenshots, console logs, page
+# snapshots) from browser-tool verification — not project content
+.playwright-mcp/

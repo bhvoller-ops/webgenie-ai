@@ -12,7 +12,6 @@ export default async function PlaybooksPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Playbooks"
         title="How to actually run this"
         description="The same plan and scripts Cassey wrote this program from — grouped by motion, not just dropped in a folder."
       />

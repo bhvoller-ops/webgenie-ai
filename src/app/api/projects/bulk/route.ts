@@ -31,8 +31,18 @@ export async function POST(request: Request) {
   if (response) return response;
   const { supabase, user, organizationId } = ctx;
 
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  const parsed = schema.safeParse(body);
   if (!parsed.success) {
+    // The client already prevents this — this is a backstop for a direct
+    // API call or a client that's out of sync, so it should still name the
+    // actual problem rather than a bare "Invalid request."
+    if (Array.isArray(body?.lines) && body.lines.length > MAX_LINES) {
+      return NextResponse.json(
+        { error: `Only ${MAX_LINES} businesses per batch — you sent ${body.lines.length}.` },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 

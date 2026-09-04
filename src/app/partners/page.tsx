@@ -93,7 +93,6 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
   return (
     <PageShell role="admin">
       <SectionHeading
-        eyebrow="Recurring revenue, one referral at a time"
         title="Partners"
         description="Other agencies and consultants who refer their own clients to WebGenie. Flat fee per closed signup, paid by hand — this just tracks who's owed what."
       />
@@ -128,7 +127,7 @@ export default async function PartnersPage({ searchParams }: { searchParams: Pro
         <p className="mt-4 text-[12px] text-faint">
           Or send people to <span className="font-mono text-muted">/partner-signup</span> to sign
           themselves up — they land here as <span className="font-medium text-ink">inactive</span> until
-          you flip them to Active, so nothing pays out before you've actually seen who signed up.
+          you flip them to Active, so nothing pays out before you&apos;ve actually seen who signed up.
           No email notifies you when someone does — check back here.
         </p>
       </Panel>

@@ -52,7 +52,6 @@ export default async function TrialPortalPage() {
   return (
     <PageShell role="beta">
       <SectionHeading
-        eyebrow="Preflight — Trial Account"
         title="Your trials"
         description="Every audit you've run, with links to both the technical and plain-English versions once they're ready."
       />

@@ -182,7 +182,6 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   h1{font-size:clamp(2.1rem,5vw,3.4rem);font-weight:800;letter-spacing:-.035em}
   h2{font-size:clamp(1.6rem,3.2vw,2.3rem);font-weight:700}
   h3{font-size:1.05rem;font-weight:700}
-  .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}
   section{padding:80px 0}
   .center{text-align:center}
 
@@ -192,8 +191,9 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   .btn-primary:hover{background:var(--brand-dark);transform:translateY(-1px)}
   .btn-white{background:#fff;color:var(--brand)}
   .btn-white:hover{transform:translateY(-1px)}
-  .btn-outline{border-color:rgba(255,255,255,.55);color:#fff}
-  .btn-outline:hover{background:rgba(255,255,255,.12)}
+  .btn-outline{background:rgba(15,23,42,.45);border-color:rgba(255,255,255,.55);color:#fff;
+    text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .btn-outline:hover{background:rgba(15,23,42,.65)}
 
   /* Header */
   header{position:sticky;top:0;z-index:60;background:rgba(255,255,255,.96);
@@ -223,9 +223,9 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   .heroin{position:relative;padding:80px 20px 80px 40px;
     display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:52px;align-items:center}
   .herocol{max-width:640px}
-  .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);
-    border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 15px;
-    font-size:.82rem;font-weight:600;margin-bottom:22px}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(15,23,42,.6);
+    border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 15px;
+    font-size:.82rem;font-weight:600;margin-bottom:22px;text-shadow:0 1px 6px rgba(0,0,0,.5)}
   .hero h1{color:#fff;text-shadow:0 2px 16px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.5)}
   .herosub{font-size:1.14rem;line-height:1.65;color:rgba(255,255,255,.93);margin-top:20px;max-width:560px;
     text-shadow:0 1px 8px rgba(0,0,0,.5)}
@@ -286,7 +286,7 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   details summary::-webkit-details-marker{display:none}
   details summary::after{content:"+";color:var(--brand);font-size:1.5rem;font-weight:400;line-height:1}
   details[open] summary::after{content:"−"}
-  details p{margin-top:13px;font-size:.95rem}
+  details p{margin-top:13px;font-size:.95rem;max-width:65ch}
 
   /* CTA */
   .cta{background:var(--brand);color:#fff;text-align:center;padding:78px 0}
@@ -299,7 +299,7 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   footer .fname{color:#fff;font-size:1.1rem;font-weight:700;margin-bottom:12px}
   .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:32px}
   footer a{color:#CBD5E1}
-  .fbot{border-top:1px solid #1E293B;margin-top:34px;padding-top:22px;font-size:.8rem;color:#64748B}
+  .fbot{border-top:1px solid #1E293B;margin-top:34px;padding-top:22px;font-size:.8rem;color:#94A3B8}
 
   /* Sticky mobile call bar */
   .callbar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:none;
@@ -329,6 +329,7 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
     .revwrap{grid-template-columns:1fr;gap:24px}
     .revscore{padding-right:0;padding-bottom:24px;border-right:0;border-bottom:1px solid var(--line)}
     .callbar{display:block}
+    .herorating{margin-bottom:100px}
     footer{padding-bottom:96px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -380,11 +381,10 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
 <section id="services">
   <div class="wrap">
     <div class="center">
-      <div class="eyebrow">What We Do</div>
-      <h2 style="margin-top:12px">Our Services</h2>
+      <h2>Our Services</h2>
       <p style="margin:14px auto 0;max-width:560px">Professional ${esc(
         p.label.toLowerCase()
-      )} services for homes and businesses across ${esc(city)}.</p>
+      )} services in ${esc(city)}.</p>
     </div>
     <div class="grid3">
       ${p.services
@@ -412,8 +412,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
 <section>
   <div class="wrap">
     <div class="center">
-      <div class="eyebrow">How It Works</div>
-      <h2 style="margin-top:12px">Getting Started Is Simple</h2>
+      <h2>Getting Started Is Simple</h2>
     </div>
     <div class="howgrid">
       ${howItWorksSteps(p.label)
@@ -433,8 +432,7 @@ ${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(busi
 <section class="soft">
   <div class="wrap">
     <div class="center">
-      <div class="eyebrow">Why Choose Us</div>
-      <h2 style="margin-top:12px">Why ${esc(city)} Trusts ${esc(business.name)}</h2>
+      <h2>Why ${esc(city)} Trusts ${esc(business.name)}</h2>
     </div>
     <div class="grid4">
       ${p.trust
@@ -455,8 +453,7 @@ ${
     ? `<section>
   <div class="wrap">
     <div class="center">
-      <div class="eyebrow">Reputation</div>
-      <h2 style="margin-top:12px">What Our Customers Say</h2>
+      <h2>What Our Customers Say</h2>
     </div>
     <div class="revwrap">
       <div class="revscore">
@@ -464,7 +461,7 @@ ${
         <div class="revstars">${stars(business.rating!)}</div>
         <div class="revcount">${business.reviewCount} reviews</div>
       </div>
-      <div>
+      <div style="max-width:60ch">
         <p style="font-size:1.05rem;color:var(--ink);font-weight:600">
           ${business.reviewCount} customers across ${esc(city)} have rated ${esc(
         business.name
@@ -490,8 +487,7 @@ ${
 <section class="soft">
   <div class="wrap" style="max-width:820px">
     <div class="center">
-      <div class="eyebrow">Questions</div>
-      <h2 style="margin-top:12px">Frequently Asked</h2>
+      <h2>Frequently Asked</h2>
     </div>
     <div style="margin-top:36px">
       ${faq
@@ -527,8 +523,8 @@ ${
       <div>
         <div class="fname">${esc(business.name)}</div>
         <div>${esc(p.label)}</div>
-        <div style="margin-top:14px">${esc(business.address)}</div>
-        <div>${esc(city)}</div>
+        ${business.address ? `<div style="margin-top:14px">${esc(business.address)}</div>` : ""}
+        <div${business.address ? "" : ' style="margin-top:14px"'}>${esc(city)}</div>
       </div>
       <div>
         <div style="color:#fff;font-weight:600;margin-bottom:12px">Contact</div>

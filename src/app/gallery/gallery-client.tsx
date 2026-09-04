@@ -55,7 +55,6 @@ export function GalleryClient({ role }: { role: AccessRole }) {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Reference"
         title="Industry gallery"
         description={`${industryList.length} fully-built industry website templates. Click any card to preview the complete page.`}
       />

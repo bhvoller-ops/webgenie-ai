@@ -43,12 +43,12 @@ export function GoogleSignInButton({ label = "Continue with Google" }: { label?:
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-700 disabled:opacity-60"
+        className="focus-ring flex w-full items-center justify-center gap-2.5 rounded-xl border border-hairline bg-raised px-4 py-2.5 text-sm font-medium text-ink transition-all duration-200 hover:border-iris/50 hover:bg-raised/70 disabled:opacity-60"
       >
         <GoogleLogo />
         {loading ? "Redirecting…" : label}
       </button>
-      {error ? <p className="mt-2 text-[13px] text-red-400">{error}</p> : null}
+      {error ? <p className="mt-2 text-[13px] text-signal-bad">{error}</p> : null}
     </div>
   );
 }

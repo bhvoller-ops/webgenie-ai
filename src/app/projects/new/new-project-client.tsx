@@ -23,6 +23,7 @@ import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
 import { IndustryPicker } from "@/components/industry-picker";
 import { ProjectCard } from "@/components/project-card";
+import { Pagination } from "@/components/pagination";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import type { ProjectSummary } from "@/lib/types";
@@ -47,6 +48,7 @@ interface BulkResponse {
 }
 
 const AGENCY = "VibeLabs Agency";
+const MAX_LINES = 25;
 
 type PortfolioStats = Awaited<ReturnType<typeof getPortfolioStats>>;
 
@@ -55,11 +57,15 @@ export function NewProjectClient({
   organizationId,
   projects,
   stats,
+  page,
+  totalPages,
 }: {
   role: AccessRole;
   organizationId: string;
   projects: ProjectSummary[];
   stats: PortfolioStats;
+  page: number;
+  totalPages: number;
 }) {
   const [lines, setLines] = useState("");
   const [defaultIndustry, setDefaultIndustry] = useState<IndustryKey>("contractor");
@@ -71,6 +77,7 @@ export function NewProjectClient({
   const [showManual, setShowManual] = useState(false);
 
   const lineCount = lines.split("\n").map((l) => l.trim()).filter(Boolean).length;
+  const tooMany = lineCount > MAX_LINES;
 
   function withIndustry(b: Business): Business {
     const override = industryOverrides[b.id];
@@ -96,7 +103,7 @@ export function NewProjectClient({
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
-    if (!parsedLines.length || running) return;
+    if (!parsedLines.length || parsedLines.length > MAX_LINES || running) return;
 
     setRunning(true);
     setError(null);
@@ -148,7 +155,7 @@ export function NewProjectClient({
             <span className="text-ink">New Project</span>
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-[15px] leading-relaxed text-muted">
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted">
             Paste one or more businesses — a Google Business Profile link, a plain business name,
             or an existing website URL. One per line. A business with no website gets a demo site
             built instantly, just like Finder; a business with a website gets queued for a real
@@ -180,7 +187,7 @@ export function NewProjectClient({
 
             <button
               onClick={run}
-              disabled={running || lineCount === 0}
+              disabled={running || lineCount === 0 || tooMany}
               className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep py-3.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {running ? (
@@ -195,10 +202,16 @@ export function NewProjectClient({
                 </>
               )}
             </button>
-            <p className="mt-2 text-[11px] text-faint">
-              Each line runs its own Google lookup, so a wrong or missing match on one line
-              doesn&rsquo;t block the rest.
-            </p>
+            {tooMany ? (
+              <p className="mt-2 text-[11px] text-signal-bad">
+                {lineCount} lines pasted — {MAX_LINES} max per batch. Remove {lineCount - MAX_LINES} to continue.
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-faint">
+                Each line runs its own Google lookup, so a wrong or missing match on one line
+                doesn&rsquo;t block the rest.
+              </p>
+            )}
           </div>
 
           {error ? (
@@ -458,17 +471,19 @@ export function NewProjectClient({
 
         <div className="mt-10">
           <SectionHeading
-            eyebrow="Workspace"
             title="Every project"
             description="Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package."
           />
 
           {projects.length ? (
-            <div className="mt-8 grid gap-4 lg:grid-cols-2">
-              {projects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </div>
+            <>
+              <div className="mt-8 grid gap-4 lg:grid-cols-2">
+                {projects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </div>
+              <Pagination page={page} totalPages={totalPages} basePath="/projects/new" />
+            </>
           ) : (
             <div className="mt-8 rounded-panel border border-dashed border-hairline p-10 text-center">
               <h3 className="text-lg font-semibold text-ink">No projects yet</h3>
@@ -497,15 +512,15 @@ export function NewProjectClient({
             <form action={createProject} className="space-y-5">
               <label className="block">
                 <span className="text-sm text-muted">Project name</span>
-                <input name="name" required className="mt-2 w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink" placeholder="Atlas Roofing redesign" />
+                <input name="name" required className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400" placeholder="Atlas Roofing redesign" />
               </label>
               <label className="block">
                 <span className="text-sm text-muted">Industry</span>
-                <input name="industry" required className="mt-2 w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink" placeholder="Roofing contractor" />
+                <input name="industry" required className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400" placeholder="Roofing contractor" />
               </label>
               <label className="block">
                 <span className="text-sm text-muted">Primary goal</span>
-                <select name="primaryGoal" className="mt-2 w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink">
+                <select name="primaryGoal" className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900">
                   <option>Lead generation</option>
                   <option>Appointment booking</option>
                   <option>Online sale</option>
@@ -515,9 +530,9 @@ export function NewProjectClient({
               </label>
               <label className="block">
                 <span className="text-sm text-muted">Primary CTA</span>
-                <input name="primaryCta" required className="mt-2 w-full rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink" placeholder="Request a free inspection" />
+                <input name="primaryCta" required className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400" placeholder="Request a free inspection" />
               </label>
-              <button className={cn("rounded-lg bg-white px-4 py-2 font-medium text-slate-950")}>Create project</button>
+              <button className={cn("focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-iris-deep px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)] transition-all duration-200 hover:brightness-90")}>Create project</button>
             </form>
           </div>
         ) : null}

@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
+import { Panel } from "@/components/ui";
+import { Logo } from "@/components/shell";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,36 +36,36 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-screen place-items-center px-6">
-      <section className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">WebGenie AI</p>
-        <h1 className="mt-3 text-3xl font-semibold">Sign in</h1>
-        <p className="mt-2 text-sm text-slate-400">Enter your email and password to sign in.</p>
+      <Panel className="w-full max-w-md">
+        <Logo />
+        <h1 className="mt-6 text-display-md font-semibold text-ink">Sign in</h1>
+        <p className="mt-2 text-sm text-muted">Enter your email and password to sign in.</p>
 
         <div className="mt-7">
           <GoogleSignInButton />
         </div>
 
         <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-800" />
-          <span className="text-xs text-slate-500">or</span>
-          <div className="h-px flex-1 bg-slate-800" />
+          <div className="h-px flex-1 bg-hairline" />
+          <span className="text-xs text-faint">or</span>
+          <div className="h-px flex-1 bg-hairline" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="text-sm text-slate-300">Email</span>
+            <span className="text-sm text-muted">Email</span>
             <input
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-lg px-3 py-2"
+              className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
               placeholder="you@example.com"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-slate-300">Password</span>
+            <span className="text-sm text-muted">Password</span>
             <input
               type="password"
               required
@@ -71,29 +73,29 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg px-3 py-2"
+              className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
               placeholder="••••••••"
             />
           </label>
           <button
             disabled={loading}
-            className="w-full rounded-lg bg-white px-4 py-2 font-medium text-slate-950 disabled:opacity-60"
+            className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-iris px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)] transition-all duration-200 hover:bg-iris-soft disabled:opacity-60"
           >
             {loading ? "Please wait…" : "Sign in"}
           </button>
         </form>
 
-        {message ? <p className="mt-4 text-sm text-slate-300">{message}</p> : null}
+        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
 
         <div className="mt-6 flex items-center justify-between text-sm">
-          <Link href="/forgot-password" className="text-slate-400 underline decoration-dotted underline-offset-4 hover:text-slate-200">
+          <Link href="/forgot-password" className="text-muted underline decoration-dotted underline-offset-4 hover:text-ink">
             Forgot your password?
           </Link>
-          <Link href="/signup" className="text-slate-400 underline decoration-dotted underline-offset-4 hover:text-slate-200">
+          <Link href="/signup" className="text-muted underline decoration-dotted underline-offset-4 hover:text-ink">
             Create an account
           </Link>
         </div>
-      </section>
+      </Panel>
     </main>
   );
 }

@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
-import { Button, Eyebrow, Panel, Pill } from "@/components/ui";
+import { Button, Panel, Pill } from "@/components/ui";
 import { getAccessContext } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +35,7 @@ export default async function HomePage() {
     return (
       <PageShell role="guest">
         <Panel className="mt-10">
-          <Eyebrow className="text-iris-soft">No access yet</Eyebrow>
-          <h1 className="mt-3 text-2xl font-semibold text-ink">Your account isn&apos;t set up with access yet</h1>
+          <h1 className="text-2xl font-semibold text-ink">Your account isn&apos;t set up with access yet</h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
             You&apos;re signed in, but nothing has been assigned to this account. Ask whoever invited you to grant access.
           </p>
@@ -64,17 +63,15 @@ function Hero() {
         aria-hidden
       />
       <div className="relative px-6 py-14 sm:px-12 sm:py-20">
-        <Eyebrow className="text-iris-soft">For agencies, freelancers &amp; consultants</Eyebrow>
-        <h1 className="mt-5 max-w-3xl text-display-lg font-semibold">
+        <h1 className="max-w-3xl text-display-lg font-semibold">
           <span className="gradient-text">Find the clients</span>
           <br />
           <span className="text-ink">other agencies miss.</span>
         </h1>
-        <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-muted">
+        <p className="mt-6 max-w-xl text-base leading-relaxed text-muted">
           WebGenie finds local businesses with no website — or a bad one — and turns each into a
-          personalized demo site or an evidence-backed audit in minutes. Then it builds the real
-          thing: an original rebuild blueprint and a ready-to-run prompt package for Claude Code,
-          Cursor, v0, Lovable, and more.
+          personalized demo site or an evidence-backed audit in minutes. Built for agencies,
+          freelancers, and consultants selling websites and AI services to local businesses.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center gap-3">
@@ -86,6 +83,7 @@ function Hero() {
             See a sample site
           </Button>
         </div>
+        <p className="mt-3 text-xs text-faint">Free for 7 days, full access, no credit card required.</p>
 
         <div className="mt-12 flex flex-wrap gap-2">
           {["11 scoring modules", "Evidence-traced findings", "9 export platforms", "Deterministic core"].map((f) => (
@@ -126,53 +124,63 @@ function HowItWorks() {
   return (
     <div className="mt-20">
       <SectionIntro
-        eyebrow="How it works"
         title="Four stages, one canonical artifact chain"
         description="Each stage emits a versioned JSON artifact. Every report and export is a derived view, so the data never drifts from the analysis."
       />
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <ol className="relative mt-10 grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-hairline lg:block" />
         {PIPELINE.map((stage, i) => (
-          <div key={stage.title} className="card relative overflow-hidden p-6">
-            <span className="absolute right-5 top-5 font-mono text-4xl font-semibold leading-none text-hairline">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris/30 bg-iris/10">
+          <li key={stage.title} className="relative flex flex-col items-start">
+            <span className="relative z-10 grid h-10 w-10 place-items-center rounded-full border border-iris/30 bg-void">
               <stage.icon className="h-4 w-4 text-iris-soft" aria-hidden />
             </span>
-            <h3 className="mt-4 text-sm font-semibold text-ink">{stage.title}</h3>
+            <span className="mt-4 font-mono text-[11px] tracking-wide text-faint">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <h3 className="mt-1 text-sm font-semibold text-ink">{stage.title}</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-muted">{stage.body}</p>
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }
 
-const CAPABILITIES = [
+const LEAD_CAPABILITIES = [
   { icon: Building2, title: "Prospect Finder", body: "Search by industry and city — every result already has a demo site built for it." },
-  { icon: Radar, title: "Audit Funnel", body: "Queue real audits at scale for businesses that already have a site worth improving." },
   { icon: Sparkles, title: "Site Generator", body: "73 industries, real lead capture, an AI intake chat, and full LocalBusiness schema on every page." },
-  { icon: FileCode2, title: "Blueprints & Prompts", body: "Every audit exports a build-ready prompt package for nine different AI builders." },
-  { icon: Phone, title: "Call Tracker", body: "Log outcomes, follow-ups, and collect payment without leaving the workspace." },
-  { icon: Handshake, title: "Partner Program", body: "Bring in referral partners with their own portal and commission tracking." },
+];
+
+const SUPPORTING_CAPABILITIES = [
+  { icon: Radar, title: "Audit Funnel" },
+  { icon: FileCode2, title: "Blueprints & Prompts" },
+  { icon: Phone, title: "Call Tracker" },
+  { icon: Handshake, title: "Partner Program" },
 ];
 
 function Toolset() {
   return (
     <div className="mt-20">
       <SectionIntro
-        eyebrow="One workspace"
         title="Everything the offer needs, not just the engine"
         description="The intelligence engine is the differentiator — the rest of the workspace is what turns a finding into a closed deal."
       />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CAPABILITIES.map((c) => (
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        {LEAD_CAPABILITIES.map((c) => (
           <div key={c.title} className="card p-6">
             <span className="grid h-9 w-9 place-items-center rounded-lg border border-neon/30 bg-neon/10">
               <c.icon className="h-4 w-4 text-neon-soft" aria-hidden />
             </span>
             <h3 className="mt-4 text-sm font-semibold text-ink">{c.title}</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-muted">{c.body}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-px overflow-hidden rounded-card border border-hairline bg-hairline sm:grid-cols-2 lg:grid-cols-4">
+        {SUPPORTING_CAPABILITIES.map((c) => (
+          <div key={c.title} className="flex items-center gap-2.5 bg-surface px-4 py-3.5">
+            <c.icon className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
+            <span className="text-[13px] text-muted">{c.title}</span>
           </div>
         ))}
       </div>
@@ -192,11 +200,12 @@ function ClosingCta() {
         <div className="relative">
           <h2 className="text-display-md font-semibold text-ink">Start finding clients today</h2>
           <p className="mx-auto mt-3 max-w-md text-sm text-muted">
-            Free to start, no credit card. Your workspace is ready the moment you sign up.
+            Free for 7 days, full access, no credit card. After your trial, we&apos;ll reach out about
+            the right plan for your agency.
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Button href="/signup">
-              Get started free
+              Start finding clients
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
             <Link href="/login" className="focus-ring text-sm font-medium text-muted transition-colors hover:text-ink">
@@ -209,11 +218,10 @@ function ClosingCta() {
   );
 }
 
-function SectionIntro({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+function SectionIntro({ title, description }: { title: string; description: string }) {
   return (
     <div className="max-w-2xl">
-      <Eyebrow className="text-iris-soft">{eyebrow}</Eyebrow>
-      <h2 className="mt-2.5 text-display-md font-semibold text-ink">{title}</h2>
+      <h2 className="text-display-md font-semibold text-ink">{title}</h2>
       <p className="mt-2.5 text-sm leading-relaxed text-muted">{description}</p>
     </div>
   );

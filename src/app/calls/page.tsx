@@ -143,7 +143,6 @@ export default async function CallsPage({ searchParams }: { searchParams: Promis
   return (
     <PageShell role="admin">
       <SectionHeading
-        eyebrow="Motion A pipeline"
         title="Call Tracker"
         description="Log dial outcomes and never lose a day-3 or day-7 follow-up. This is the only thing standing between a call and knowing whether the opener works."
       />
