@@ -15,7 +15,6 @@ export default async function BrandingSettingsPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Settings"
         title="Branding"
         description="What your own clients see: the name, logo, colors, and contact info that appear on every site you generate and every email they get from you. Your own dashboard login keeps the WebGenie name for now."
       />

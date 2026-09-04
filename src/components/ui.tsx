@@ -58,7 +58,7 @@ export function Pill({
 
 const buttonVariants = {
   primary:
-    "bg-iris text-white hover:bg-iris-soft shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)]",
+    "bg-iris-deep text-white hover:brightness-90 shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)]",
   secondary: "border border-hairline bg-raised text-ink hover:border-iris/50 hover:bg-raised/70",
   ghost: "text-muted hover:text-ink hover:bg-raised",
 } as const;
@@ -126,12 +126,10 @@ export function Stat({
 }
 
 export function SectionHeading({
-  eyebrow,
   title,
   description,
   action,
 }: {
-  eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -139,7 +137,6 @@ export function SectionHeading({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="max-w-2xl">
-        {eyebrow ? <Eyebrow className="mb-2.5">{eyebrow}</Eyebrow> : null}
         <h2 className="text-display-md font-semibold text-ink">{title}</h2>
         {description ? <p className="mt-2.5 text-sm leading-relaxed text-muted">{description}</p> : null}
       </div>

@@ -35,7 +35,6 @@ export default async function AdminSupportPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Admin"
         title="Support queue"
         description="Every member's tickets, guarantee-risk ones first."
       />

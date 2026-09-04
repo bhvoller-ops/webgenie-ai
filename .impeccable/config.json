@@ -1,0 +1,72 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "files": [
+          "src/app/page.tsx"
+        ],
+        "createdAt": "2026-09-04T16:56:31.696Z",
+        "reason": "mask-image gradient stop, alpha-only luminance mask (not a rendered/perceived color) — black is the correct idiom here, not a token"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "src/lib/sitegen/**"
+        ],
+        "createdAt": "2026-09-04T17:59:17.725Z",
+        "reason": "User confirmed: generated client sites are a deliberately separate light-theme system with no DESIGN.md of their own; comparing against the dark dashboard system is structurally invalid, per the demo-site critique"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "src/lib/sitegen/**"
+        ],
+        "createdAt": "2026-09-04T17:59:17.945Z",
+        "reason": "User confirmed: same reason as design-system-color — no DESIGN.md exists for the generated-site type scale"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "*",
+        "files": [
+          "src/lib/sitegen/**"
+        ],
+        "createdAt": "2026-09-04T17:59:18.160Z",
+        "reason": "User confirmed: same reason as design-system-color — no DESIGN.md exists for the generated-site shape language"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "files": [
+          "src/app/projects/new/new-project-client.tsx"
+        ],
+        "createdAt": "2026-09-04T18:48:11.218Z",
+        "reason": "mask-image gradient stop, alpha-only luminance mask (not a rendered/perceived color) — same pattern already confirmed on src/app/page.tsx"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0,0,0,0.75)",
+        "files": [
+          "src/app/gallery/gallery-client.tsx"
+        ],
+        "createdAt": "2026-09-04T18:48:24.734Z",
+        "reason": "photo-legibility scrim gradient (text-over-image overlay), not a brand color choice — same class as the sitegen imgcaption pattern"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0,0,0,0.2)",
+        "files": [
+          "src/app/gallery/gallery-client.tsx"
+        ],
+        "createdAt": "2026-09-04T18:48:24.912Z",
+        "reason": "same photo-legibility scrim gradient, second stop"
+      }
+    ]
+  }
+}

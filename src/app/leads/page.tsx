@@ -1,6 +1,6 @@
 import { MessageSquare, Phone } from "lucide-react";
 import { PageShell } from "@/components/shell";
-import { Eyebrow, Pill, SectionHeading, type PillTone } from "@/components/ui";
+import { Pill, SectionHeading, type PillTone } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/auth/access";
 import { updateChatLeadStatusAction } from "@/app/actions";
@@ -82,7 +82,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <PageShell role="admin">
       <SectionHeading
-        eyebrow="Generated sites"
         title="Leads"
         description="Every generated site has both a live AI intake chat and a hero quote-request form. Anyone who leaves contact info through either one lands here."
       />
@@ -111,7 +110,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <div className="rounded-panel border border-dashed border-hairline p-10 text-center">
             <MessageSquare className="mx-auto h-6 w-6 text-muted" aria-hidden />
             <p className="mt-3 text-sm text-ink">
-              No leads yet. They'll show up here as soon as a visitor uses the chat widget or submits the quote form
+              No leads yet. They&apos;ll show up here as soon as a visitor uses the chat widget or submits the quote form
               on a generated site.
             </p>
           </div>

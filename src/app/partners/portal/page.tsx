@@ -83,7 +83,6 @@ export default async function PartnerPortalPage() {
   return (
     <PageShell role="partner">
       <SectionHeading
-        eyebrow="Your referrals"
         title={`Welcome, ${partner.name}`}
         description="Every client you refer that closes shows up here, along with what you're owed and what's already been paid."
       />

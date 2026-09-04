@@ -16,7 +16,6 @@ export default async function SamplesPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Reference"
         title="Sample sites"
         description="One example per industry, always available — for checking design quality at a glance or pulling up on a call without re-running Finder."
       />

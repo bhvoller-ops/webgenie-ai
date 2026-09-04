@@ -32,7 +32,6 @@ export default async function SupportPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
-        eyebrow="Support"
         title="Get help"
         description="Ticket-based — open one below and we'll reply here. Real people, not a bot."
       />

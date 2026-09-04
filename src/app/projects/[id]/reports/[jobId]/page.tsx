@@ -213,7 +213,6 @@ function PrioritiesTab({
     <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
       <div>
         <SectionHeading
-          eyebrow="Do these first"
           title="Highest-leverage findings"
           description="Ranked by impact on the project's stated goal, weighted by confidence and effort."
         />

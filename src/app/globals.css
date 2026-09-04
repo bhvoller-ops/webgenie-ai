@@ -73,7 +73,12 @@ body {
 
   .gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(100deg, #ffffff 8%, #b9a8ff 48%, #67e8f9 96%);
+    background-image: linear-gradient(
+      100deg,
+      #ffffff 10%,
+      theme("colors.iris.soft") 55%,
+      theme("colors.iris.DEFAULT") 100%
+    );
   }
 
   .focus-ring {

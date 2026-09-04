@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
+import { Panel } from "@/components/ui";
+import { Logo } from "@/components/shell";
 
 /**
  * Public self-serve signup — reintroduced 1 Sep 2026, this time deliberately
@@ -66,10 +68,10 @@ export default function SignupPage() {
 
   return (
     <main className="grid min-h-screen place-items-center px-6">
-      <section className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-8">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">WebGenie AI</p>
-        <h1 className="mt-3 text-3xl font-semibold">Create your account</h1>
-        <p className="mt-2 text-sm text-slate-400">
+      <Panel className="w-full max-w-md">
+        <Logo />
+        <h1 className="mt-6 text-display-md font-semibold text-ink">Create your account</h1>
+        <p className="mt-2 text-sm text-muted">
           Free to start, no credit card. Your workspace is ready the moment you sign up.
         </p>
 
@@ -78,26 +80,26 @@ export default function SignupPage() {
         </div>
 
         <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-slate-800" />
-          <span className="text-xs text-slate-500">or</span>
-          <div className="h-px flex-1 bg-slate-800" />
+          <div className="h-px flex-1 bg-hairline" />
+          <span className="text-xs text-faint">or</span>
+          <div className="h-px flex-1 bg-hairline" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="text-sm text-slate-300">Email</span>
+            <span className="text-sm text-muted">Email</span>
             <input
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 w-full rounded-lg px-3 py-2"
+              className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
               placeholder="you@example.com"
             />
           </label>
           <label className="block">
-            <span className="text-sm text-slate-300">Password</span>
+            <span className="text-sm text-muted">Password</span>
             <input
               type="password"
               required
@@ -105,27 +107,27 @@ export default function SignupPage() {
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg px-3 py-2"
+              className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
               placeholder="At least 8 characters"
             />
           </label>
           <button
             disabled={loading}
-            className="w-full rounded-lg bg-white px-4 py-2 font-medium text-slate-950 disabled:opacity-60"
+            className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-iris px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_28px_-12px_rgba(124,92,255,0.9)] transition-all duration-200 hover:bg-iris-soft disabled:opacity-60"
           >
             {loading ? "Creating your workspace…" : "Create account"}
           </button>
         </form>
 
-        {message ? <p className="mt-4 text-sm text-slate-300">{message}</p> : null}
+        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
 
-        <p className="mt-6 text-sm text-slate-400">
+        <p className="mt-6 text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="text-slate-200 underline decoration-dotted underline-offset-4 hover:text-white">
+          <Link href="/login" className="text-ink underline decoration-dotted underline-offset-4 hover:text-iris-soft">
             Sign in
           </Link>
         </p>
-      </section>
+      </Panel>
     </main>
   );
 }
