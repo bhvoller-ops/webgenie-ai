@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google's own redirect-URI typo fixed 3–4 Sep, but a **second, real bug found same day**: Supabase's Redirect URLs allow-list is missing `app.vibelabsagency.com/auth/callback`, so a real sign-in silently falls back to the stale `vercel.app` Site URL with an unconsumed `?code=` — fix given, **not yet confirmed applied**, item 3 open). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; **live and fully verified 4 Sep** — two real bugs found and fixed along the way: a Google Cloud redirect-URI typo, then a missing Supabase Redirect URLs entry that silently fell back to a stale `vercel.app` Site URL — both root-caused in the real dashboards, not guessed, and the fix re-verified end-to-end). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Team/partner invites now actually send (2 Sep, §2s) — previously stored, never sent, manual copy-link only; that UI stays as a fallback. VibeLabs welcome email (§2s) is a separate, new send |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1458,10 +1458,21 @@ every time.
 reasoning as the redirect-URI fix above): add
 `https://app.vibelabsagency.com/auth/callback` to Redirect URLs, and
 change Site URL from the vercel.app default to
-`https://app.vibelabsagency.com`.** Not yet confirmed applied or
-re-verified live as of this writing — item 3 stays open until a
-first-attempt Google sign-in lands directly on the correct page with no
-extra bounce through `/signup`.
+`https://app.vibelabsagency.com`.**
+
+**Item 3 closed, confirmed properly this time, 4 Sep.** Cassey applied
+both changes — verified directly in Supabase's URL Configuration page
+before retesting (Site URL now `https://app.vibelabsagency.com`,
+`.../auth/callback` now present in Redirect URLs). Then a real,
+browser-driven single-click Google sign-in (an already-authenticated
+account picked from Google's real chooser, not a typed credential) went
+straight from `/login` through Google's consent to
+`https://app.vibelabsagency.com/projects/new` — no bounce through
+`/signup`, no unconsumed `?code=`, no detour through the `vercel.app`
+domain. §2q's Google OAuth line item is now fully done, this time with
+the actual failure mode reproduced, root-caused in the real Supabase
+config (not guessed), and the fixed behavior re-verified end-to-end
+rather than taken on a report of "it works."
 
 ### 2r. Enforcing a 14-day free trial — 1 Sep 2026
 
