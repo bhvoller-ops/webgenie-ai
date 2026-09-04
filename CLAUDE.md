@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **live and verified 3–4 Sep** after fixing a redirect-URI typo — see §2q's update). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google's own redirect-URI typo fixed 3–4 Sep, but a **second, real bug found same day**: Supabase's Redirect URLs allow-list is missing `app.vibelabsagency.com/auth/callback`, so a real sign-in silently falls back to the stale `vercel.app` Site URL with an unconsumed `?code=` — fix given, **not yet confirmed applied**, item 3 open). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Team/partner invites now actually send (2 Sep, §2s) — previously stored, never sent, manual copy-link only; that UI stays as a fallback. VibeLabs welcome email (§2s) is a separate, new send |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1425,11 +1425,43 @@ something this session does directly). **Verified live afterward,
 browser-driven, both `/login` and `/signup`'s "Continue with Google":**
 click correctly reaches Google's real "Choose an account" screen
 (`to continue to dryzyqylkettdftokoxc.supabase.co`) instead of the error
-page, `redirect_uri` in the URL now reads correctly. Item 3 (a real,
-completed Google sign-in through to `/projects/new`) is still open —
-this pass confirmed the redirect handshake works, not the full
-post-auth bootstrap chain, since actually picking an account and
-completing sign-in isn't something this session does on Cassey's behalf.
+page, `redirect_uri` in the URL now reads correctly.
+
+**Item 3 marked closed, then reopened same day — "it works" wasn't the
+whole story.** Cassey completed a real Google sign-in and reported it
+worked; closed on that basis. She then reported the actual first-attempt
+behavior: signing in landed her on
+`https://webgenie-ai-sooty.vercel.app/?code=<uuid>` — the bare Vercel
+default domain, root path, with an **unconsumed** `?code=` still in the
+URL (the app's `/auth/callback` route always strips it via
+`NextResponse.redirect(new URL("/", request.url))`, so a visible `?code=`
+on `/` proves that route never ran). No session was actually established
+— confirmed because clicking "Get Started for free" on the resulting
+page bounced her to `/signup` as a guest. A second, separate login (this
+session doesn't know which method) then worked normally.
+
+**Real root cause, found in Supabase's own Auth → URL Configuration, not
+guessed:** `https://app.vibelabsagency.com/auth/callback` was never
+added to the **Redirect URLs** allow-list (only
+`https://app.vibelabsagency.com/reset-password` is there, left over from
+§2k). Supabase validates every client-requested `redirectTo` against
+this allow-list server-side; when it doesn't match, Supabase silently
+ignores it and falls back to the project's **Site URL** — which was
+still `https://webgenie-ai-sooty.vercel.app`, the pre-custom-domain
+default, never updated when `app.vibelabsagency.com` was connected 30
+Aug (same class of leftover-default gap as `SITE_ORIGIN`'s own history —
+see that file's comment). `google-signin-button.tsx` itself was never
+the bug; it correctly requests `${window.location.origin}/auth/callback`
+every time.
+
+**Fix given to Cassey (config-only, not this session's to edit — same
+reasoning as the redirect-URI fix above): add
+`https://app.vibelabsagency.com/auth/callback` to Redirect URLs, and
+change Site URL from the vercel.app default to
+`https://app.vibelabsagency.com`.** Not yet confirmed applied or
+re-verified live as of this writing — item 3 stays open until a
+first-attempt Google sign-in lands directly on the correct page with no
+extra bounce through `/signup`.
 
 ### 2r. Enforcing a 14-day free trial — 1 Sep 2026
 
