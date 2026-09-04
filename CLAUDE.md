@@ -51,7 +51,7 @@ more per client. Both are real; A is the priority.
 | Lead capture on generated sites | **Built, two channels** — AI intake chat widget *and* a hero quote-request form, both landing in one **`/leads`** inbox (renamed from "Chat Leads"), tagged by source. See §2c |
 | Samples gallery (`/samples`) | **Built** — one curated example per industry, always available without re-running Finder |
 | Stripe billing | **Live mode as of 29 Aug** — real account ("WebGenie sandbox," `acct_1U7QiMCwvOQv0LhT`), live restricted key + live $297/mo Price + live webhook, all on Vercel production only (`development`/`preview` stay test-mode). Real live Checkout Session creation verified through the actual UI (screenshot-confirmed `$297.00/month`, no sandbox badge); completing a real charge was deliberately not done — see §2a-live |
-| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **not yet live**, Supabase still needs the Client Secret). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
+| Auth | Email+password (switched from magic-link OTP 23 Aug — see §2b). Public self-serve signup removed 30 Aug (§2j), **deliberately reopened 1 Sep at `/signup`** — full immediate access, no payment gate — plus "Continue with Google" on both `/signup` and `/login` (§2q; Google OAuth **live and verified 3–4 Sep** after fixing a redirect-URI typo — see §2q's update). **7-day free trial enforced 1 Sep** (§2r, shortened from an initial 14 same day to match VibeLabs' own "7 days" marketing claim — migration 027, **not yet run against production as of this writing**) — a `starter`-plan org past `trial_ends_at` gets redirected to `/trial-expired`; migrations 025 (usage caps) and 026 (fixed Cassey's own stale trial status) confirmed applied to production, 027 still pending. **Password reset built 30 Aug** (`/forgot-password`, `/reset-password`) — Supabase `generateLink` + Resend delivery, verified end-to-end on real production. `/settings` has a confirm-gated "delete my account" action |
 | Transactional email | Team/partner invites now actually send (2 Sep, §2s) — previously stored, never sent, manual copy-link only; that UI stays as a fallback. VibeLabs welcome email (§2s) is a separate, new send |
 | `eslint-config-next` version trap | **Fixed** — `package.json` now pins `eslint-config-next@^15.5.22` and `eslint@^9.39.5` |
 | Access control / roles | **Built, 30 Aug** — Prospector + Dashboard nav grouped as dropdowns, admin-only. Real page/API gating added everywhere (`/finder`, `/audit`, `/onboard`, `/projects/*`, `/api/prospects` had **zero auth check at all** before this). Partners get their own portal login (`/partners/portal`), deliberately not `organization_members` rows. Finishes the half-built team-invite feature. See §2j. **Full end-to-end review done same day** — found and fixed 3 more real bugs (Settings' member list could only ever see your own row since the foundation migration; the original team-invite action could never produce a working link; partner invites leaked into the Team pending list) plus added remove-member, resend/revoke invite, delete-partner, mobile nav, and pagination. See §2k. **Partner self-service + commission emails added same day** — password/phone change in the portal, an email when a referral converts or gets paid, and "Revoke access" (removes just the login, keeps the partner record). See §2l. **Public self-serve trial added 31 Aug** — a fourth role (`beta`), `/trial` paste-a-URL intake running the real pipeline end to end, and real public report pages (`/trial/report/[jobId]/...`) replacing the Claude Artifact links that failed to open for a non-technical recipient. See §2m |
@@ -1400,6 +1400,36 @@ with no `plan_key` specified now comes back `'starter'`, confirmed via a
 throwaway test row, deleted after. Item 2 above is done; items 1
 (Supabase Google provider credentials) and 3 (a real signup/Google
 sign-in) are still open.
+
+**Update, 3–4 Sep — item 1 done, Google sign-in real-bug-hunted and
+fixed.** Cassey enabled the Supabase Google provider and set the Google
+Cloud OAuth Client's Authorized redirect URI (screenshots, not just her
+word). Live test still failed with `Error 400: redirect_uri_mismatch`
+after both changes. Root cause, found by decoding Google's own error
+payload and comparing it character-by-character against the saved
+field rather than eyeballing it: the saved redirect URI was
+`https://dryzyqylkoxc.supabase.co/...` — missing `ettdftok` from the
+middle of the actual project ref (`dryzyqylkettdftokoxc`), a copy/paste
+drop. Not a propagation delay, not a second/duplicate OAuth client
+(confirmed only one exists, `1089729475643-pg65...`, matching Supabase's
+configured Client ID exactly). **First verification pass on this exact
+issue wrongly reported the two values as matching** — a straight misread
+of two similar-looking `dryzyqylk...oxc.supabase.co` strings, corrected
+once the live retest kept failing and forced a byte-level recheck.
+Lesson: for typo-shaped bugs like this, diff the strings (or decode the
+actual error payload) rather than trust a visual scan, even when the
+"before" and "after" look the same at a glance.
+
+Cassey fixed the field herself (editing OAuth security settings isn't
+something this session does directly). **Verified live afterward,
+browser-driven, both `/login` and `/signup`'s "Continue with Google":**
+click correctly reaches Google's real "Choose an account" screen
+(`to continue to dryzyqylkettdftokoxc.supabase.co`) instead of the error
+page, `redirect_uri` in the URL now reads correctly. Item 3 (a real,
+completed Google sign-in through to `/projects/new`) is still open —
+this pass confirmed the redirect handshake works, not the full
+post-auth bootstrap chain, since actually picking an account and
+completing sign-in isn't something this session does on Cassey's behalf.
 
 ### 2r. Enforcing a 14-day free trial — 1 Sep 2026
 
