@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReferralCode } from "@/lib/partners";
 import { notifySignup } from "@/lib/notify";
+import { getDefaultOrganizationId } from "@/lib/organizations";
 
 /**
  * Public self-serve partner signup. Same-origin only, no CORS needed — see
@@ -14,6 +15,11 @@ import { notifySignup } from "@/lib/notify";
  * Cassey has actually seen who signed up. She flips it to "active" in
  * /partners, which is also where the referral_code becomes usable — see
  * /api/get-started's `.eq("status", "active")` check.
+ *
+ * Resolves the org via getDefaultOrganizationId() (migration
+ * 033_default_organization.sql) rather than "whichever organization comes
+ * back first" — a partner signup is always joining THIS agency's own
+ * referral program, regardless of how many other organizations exist.
  *
  * No email notification fires when someone signs up — this app doesn't send
  * transactional email (see CLAUDE.md). Check /partners for new "inactive"
@@ -35,8 +41,8 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createAdminClient();
-    const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
-    if (!org) {
+    const orgId = await getDefaultOrganizationId(supabase);
+    if (!orgId) {
       return NextResponse.json({ error: "We're not accepting signups right now — please email us directly instead." }, { status: 503 });
     }
 
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
     const { data: row, error } = await supabase
       .from("partners")
       .insert({
-        organization_id: org.id,
+        organization_id: orgId,
         name,
         contact_email: contactEmail,
         contact_phone: contactPhone || null,
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
         const retry = await supabase
           .from("partners")
           .insert({
-            organization_id: org.id,
+            organization_id: orgId,
             name,
             contact_email: contactEmail,
             contact_phone: contactPhone || null,

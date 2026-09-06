@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifySignup } from "@/lib/notify";
+import { getDefaultOrganizationId } from "@/lib/organizations";
 
 /**
  * Public self-serve intake for word-of-mouth / webinar leads — someone who
@@ -17,9 +18,11 @@ import { notifySignup } from "@/lib/notify";
  * code) auto-attributes the commission the same way tagging a partner
  * manually on /calls does — see migration 020.
  *
- * Same single-tenant limitation as /api/site-lead and /api/site-chat:
- * attributes to whichever organization comes back first. Harmless with one
- * agency using WebGenie.
+ * Resolves the org via getDefaultOrganizationId() (migration
+ * 033_default_organization.sql), not "whichever organization comes back
+ * first" — this page is this agency's own direct-intake surface, so it
+ * always attributes here regardless of how many other organizations
+ * (Partner Program members) exist.
  */
 const schema = z.object({
   businessName: z.string().min(1).max(160),
@@ -42,8 +45,8 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createAdminClient();
-    const { data: org } = await supabase.from("organizations").select("id").limit(1).single();
-    if (!org) {
+    const orgId = await getDefaultOrganizationId(supabase);
+    if (!orgId) {
       return NextResponse.json({ error: "We're not accepting requests right now — please call us directly instead." }, { status: 503 });
     }
 
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
       const { data: partner } = await supabase
         .from("partners")
         .select("id")
-        .eq("organization_id", org.id)
+        .eq("organization_id", orgId)
         .eq("referral_code", ref)
         .eq("status", "active")
         .maybeSingle();
@@ -62,7 +65,7 @@ export async function POST(request: Request) {
     const { data: row, error } = await supabase
       .from("call_log")
       .insert({
-        organization_id: org.id,
+        organization_id: orgId,
         business_name: businessName,
         contact_name: contactName || null,
         phone,

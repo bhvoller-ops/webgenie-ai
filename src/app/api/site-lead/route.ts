@@ -1,20 +1,22 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
+import { getDefaultOrganizationId } from "@/lib/organizations";
 
 /**
  * Public-facing hero quote-request form on every generated site. No auth --
  * any site visitor can reach this, same trust model as /api/site-chat. Cross-
- * origin by design once a site is deployed to a client's own domain — see
+ * origin by design once a site is deployed to a client's own domain -- see
  * lib/sitegen/cors.ts.
  *
  * Attribution: `organizationId` is embedded into the generated site by
  * lib/sitegen (see SiteOptions.organizationId) and validated against a real
- * organizations row below. A site generated before that threading landed —
- * or any caller that still omits it — has no organizationId at all; that
- * case falls back to the old "whichever organization comes back first"
- * behavior, loudly logged so it stays visible rather than silently masking
- * misattributed leads.
+ * organizations row below. A site generated before that threading landed --
+ * or any caller that still omits it -- has no organizationId at all; that
+ * case now falls back to getDefaultOrganizationId() (migration
+ * 033_default_organization.sql) rather than "whichever organization comes
+ * back first," still loudly logged so a stale/broken embed stays visible
+ * instead of silently misattributing a lead.
  */
 const schema = z.object({
   business: z.object({
@@ -59,10 +61,9 @@ export async function POST(request: Request) {
     }
     if (!orgId) {
       console.error(
-        `site-lead: no valid organizationId provided for business "${business.name}" — falling back to the first organization. This lead may be misattributed.`
+        `site-lead: no valid organizationId provided for business "${business.name}" — falling back to the default organization. This lead may be misattributed if it actually belongs to a different one.`
       );
-      const { data: fallbackOrg } = await supabase.from("organizations").select("id").limit(1).single();
-      orgId = fallbackOrg?.id ?? null;
+      orgId = await getDefaultOrganizationId(supabase);
     }
     if (!orgId) {
       return corsJson({ error: "This site isn't accepting requests right now." }, { status: 503 });
