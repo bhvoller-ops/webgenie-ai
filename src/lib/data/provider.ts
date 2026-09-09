@@ -11,6 +11,8 @@ import type { WebsiteIntelligenceOutput } from "@/lib/intelligence/types";
 import type { WebsiteBlueprint } from "@/lib/blueprint/types";
 import type { PromptPackage, PromptPlatform } from "@/lib/prompts/types";
 import type { AnalysisJobStatus, ProjectSummary, WebsiteReference } from "@/lib/types";
+import type { NextBestAction, OpportunityBrief, Prospect } from "@/lib/prospect/types";
+import { rowToProspect } from "@/lib/prospect/row";
 
 export const DATA_MODE: "fixtures" | "supabase" = "supabase";
 
@@ -201,6 +203,61 @@ export async function getRevenueOpportunities(_projectId: string) {
 
 export async function getCompetitiveAnalysis(_projectId: string) {
   return [];
+}
+
+// --- Prospects / Opportunity Brief / Next Best Action (P0, 9 Sep 2026) ---
+
+export async function getProspect(id: string): Promise<Prospect | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("prospects").select("*").eq("id", id).maybeSingle();
+  if (error || !data) return null;
+  return rowToProspect(data);
+}
+
+export async function getProspects(): Promise<Prospect[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("prospects").select("*").order("updated_at", { ascending: false });
+  if (error || !data) return [];
+  return data.map(rowToProspect);
+}
+
+export async function getOpportunityBrief(prospectId: string): Promise<OpportunityBrief | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    prospectId: data.prospect_id,
+    version: data.version,
+    opportunityLevel: data.opportunity_level,
+    summary: data.summary,
+    reasonsToContact: data.reasons_to_contact ?? [],
+    topFindings: data.top_findings ?? [],
+    recommendedOffer: data.recommended_offer,
+    recommendedOfferReason: data.recommended_offer_reason,
+    secondaryOpportunities: data.secondary_opportunities ?? [],
+    salesAngle: data.sales_angle,
+    suggestedOpener: data.suggested_opener,
+    confidence: Number(data.confidence),
+    evidenceReferences: data.evidence_references ?? [],
+    inputFingerprint: data.input_fingerprint,
+    generatedAt: data.generated_at
+  };
+}
+
+export async function getNextBestAction(prospectId: string): Promise<NextBestAction | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("next_best_actions").select("*").eq("prospect_id", prospectId).maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    prospectId: data.prospect_id,
+    action: data.action,
+    reason: data.reason,
+    priority: data.priority,
+    dueAt: data.due_at,
+    computedAt: data.computed_at
+  };
 }
 
 export async function getPortfolioStats() {

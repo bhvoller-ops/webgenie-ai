@@ -2345,6 +2345,156 @@ directly rather than assumed either way:**
   through `docs/decisions.md`'s entry for the standing rule; no further
   action needed on this specific fix.
 
+### 2ad. Product Phase P0: Opportunity Brief + Next Best Action — 9 Sep 2026
+
+The homepage now sells WebGenie as "the client-acquisition workspace";
+P0 starts closing the actual gap between "I found this business" and
+"I know why to contact them, what to offer, what to say, and what to do
+next." Inspected first, not assumed: there was **no unified prospect
+entity anywhere in this codebase** — Finder results are ephemeral
+`Business` objects (never persisted), the audit chain is
+`projects → website_references → analysis_jobs → analysis_outputs`, and
+`call_log` is a fully decoupled outreach tracker with no FK to `projects`
+at all. `prospects` (migration `034`) is the missing entity now — it
+optionally links to a `project_id` once an audit runs, and `call_log`
+gets one new nullable `prospect_id` column. Nothing existing was rewritten.
+
+**Deliberately no live LLM call.** `lib/copy/generator.ts`'s "model-assisted"
+path has been a documented-but-unbuilt boundary since it was written —
+this codebase has never actually wired an LLM for text generation
+anywhere. Opportunity Brief's narrative fields (summary, sales angle,
+suggested opener) are composed by a deterministic template engine
+(`lib/prospect/opportunity-brief.ts`), reusing
+`lib/intelligence/plain-english.ts`'s exact "deterministic first" approach
+and its real `COPY`/`scoreBand` logic rather than duplicating it. Every
+sentence traces to a real `Prospect` field or a real `ModuleScore`/
+`EvidenceItem` from an actual completed audit — nothing invented. Where
+there's no audit yet, the brief says so explicitly (`insufficient_evidence`)
+instead of guessing.
+
+**Fully deterministic, rule-based core** — `lib/prospect/opportunity-level.ts`
+(opportunity level + the two real offer categories from PRODUCT.md:
+`website_package` / `audit_led_rebuild`, never a third invented one) and
+`lib/prospect/next-best-action.ts` (the full state-machine-free rules
+table from the P0 brief, reusing `call_log`'s existing status vocabulary
+rather than inventing a parallel workflow system). `status` on `prospects`
+is a *derived* field, recomputed in one place
+(`lib/prospect/regenerate.ts`) from real audit/demo/call-log state, not
+scattered across each action route.
+
+**Schema:** `prospects`, `opportunity_briefs`, `next_best_actions`
+(migration `034_opportunity_brief_and_next_best_action.sql`) — one current
+row per prospect for the latter two (versioned/updated in place, not an
+unbounded history log), matching "persist it, don't regenerate on every
+page load." RLS on the two child tables joins through `prospects` exactly
+the way `website_references`/`analysis_jobs` already join through
+`projects` (migration `001`) — no new pattern introduced. **Not applied
+to production** — out of scope for this pass, per explicit instruction.
+
+**UI:** `/prospects/[id]` (admin-gated), reached via a new "Opportunity"
+button on Finder's existing per-result row (next to `PublishButton`) —
+opening a Finder result for the first time creates its `prospects` row
+and generates the brief. Real action buttons only: Generate/Regenerate
+Demo, Run Audit, View Audit, View Blueprint, Contact Prospect, Refresh
+Brief — each funnels through one dispatcher route
+(`/api/prospects/[id]/actions`) that reuses `/api/audits/queue`'s exact
+project+reference+job insert sequence and the same `demoSiteUrl()`
+encoding every other demo link in the app already uses. No generic AI
+chat interface — a real sales-intelligence panel (ScoreRing, EvidenceList,
+Pill), following `DESIGN.md`.
+
+**Verified:** `tsc --noEmit` and `eslint` clean; full production build
+succeeds (`/prospects/[id]` at 5.39 kB, 111 kB First Load JS; `/finder`
++0.33 kB from the new button). A standalone verification script
+(`scripts/verify-opportunity-brief.ts` — this repo has no test framework
+wired, so this follows the same real-runnable-script convention as
+`scripts/seed-sandbox-org.ts`) covers 11 of the 12 required cases against
+the pure deterministic functions: no website, weak/strong website at both
+opportunity extremes, incomplete audit, conflicting findings, missing
+email, missing phone, existing demo, already contacted, follow-up due
+(both overdue and scheduled), and insufficient evidence — 24 checks, all
+passing. One real bug was caught and fixed *in the test*, not the
+implementation: an assertion wrongly expected only the single weakest
+finding to surface, when surfacing the top few weak/bad findings is the
+intended, correct behavior.
+
+**Not run: case 12, cross-tenant access.** Needs migration `034` applied
+to a real database to test the actual RLS behavior — applying it was
+explicitly out of scope for this pass. The policies mirror the
+already-proven join-through-parent shape exactly, but that's a design
+claim, not a live-tested one; this is disclosed as an open item, not
+assumed to be fine because the pattern looks right on paper (the same
+lesson §2g's `audit_logs` saga already taught this project once).
+
+**Not deployed, no production migration applied**, per instruction.
+
+**Update, 9 Sep 2026 — migration `034` applied to production, and case 12
+(cross-tenant access) is no longer an open item.**
+
+**One real gap found during final pre-apply review, fixed before
+anything touched production:** `call_log.prospect_id`'s foreign key only
+guaranteed the referenced `prospects` row *existed* — it never checked
+that row belonged to the same organization as the `call_log` row itself.
+`call_log`'s own RLS (migration `012`) only re-validates
+`call_log.organization_id`, never cross-checks a set `prospect_id`. No
+current app code path could trigger this (every real caller sources both
+values from the same already-org-scoped prospect), but a direct
+authenticated request could otherwise store a real cross-tenant
+reference — read access stayed blocked by `prospects`' own RLS either
+way, but the stored association itself was not guarded. Closed with an
+additive trigger (`enforce_call_log_prospect_tenant`, added directly to
+migration `034` before it was applied — never a second migration) that
+raises an exception on insert or update if `prospect_id`'s organization
+doesn't match `organization_id`.
+
+**Migration applied** via the Supabase Management API's raw-SQL endpoint
+with a personal access token supplied once for this purpose (same method
+as migration `019`) — `HTTP 201`. Confirmed live directly afterward:
+`prospects`, `opportunity_briefs`, and `next_best_actions` all resolve
+(previously `404` via PostgREST, now `200`); `call_log.prospect_id`
+present and `null` on existing rows, confirming no existing data was
+touched.
+
+**Real RLS security test, same rigor as the `audit_logs` investigation
+above** — two real temporary organizations, two real temporary users,
+real session JWTs, service-role used only for fixture setup/teardown,
+every actual operation performed as the real user it claims to be:
+- User A: create / read / update their own prospect — all succeeded.
+  Create a real Opportunity Brief and Next Best Action against their own
+  prospect (the exact operations the real app performs) — both succeeded.
+- User B: read Org A's prospect / brief / NBA — all returned empty
+  (RLS-filtered). Create a brief or NBA against Org A's prospect — both
+  rejected, `403`/`42501`. Update Org A's prospect directly — matched
+  zero rows, independently confirmed via service-role that the real row
+  was genuinely unchanged, not silently overwritten.
+- The `call_log.prospect_id` gap above, specifically re-tested post-fix:
+  User B inserting (and separately, updating) a real Org B `call_log` row
+  with `prospect_id` pointed at Org A's real prospect — both rejected
+  (`400`, `P0001`, the new trigger's exact message). The legitimate
+  same-tenant case (User B's own call_log row, User B's own prospect) —
+  succeeded normally, proving the guard doesn't false-positive on real use.
+- Every fixture (both orgs, both users, every prospect/brief/NBA/call_log
+  row created during testing) deleted and independently re-verified gone.
+
+**Deterministic behavior re-verified against real data, not just the
+unit tests above** — calling the real, unmodified
+`regenerateProspectIntelligence` against a real no-website fixture
+(zero reviews on file) correctly produced `opportunity_level: low` (not
+fabricated as high), `recommended_offer: website_package`, and a
+suggested opener that named the real business with no invented
+reputation claim. A real has-website-no-audit fixture correctly produced
+`insufficient_evidence` / `recommended_offer: null` / `NBA: RUN_AUDIT`.
+Calling regenerate a second time with no state change left `version` and
+`input_fingerprint` unchanged, confirming the "don't regenerate
+unnecessarily" behavior holds against production, not just in-memory.
+
+**Still open, deliberately not run this pass:** a real end-to-end
+audit-completion cycle (Run Audit → real Playwright capture → real
+analysis → Brief refresh reflecting the richer evidence) — needs real
+time against production infrastructure; the underlying code path was
+already unit-verified against a real `WebsiteIntelligenceOutput` shape.
+Flagged as a post-merge validation item, not skipped silently.
+
 ---
 
 ## Verified vs. assumed

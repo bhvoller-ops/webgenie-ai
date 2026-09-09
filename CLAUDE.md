@@ -49,10 +49,18 @@ deliberately just the two-motion summary.
   `STRIPE_VIBELABS_PRICE_ID` is only in local `.env.local`, not yet on
   Vercel, so `/join`'s real signup flow won't work in production until it
   is added.
+- **P0 (Opportunity Brief + Next Best Action)** — new `prospects` /
+  `opportunity_briefs` / `next_best_actions` tables, migration `034`
+  **applied to production and RLS-verified** (same-org allowed,
+  cross-org rejected, including a `call_log.prospect_id` tenant-guard
+  gap found and closed pre-apply) — but the application code sits on
+  branch `feature/p0-opportunity-brief-next-best-action`, **not yet
+  merged to `main`**. See `docs/history.md`'s P0 entry.
 - Two known open items, don't assume either is fixed without re-testing:
-  - `audit_logs` INSERT still fails Postgres RLS for real authenticated
-    users, even after the missing policy was re-added — root cause
-    unresolved. Don't trust audit logging.
+  - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
+    reproduces (see `docs/history.md`), but that finding lives on branch
+    `docs/2026-09-09-audit-logs-rls-reinvestigation`, not yet merged —
+    don't trust this bullet's older "still broken" framing once it lands.
   - Migration `027` (7-day trial default, down from 14) is written but
     **not yet run** against production.
 - **Status of first sale is unconfirmed from this repo** — check with

@@ -134,6 +134,18 @@
   underlying gap — no boundary — is still there for the next one. Adding a
   real `error.tsx` is worth doing before more of these get found by a user
   clicking around instead of in review.
+- **A foreign key alone doesn't enforce tenant matching across tables —
+  RLS on the referencing table has to check it explicitly, or a trigger
+  has to.** Found during migration `034`'s pre-apply review (9 Sep 2026):
+  `call_log.prospect_id`'s FK only guaranteed the referenced `prospects`
+  row *existed*, never that it belonged to the same organization as the
+  `call_log` row. `call_log`'s own RLS only re-validates
+  `call_log.organization_id`, never a set `prospect_id`. Closed with an
+  additive trigger (`enforce_call_log_prospect_tenant`) rather than
+  trusted to app code — see docs/history.md's P0 entry. Any future
+  nullable cross-table reference added to an already-RLS'd table needs
+  the same check: does the *referencing* table's policy actually verify
+  the *referenced* row's tenant, or only its own?
 
 ---
 
