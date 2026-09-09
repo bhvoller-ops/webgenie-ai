@@ -271,6 +271,7 @@ Closed state shows the module title, band label + confidence percentage, the mon
 - **Do** keep generated client websites out of this system entirely — they are an intentionally separate, light-themed world (see PRODUCT.md's Brand Commitments); never import `void`/`iris`/`neon` tokens into one.
 
 ### Don't:
+- **Don't** put a kicker/eyebrow label above a section `<h2>` or page `<h1>` (a small uppercase tag like "How It Works" sitting above the real heading). Removed everywhere it existed on 4 Sep 2026 — `SectionHeading`'s `eyebrow` prop (13 call sites), the homepage hero and section headings, and all 5 section headers on every generated site; see `docs/history.md`'s "Establish PRODUCT.md/DESIGN.md..." entry. The Label typography step (11px, uppercase, `faint`) stays correct for other uses — table column headers, form field labels — just never as a heading kicker.
 - **Don't** reintroduce Tailwind's stock `violet-*` or `cyan-*` utility classes — they are undefined in this project's Tailwind config (renamed to `iris`/`neon`) and will silently render as nothing.
 - **Don't** add a generic drop shadow to a `.card` for a "lift" effect — cards are deliberately flat/glass; reach for `.panel` or an explicit glow token if real depth is actually meant.
 - **Don't** style a form's surrounding chrome (card, labels, headings, links) with raw `slate-*` Tailwind colors — use the token system throughout. The one deliberate exception is the input fill itself (see Inputs/Fields): white background with `slate-900` text is correct there, not a drift.

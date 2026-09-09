@@ -91,8 +91,9 @@ ChatGPT and Perplexity from day one — a stated, deliberate differentiator.
   (job claiming is not atomic — do not scale replicas without a real claim
   function).
 - Auth: email+password, plus public self-serve signup and "Continue with
-  Google" (Google OAuth wired but not yet live — needs a provider secret
-  set outside this repo). New signups get a 7-day free trial with usage
+  Google" — live and verified end-to-end in production as of 4 Sep 2026
+  (docs/history.md §2q; re-confirmed 9 Sep via a live, read-only Supabase
+  settings check — the Google provider reads `enabled: true`). New signups get a 7-day free trial with usage
   caps; a `starter`-plan org past its trial is redirected to a plain
   "get in touch" page rather than a self-serve upgrade, since no self-serve
   payment flow exists yet for WebGenie-the-tool's own subscription.
@@ -111,10 +112,22 @@ ChatGPT and Perplexity from day one — a stated, deliberate differentiator.
 - Known open defect: `audit_logs` inserts fail Postgres RLS for real
   authenticated users even after the missing policy was re-added; root
   cause unresolved.
-- Known limitation: a generated site's leads don't yet carry which agency
-  built them, so all leads currently attribute to one organization —
-  harmless with a single agency using the product today, a real gap before
-  a second agency could use it.
+- Resolved, in two parts (this line previously described an outdated,
+  broader gap — corrected 9 Sep 2026, see `docs/history.md` §2s and §2ab):
+  generated-site leads (the chat widget and hero lead-capture form) have
+  carried a real, validated `organizationId` end-to-end since 2 Sep 2026
+  (§2s) — already true before this file was first written 4 Sep, an
+  inaccuracy in this file's original wording. The narrower gap that
+  remained — three organization-resolution fallback paths
+  (`/api/get-started`, `/api/partner-signup`, and `/api/site-lead`'s
+  no-id fallback) picking "whichever organization comes back first" — was
+  fixed 5 Sep 2026 (migration `033`, `getDefaultOrganizationId()`, commit
+  `5040743`). **Both halves are confirmed live in production as of 9 Sep
+  2026**: the code is in the current production deployment (verified via
+  the Vercel API — the live deployment's commit hash matches), and
+  migration `033` is applied (verified via a live, read-only Supabase
+  query — `organizations.is_default` exists and is correctly set on
+  exactly one real organization). No open gap remains here.
 - There is no global error boundary; most known instances of an uncaught
   throw surfacing as a raw Next.js error page have been fixed individually,
   but the underlying gap remains.
