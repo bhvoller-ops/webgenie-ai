@@ -134,6 +134,16 @@
   underlying gap — no boundary — is still there for the next one. Adding a
   real `error.tsx` is worth doing before more of these get found by a user
   clicking around instead of in review.
+- **`audit_logs` inserts fail silently everywhere they happen.** Every real
+  call site (`actions.ts` ×4, `api/team/invite`, `api/admin/api-keys`)
+  discards the insert's own `error` — fire-and-forget. `src/lib/admin/
+  audit.ts`'s `writeAuditLog()` *does* check the error and throws, but has
+  zero callers. A real RLS/schema regression on this table would fail
+  exactly as silently as the one investigated 9 Sep 2026 (docs/history.md
+  §2ac — re-tested clean that day, not currently broken) did originally.
+  Accepted as technical debt, not fixed as of 9 Sep 2026 — don't assume a
+  future audit-log regression will be visible without checking the actual
+  insert result directly.
 
 ---
 

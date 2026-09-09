@@ -2345,6 +2345,66 @@ directly rather than assumed either way:**
   through `docs/decisions.md`'s entry for the standing rule; no further
   action needed on this specific fix.
 
+### 2ac. `audit_logs` RLS re-investigated: no longer reproduces — 9 Sep 2026
+
+§2g (27 Aug) and its "not further pursued" close documented `audit_logs`
+INSERT as confirmed broken for real authenticated users even after
+migration `019` re-added the policy. Asked to root-cause it before any
+fix, not to fix it blind — re-ran §2g's own reproduction method fresh,
+without changing any code, policy, or migration.
+
+**Result: the failure did not reproduce.** A real temp user, added as a
+real `organization_members` row, signed in for a genuine session JWT
+(the same mechanism `@supabase/ssr`'s cookie-based client produces),
+attempting the exact insert shape the app sends — succeeded cleanly,
+repeatably (`HTTP 201`, twice). A negative control — the same user
+attempting the identical insert against a fabricated org they don't
+belong to — correctly failed (`HTTP 403`, `42501`), proving the policy
+is genuinely enforcing, not silently disabled. `usage_events` (the
+policy's always-working sibling) re-tested as a live control, unchanged.
+No schema drift found — the returned row's columns match migration
+`011`'s definition exactly. No trigger touches `audit_logs` in any
+migration.
+
+**Root cause of the original 27 Aug failure could not be determined** —
+by definition, since the current behavior is correct and nothing in the
+code or policy text has changed since `019`, there's no remaining state
+to inspect that would explain the *past* failure. This corroborates,
+rather than resolves, the "odd data point" already flagged in this
+file's Verified-vs-assumed section below: a real `team.invited` audit
+row was observed landing correctly on 30 Aug, right after `019`, and
+was deliberately not trusted as "fixed" pending a real re-test. This
+*is* that re-test.
+
+**Two real, unrelated technical-debt items surfaced during this
+investigation, accepted as debt, deliberately not fixed in this pass:**
+1. Every real `audit_logs` insert call site (`actions.ts`'s
+   `removeMemberAction`/`updateMemberRoleAction`/`updateBrandingAction`/
+   `revokeApiKeyAction`, plus `api/team/invite/route.ts` and
+   `api/admin/api-keys/route.ts`) discards the insert's own `error` —
+   fire-and-forget. A real regression here would fail exactly as
+   silently as this one originally did, with nothing surfacing it.
+2. `src/lib/admin/audit.ts`'s `writeAuditLog()` helper — which *does*
+   check the error and throws — has **zero callers anywhere in `src/`**.
+   Every real call site duplicates the insert inline instead of using it.
+
+**Verification method note, for next time:** this session had no
+Supabase personal access token or `DATABASE_URL` (unlike 27 Aug's
+one-time-supplied token for the Management API's raw-SQL endpoint), so
+`pg_policies`/grants/`pg_class` could not be queried directly. Substituted
+direct black-box behavioral testing (positive + negative controls,
+repeated) instead — a stronger proof of actual enforcement than reading
+policy SQL text, matching this file's own repeated lesson (§2g, `docs/
+decisions.md`) that checking a policy exists is not the same as
+exercising the behavior it grants. All temp fixtures (org, membership,
+auth user, both test rows) created via service-role for setup only —
+the insert-under-test itself used the real user's own JWT, never
+service-role — and confirmed fully deleted afterward.
+
+**Decision, given this result: no RLS policy change made or needed.**
+The `vibelabs-membership-phase0` branch continues to be held, unmerged,
+per explicit instruction — unrelated to this finding.
+
 ---
 
 ## Verified vs. assumed
