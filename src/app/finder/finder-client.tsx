@@ -24,6 +24,7 @@ import { PageShell } from "@/components/shell";
 import { Eyebrow, Panel, Pill } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
+import { OpenOpportunityButton } from "@/components/open-opportunity-button";
 import { IndustryPicker } from "@/components/industry-picker";
 import { industryHeroImage, industryLabel, industrySecondaryImage } from "@/lib/sitegen/industry-lookup";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
@@ -425,6 +426,7 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
                           <ImageIcon className="h-3 w-3" aria-hidden />
                         </button>
                         <PublishButton business={withOverrides(b)} />
+                        <OpenOpportunityButton business={withOverrides(b)} />
                       </div>
                     </td>
                   </tr>
