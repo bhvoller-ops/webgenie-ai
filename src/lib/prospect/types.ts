@@ -13,6 +13,7 @@ export type ProspectStatus =
   | "demo_ready"
   | "contacted"
   | "follow_up"
+  | "meeting"
   | "won"
   | "lost"
   | "deprioritized";
@@ -124,3 +125,137 @@ export const RECOMMENDED_OFFER_LABELS: Record<Exclude<RecommendedOffer, null>, s
   website_package: "$297/mo website package",
   audit_led_rebuild: "Audit-led rebuild ($497 blueprint → $2,500–6,000 build → $497–997/mo retainer)"
 };
+
+/**
+ * P1: the Daily Prospecting Queue, Pitch Generator, and Demo Room. See
+ * supabase/migrations/036_p1_action_pitch_demo_room.sql for the full
+ * reasoning on why these are genuinely new tables vs. reused ones.
+ */
+
+/**
+ * The P1 Daily Queue's own action vocabulary (master prompt section 7) —
+ * deliberately richer than NextBestActionKey (which doesn't distinguish
+ * a new-site demo from a redesign demo, or know about GMB import/reply
+ * review at all). Reuses NextBestActionKey's shared terms verbatim
+ * (REVIEW_PROSPECT, RUN_AUDIT, CONTACT, SEND_DEMO, FOLLOW_UP,
+ * BOOK_MEETING, DEPRIORITIZE) rather than renaming them, so the two
+ * vocabularies stay recognizably related, not competing.
+ */
+export type ProspectActionType =
+  | "REVIEW_PROSPECT"
+  | "IMPORT_GMB_DATA"
+  | "RUN_AUDIT"
+  | "BUILD_NEW_SITE_DEMO"
+  | "CREATE_REDESIGN_DEMO"
+  | "CONTACT"
+  | "SEND_DEMO"
+  | "FOLLOW_UP"
+  | "BOOK_MEETING"
+  | "REVIEW_REPLY"
+  | "DEPRIORITIZE";
+
+export const PROSPECT_ACTION_LABELS: Record<ProspectActionType, string> = {
+  REVIEW_PROSPECT: "Review prospect",
+  IMPORT_GMB_DATA: "Import GMB Data",
+  RUN_AUDIT: "Run audit",
+  BUILD_NEW_SITE_DEMO: "Build new site demo",
+  CREATE_REDESIGN_DEMO: "Create redesign demo",
+  CONTACT: "Contact",
+  SEND_DEMO: "Send demo",
+  FOLLOW_UP: "Follow up",
+  BOOK_MEETING: "Book meeting",
+  REVIEW_REPLY: "Review reply",
+  DEPRIORITIZE: "Deprioritize"
+};
+
+export type ProspectActionStatus = "PENDING" | "COMPLETED" | "SKIPPED" | "SNOOZED";
+export type ProspectActionSource = "SYSTEM" | "USER";
+
+export interface ProspectAction {
+  id: string;
+  organizationId: string;
+  prospectId: string;
+  actionType: ProspectActionType;
+  priority: ActionPriority;
+  reason: string;
+  dueAt: string | null;
+  status: ProspectActionStatus;
+  source: ProspectActionSource;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export type ProspectActivityType =
+  | "PROSPECT_OPENED"
+  | "GMB_DATA_IMPORTED"
+  | "AUDIT_COMPLETED"
+  | "DEMO_GENERATED"
+  | "PITCH_GENERATED"
+  | "CONTACT_ATTEMPTED"
+  | "FOLLOW_UP_SCHEDULED"
+  | "MEETING_LOGGED"
+  | "DEMO_ROOM_SHARED"
+  | "PROSPECT_WON"
+  | "PROSPECT_LOST";
+
+export interface ProspectActivity {
+  id: string;
+  organizationId: string;
+  prospectId: string;
+  activityType: ProspectActivityType;
+  channel: string | null;
+  summary: string;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+  createdBy: string | null;
+}
+
+export type PitchChannel = "call_opener" | "cold_email" | "sms" | "linkedin" | "voicemail" | "loom_intro";
+
+export const PITCH_CHANNEL_LABELS: Record<PitchChannel, string> = {
+  call_opener: "Call Opener",
+  cold_email: "Cold Email",
+  sms: "SMS",
+  linkedin: "LinkedIn",
+  voicemail: "Voicemail",
+  loom_intro: "Loom Intro"
+};
+
+export interface Pitch {
+  id: string;
+  organizationId: string;
+  prospectId: string;
+  channel: PitchChannel;
+  subject: string | null;
+  body: string;
+  sourceFingerprint: string;
+  version: number;
+  status: "draft" | "used";
+  usedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DemoRoomStatus = "draft" | "ready" | "shared" | "archived";
+
+export interface DemoRoomFinding {
+  label: string;
+  detail: string;
+}
+
+export interface DemoRoom {
+  id: string;
+  organizationId: string;
+  prospectId: string;
+  projectId: string | null;
+  publicToken: string;
+  status: DemoRoomStatus;
+  title: string;
+  clientSafeFindings: DemoRoomFinding[];
+  ctaLabel: string;
+  ctaUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
