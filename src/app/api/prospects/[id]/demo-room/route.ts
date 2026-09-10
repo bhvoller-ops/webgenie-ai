@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { requireAdminApi } from "@/lib/auth/access";
 import { rowToProspect } from "@/lib/prospect/row";
 import { buildClientSafeFindings, buildWhatWedImprove } from "@/lib/prospect/demo-room-content";
@@ -55,12 +56,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const findings = buildClientSafeFindings(prospect, brief, Boolean(prospect.projectId));
   const improvements = buildWhatWedImprove(prospect.hasWebsite);
 
+  // Generated here rather than left to the column default: migration
+  // 036's default expression (encode(gen_random_bytes(24), 'base64url'))
+  // relies on an encoding Postgres's built-in encode() doesn't recognize
+  // on this project, which made every insert relying on it fail outright
+  // (found during the P1 acceptance test). Node's own base64url encoding
+  // is well-supported and gives the identical random, URL-safe,
+  // unpredictable token the design called for -- no migration needed.
+  const publicToken = randomBytes(24).toString("base64url");
+
   const { data: room, error } = await supabase
     .from("demo_rooms")
     .insert({
       organization_id: organizationId,
       prospect_id: prospectId,
       project_id: prospect.projectId ?? null,
+      public_token: publicToken,
       status: "ready",
       title: prospect.businessName,
       client_safe_findings: [...findings, ...improvements.map((detail) => ({ label: "What we'd improve", detail }))],

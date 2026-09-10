@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: actionRow } = await supabase
     .from("prospect_actions")
-    .select("id, status")
+    .select("id, status, action_type, prospect_id")
     .eq("id", actionId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -45,6 +45,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (parsed.data.op === "complete") {
     await supabase.from("prospect_actions").update({ status: "COMPLETED", completed_at: now, updated_at: now }).eq("id", actionId);
+    // A completed FOLLOW_UP is only actually reconciled once the due date
+    // it was generated from is cleared -- otherwise the very next
+    // regenerateProspectIntelligence() call (triggered by almost any other
+    // real action) recomputes the identical FOLLOW_UP from the still-set
+    // call_log.follow_up_due_at and immediately resurrects it. Marking a
+    // fresh follow-up date is still done through the real outcome-logging
+    // flow (pitch outcome route); this only clears a due date this
+    // generic "done" click has now handled.
+    if (actionRow.action_type === "FOLLOW_UP") {
+      await supabase.from("call_log").update({ follow_up_due_at: null, updated_at: now }).eq("prospect_id", actionRow.prospect_id).eq("organization_id", organizationId);
+    }
   } else if (parsed.data.op === "skip") {
     await supabase.from("prospect_actions").update({ status: "SKIPPED", updated_at: now }).eq("id", actionId);
   } else {

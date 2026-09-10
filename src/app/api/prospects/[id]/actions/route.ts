@@ -9,6 +9,7 @@ import { industryLabel } from "@/lib/sitegen/industry-lookup";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import type { PublicBusinessProfile } from "@/lib/prospect/finder";
 import { canCreateRedesignDemo, fieldsForDemoBusiness } from "@/lib/prospect/demo-eligibility";
+import { logActivity } from "@/lib/prospect/activity";
 import type { OpportunityLevel } from "@/lib/prospect/types";
 
 /**
@@ -176,7 +177,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         source: prospect.source === "finder" ? "places" : prospect.source === "manual" ? "manual" : "sample"
       };
       const demoUrl = demoSiteUrl(business, { by: "WebGenie AI" });
+      const isRegenerate = Boolean(prospect.demoUrl);
       await supabase.from("prospects").update({ demo_url: demoUrl, updated_at: new Date().toISOString() }).eq("id", prospect.id);
+      await logActivity(supabase, {
+        organizationId,
+        prospectId: prospect.id,
+        activityType: "DEMO_GENERATED",
+        summary: `${isRegenerate ? "Rebuilt" : "Built"} a ${prospect.hasWebsite ? "redesign" : "new site"} demo.`,
+        createdBy: user.id
+      });
       break;
     }
 
