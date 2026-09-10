@@ -276,6 +276,27 @@ interface BoundingBox {
 const MILES_PER_DEGREE_LATITUDE = 69.0;
 
 /**
+ * Best-effort split of Places' own "Street, City, ST ZIP, Country" format —
+ * the same parsing resolveBusiness() already did one level deeper (it had
+ * no city/state supplied by the caller at all). Extracted here so
+ * placesSearch() can reuse it too: a bare-city Finder search (just
+ * "Atlanta", no ", GA") used to leave every result's `state` as whatever
+ * the query itself carried — which is empty in that case, since nothing
+ * else ever derived it. That's real, free data already sitting in the
+ * same API response Places already returned; parsing more of it costs
+ * nothing extra and is never fabricated (falls back to the query's own
+ * city/state, or "", when the address doesn't parse cleanly).
+ */
+function parseAddressParts(formattedAddress: string | undefined): { street: string; city: string; state: string } {
+  const full = formattedAddress ?? "";
+  const parts = full.split(",").map((s) => s.trim());
+  const street = parts[0] ?? full;
+  const city = parts.length >= 3 ? parts[parts.length - 3] : "";
+  const state = parts.length >= 2 ? (parts[parts.length - 2].match(/[A-Z]{2}\b/)?.[0] ?? "") : "";
+  return { street, city, state };
+}
+
+/**
  * Text Search's locationRestriction only accepts a rectangle (a circle is
  * only valid for locationBias, which is a soft preference, not a hard cap —
  * confirmed directly against the API, which rejects {circle} here with a 400).
@@ -417,16 +438,19 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
         : undefined);
 
     const all: Business[] = places.map((pl, i) => {
-      const full = pl.formattedAddress ?? "";
-      const street = full.split(",")[0] ?? full;
+      const { street, city, state } = parseAddressParts(pl.formattedAddress);
       return {
         id: pl.id ?? `place_${i}`,
         name: pl.displayName?.text ?? "Unknown business",
         industry: q.industry,
         phone: pl.nationalPhoneNumber ?? "",
         address: street,
-        city: q.city,
-        state: q.state,
+        // Prefer the real state Google's own address parses to (works even
+        // for a bare-city search like "Atlanta"); fall back to whatever the
+        // search query carried, then the query's own city as a last resort
+        // so this can never crash on an unparseable address.
+        city: city || q.city,
+        state: state || q.state,
         rating: pl.rating,
         reviewCount: pl.userRatingCount,
         hours: pl.regularOpeningHours?.weekdayDescriptions?.[0],
@@ -559,14 +583,7 @@ export async function resolveBusiness(
     const pl = data.places?.[0];
     if (!pl) return null;
 
-    const full = pl.formattedAddress ?? "";
-    const parts = full.split(",").map((s) => s.trim());
-    const street = parts[0] ?? full;
-    // Best-effort split of "Street, City, ST ZIP, Country" — same level of
-    // address parsing placesSearch already does above, just one part deeper
-    // since a bulk-add row has no city/state supplied by a search form.
-    const city = parts.length >= 3 ? parts[parts.length - 3] : "";
-    const state = parts.length >= 2 ? (parts[parts.length - 2].match(/[A-Z]{2}\b/)?.[0] ?? "") : "";
+    const { street, city, state } = parseAddressParts(pl.formattedAddress);
 
     const guessed = guessIndustry(`${pl.primaryType ?? ""} ${(pl.types ?? []).join(" ")} ${pl.displayName?.text ?? ""}`);
 

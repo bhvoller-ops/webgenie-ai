@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/access";
 import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
 import { rowToProspect } from "@/lib/prospect/row";
-import { businessSchema, normalizePhone } from "@/lib/prospect/business-schema";
+import { businessSchema, normalizePhone, normalizeState } from "@/lib/prospect/business-schema";
 
 /**
  * Admin-only. Turns a Finder result (an ephemeral `Business`) into a real,
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
   const isGooglePlace = b.source === "places";
   const hasWebsite = Boolean(b.website);
   const phone = normalizePhone(b.phone);
+  const state = normalizeState(b.state);
 
   const existing = isGooglePlace
     ? await supabase.from("prospects").select("*").eq("organization_id", organizationId).eq("google_place_id", b.id).maybeSingle()
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
         has_website: hasWebsite,
         address: b.address,
         city: b.city,
-        state: b.state,
+        state,
         rating: b.rating ?? null,
         review_count: b.reviewCount ?? null,
         open_24_hours: b.open24Hours ?? false,
