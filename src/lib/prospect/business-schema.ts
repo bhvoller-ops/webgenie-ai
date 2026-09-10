@@ -20,6 +20,18 @@ import { z } from "zod";
  * ripple far wider than this one boundary. Requiring `.min(1)` here
  * rejected every real business missing that field with a generic
  * "Invalid business data." — this is the fix, at the correct seam.
+ *
+ * `state` is optional for the identical reason — a second, real
+ * production defect (P0.5, 10 Sep 2026): a Finder search for a bare city
+ * with no state (e.g. "Atlanta" instead of "Atlanta, GA" — a completely
+ * normal thing to type, and PR #24/#25's tests never covered it) left
+ * every one of that search's results with `state: ""`, which this schema
+ * then rejected with the same generic "Invalid business data." — this
+ * time on a field neither prior hotfix touched. Real fix is two-layered:
+ * lib/prospect/finder.ts now derives the real state from Google's own
+ * formattedAddress whenever it can (free, already-fetched data, never
+ * fabricated), and this schema stays defensively tolerant of a genuinely
+ * blank one — same belt-and-suspenders shape as `phone`.
  */
 export const businessSchema = z.object({
   id: z.string().min(1),
@@ -28,7 +40,7 @@ export const businessSchema = z.object({
   phone: z.string().max(40).optional(),
   address: z.string().max(300).optional().default(""),
   city: z.string().min(1).max(100),
-  state: z.string().min(1).max(20),
+  state: z.string().max(20).optional().default(""),
   rating: z.number().optional(),
   reviewCount: z.number().optional(),
   open24Hours: z.boolean().optional(),
@@ -60,4 +72,11 @@ export const publishSiteBusinessSchema = businessSchema.extend({
  * never store a fabricated or misleading empty value. */
 export function normalizePhone(phone: string | undefined): string | null {
   return phone && phone.trim() ? phone.trim() : null;
+}
+
+/** Same convention as normalizePhone() — a genuinely unknown state (Google's
+ * address didn't parse to one, and the search query didn't carry one either)
+ * is stored as a real absence, never a misleading empty string. */
+export function normalizeState(state: string | undefined): string | null {
+  return state && state.trim() ? state.trim() : null;
 }

@@ -1,5 +1,6 @@
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { GALLERY_INDUSTRY_SUMMARY } from "@/lib/sitegen/gallery-industry-summary";
+import { finderDisplayLabel } from "@/lib/sitegen/finder-taxonomy";
 import type { IndustryKey, SiteGenIndustryKey, GalleryIndustryKey } from "@/lib/sitegen/types";
 
 /**
@@ -53,8 +54,16 @@ export interface CombinedIndustryOption {
 
 const CORE_TRADES_CATEGORY = "Core Trades";
 
-/** Every selectable industry, core trades first, for the industry picker. */
+/**
+ * Every selectable industry, core trades first, for the shared industry
+ * picker (Finder/Audit/New Project). Labels come from finderDisplayLabel()
+ * — the broader "Roofing" market-level taxonomy, not IndustryProfile
+ * .label's narrow "Roofing Contractor" job-title phrasing (which stays
+ * unchanged for generated-site copy and persisted project data — see
+ * finder-taxonomy.ts's own doc comment for why they're deliberately kept
+ * separate).
+ */
 export const ALL_INDUSTRY_LIST: CombinedIndustryOption[] = [
-  ...Object.values(INDUSTRIES).map((p) => ({ key: p.key as IndustryKey, label: p.label, category: CORE_TRADES_CATEGORY })),
-  ...GALLERY_INDUSTRY_SUMMARY.map((g) => ({ key: g.key as IndustryKey, label: g.label, category: g.category })),
+  ...Object.values(INDUSTRIES).map((p) => ({ key: p.key as IndustryKey, label: finderDisplayLabel(p.key as IndustryKey), category: CORE_TRADES_CATEGORY })),
+  ...GALLERY_INDUSTRY_SUMMARY.map((g) => ({ key: g.key as IndustryKey, label: finderDisplayLabel(g.key as IndustryKey), category: g.category })),
 ];

@@ -1,0 +1,42 @@
+-- P0.5: "Import GMB Data" persistence.
+--
+-- Purely additive columns on the existing `prospects` table — deliberately
+-- NOT a new table. The P0.5 master prompt's own suggested shape
+-- (prospect_public_profiles, its own org_id/prospect_id/source columns and
+-- RLS) was considered first, but `prospects` already carries exactly one
+-- row per (org, business) with RLS already governing it correctly (the
+-- join-through-parent pattern migration 034 established) — a sibling table
+-- would need its own copy of that same RLS shape for zero real benefit,
+-- since there is exactly one legitimate public-profile source per prospect
+-- today (Google Places). Add a table later only if a second real source
+-- shows up. No new RLS policy needed: the existing prospects policies
+-- (migration 034) already cover every column on this table, these three
+-- included.
+--
+-- Safety, reviewed before applying (pre-merge readiness review, 10 Sep
+-- 2026): all three columns are nullable with no default and no `not
+-- null` — every existing row simply gets NULL ("not yet imported," a
+-- real and correct state, not a placeholder), so this is a metadata-only
+-- change with no table rewrite and no backfill required, regardless of
+-- how many rows `prospects` already has. `jsonb` matches the type
+-- already used for comparable columns elsewhere in this schema
+-- (analysis_outputs.output, org_branding's jsonb fields). No column-level
+-- grants exist anywhere in this database (checked directly, all
+-- migrations) -- the table-level RLS policy above is the sole gate, so
+-- these three new columns are automatically covered without any policy
+-- change.
+--
+-- Rollback: purely additive and non-destructive to roll back too --
+--   alter table public.prospects
+--     drop column public_profile,
+--     drop column public_profile_source,
+--     drop column public_profile_fetched_at;
+-- This only discards cached/re-fetchable enrichment data (a prospect's
+-- own real source fields -- name/phone/address/rating/etc, set at Open
+-- Opportunity time -- are untouched), never a source of truth in their
+-- own right, so a rollback loses nothing that can't be re-imported with
+-- one more "Import GMB Data" click.
+alter table public.prospects
+  add column public_profile jsonb,
+  add column public_profile_source text,
+  add column public_profile_fetched_at timestamptz;

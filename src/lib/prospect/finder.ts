@@ -1,5 +1,6 @@
 import type { Business, IndustryKey, SiteGenIndustryKey } from "@/lib/sitegen/types";
-import { industryLabel, industrySearchTerm } from "@/lib/sitegen/industry-lookup";
+import { industryLabel } from "@/lib/sitegen/industry-lookup";
+import { finderSearchTerm } from "@/lib/sitegen/finder-taxonomy";
 import { GALLERY_INDUSTRY_SUMMARY } from "@/lib/sitegen/gallery-industry-summary";
 
 /**
@@ -52,6 +53,16 @@ export interface FinderResult {
   withWebsite: Business[];
   /** Multi-location chains and high-volume operators, held out of the lists above. */
   likelyChains: Business[];
+  /**
+   * Every candidate this search actually returned (all review tiers
+   * combined, chains included and flagged via `isLikelyChain`) — added for
+   * P0.5's "the user should be able to inspect all N businesses returned
+   * by the provider" requirement. Built from data already fetched, no
+   * extra API calls. `withoutWebsite`/`withWebsite`/`likelyChains` above
+   * are untouched (still exactly one review tier, chains excluded) since
+   * /api/audits/queue's existing logic depends on that exact shape.
+   */
+  all: Business[];
   ranAt: string;
   /** Present when Places was attempted but unavailable. */
   notice?: string;
@@ -170,6 +181,7 @@ export function sampleSearch(q: FinderQuery): FinderResult {
     withoutWebsite: all.filter((b) => !b.website),
     withWebsite: all.filter((b) => b.website),
     likelyChains: [],
+    all,
     ranAt: new Date().toISOString(),
   };
 }
@@ -274,6 +286,27 @@ interface BoundingBox {
 }
 
 const MILES_PER_DEGREE_LATITUDE = 69.0;
+
+/**
+ * Best-effort split of Places' own "Street, City, ST ZIP, Country" format —
+ * the same parsing resolveBusiness() already did one level deeper (it had
+ * no city/state supplied by the caller at all). Extracted here so
+ * placesSearch() can reuse it too: a bare-city Finder search (just
+ * "Atlanta", no ", GA") used to leave every result's `state` as whatever
+ * the query itself carried — which is empty in that case, since nothing
+ * else ever derived it. That's real, free data already sitting in the
+ * same API response Places already returned; parsing more of it costs
+ * nothing extra and is never fabricated (falls back to the query's own
+ * city/state, or "", when the address doesn't parse cleanly).
+ */
+function parseAddressParts(formattedAddress: string | undefined): { street: string; city: string; state: string } {
+  const full = formattedAddress ?? "";
+  const parts = full.split(",").map((s) => s.trim());
+  const street = parts[0] ?? full;
+  const city = parts.length >= 3 ? parts[parts.length - 3] : "";
+  const state = parts.length >= 2 ? (parts[parts.length - 2].match(/[A-Z]{2}\b/)?.[0] ?? "") : "";
+  return { street, city, state };
+}
 
 /**
  * Text Search's locationRestriction only accepts a rectangle (a circle is
@@ -381,7 +414,10 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     return { ...sampleSearch(q), notice: "No GOOGLE_PLACES_API_KEY set — showing sample data." };
   }
 
-  const textQuery = `${industrySearchTerm(q.industry)} in ${q.city}, ${q.state}`;
+  // finderSearchTerm(), not industryLabel()/the old industrySearchTerm() —
+  // "roofing" (the whole market) rather than "Roofing Companies" (one
+  // narrow phrase). See lib/sitegen/finder-taxonomy.ts.
+  const textQuery = `${finderSearchTerm(q.industry)} in ${q.city}, ${q.state}`;
 
   try {
     let boundingBox: BoundingBox | undefined;
@@ -417,16 +453,19 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
         : undefined);
 
     const all: Business[] = places.map((pl, i) => {
-      const full = pl.formattedAddress ?? "";
-      const street = full.split(",")[0] ?? full;
+      const { street, city, state } = parseAddressParts(pl.formattedAddress);
       return {
         id: pl.id ?? `place_${i}`,
         name: pl.displayName?.text ?? "Unknown business",
         industry: q.industry,
         phone: pl.nationalPhoneNumber ?? "",
         address: street,
-        city: q.city,
-        state: q.state,
+        // Prefer the real state Google's own address parses to (works even
+        // for a bare-city search like "Atlanta"); fall back to whatever the
+        // search query carried, then the query's own city as a last resort
+        // so this can never crash on an unparseable address.
+        city: city || q.city,
+        state: state || q.state,
         rating: pl.rating,
         reviewCount: pl.userRatingCount,
         hours: pl.regularOpeningHours?.weekdayDescriptions?.[0],
@@ -441,6 +480,15 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     const tier = q.reviewTier ?? "small";
     const candidates = byTier[tier];
 
+    // Every candidate this search actually returned, across all three review
+    // tiers, chains included and flagged rather than dropped — see the
+    // `all` field's own doc comment on FinderResult. Built from data already
+    // computed above (byTier + likelyChains), so this costs nothing extra.
+    const everyResult: Business[] = [
+      ...REVIEW_TIERS.flatMap((t) => byTier[t.key]),
+      ...likelyChains.map((b) => ({ ...b, isLikelyChain: true })),
+    ];
+
     return {
       provider: "places",
       query: q,
@@ -449,6 +497,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
       withoutWebsite: candidates.filter((b) => !b.website && b.phone),
       withWebsite: candidates.filter((b) => b.website),
       likelyChains,
+      all: everyResult,
       ranAt: new Date().toISOString(),
       notice,
     };
@@ -559,14 +608,7 @@ export async function resolveBusiness(
     const pl = data.places?.[0];
     if (!pl) return null;
 
-    const full = pl.formattedAddress ?? "";
-    const parts = full.split(",").map((s) => s.trim());
-    const street = parts[0] ?? full;
-    // Best-effort split of "Street, City, ST ZIP, Country" — same level of
-    // address parsing placesSearch already does above, just one part deeper
-    // since a bulk-add row has no city/state supplied by a search form.
-    const city = parts.length >= 3 ? parts[parts.length - 3] : "";
-    const state = parts.length >= 2 ? (parts[parts.length - 2].match(/[A-Z]{2}\b/)?.[0] ?? "") : "";
+    const { street, city, state } = parseAddressParts(pl.formattedAddress);
 
     const guessed = guessIndustry(`${pl.primaryType ?? ""} ${(pl.types ?? []).join(" ")} ${pl.displayName?.text ?? ""}`);
 
@@ -585,6 +627,105 @@ export async function resolveBusiness(
       website: pl.websiteUri ?? null,
       placeUrl: pl.googleMapsUri,
       source: "places",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* "Import GMB Data" — Place Details, P0.5                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The real, legitimately-available public fields Places API (New)'s Place
+ * Details endpoint returns — the same already-enabled/billed Places API
+ * this file already calls for Text Search, just a different endpoint, not
+ * a new provider. Deliberately does NOT use any owner-only GBP
+ * account-management API (see P0.5 master prompt section 17) — this is
+ * public-profile data any Places caller can read for any place id, not
+ * something requiring the business's own authorization.
+ */
+export interface PublicBusinessProfile {
+  placeId: string;
+  name?: string;
+  primaryCategory?: string;
+  formattedAddress?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  internationalPhone?: string;
+  website?: string;
+  googleMapsUri?: string;
+  rating?: number;
+  reviewCount?: number;
+  weekdayHours?: string[];
+  businessStatus?: string;
+  photoReferences?: string[];
+  fetchedAt: string;
+}
+
+/**
+ * Fetches the richer Place Details fields for one real Google Place id.
+ * Only ever called explicitly (a row or bulk "Import GMB Data" click) —
+ * never automatically for every Finder result, per the cost-discipline
+ * rule in the P0.5 master prompt (section 40). Returns null (never
+ * throws) on any failure so a bulk batch can report one row's failure
+ * without aborting the rest (section 35).
+ */
+export async function fetchPlaceDetails(placeId: string): Promise<PublicBusinessProfile | null> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || !placeId) return null;
+
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: {
+        "X-Goog-Api-Key": key,
+        "X-Goog-FieldMask": [
+          "id",
+          "displayName",
+          "primaryTypeDisplayName",
+          "formattedAddress",
+          "nationalPhoneNumber",
+          "internationalPhoneNumber",
+          "websiteUri",
+          "googleMapsUri",
+          "rating",
+          "userRatingCount",
+          "regularOpeningHours",
+          "businessStatus",
+          "photos",
+        ].join(","),
+      },
+    });
+    if (!res.ok) return null;
+
+    const pl = (await res.json()) as PlacesPlaceFull & {
+      primaryTypeDisplayName?: { text?: string };
+      internationalPhoneNumber?: string;
+      businessStatus?: string;
+      photos?: Array<{ name?: string }>;
+    };
+
+    const { city, state } = parseAddressParts(pl.formattedAddress);
+
+    return {
+      placeId: pl.id ?? placeId,
+      name: pl.displayName?.text,
+      primaryCategory: pl.primaryTypeDisplayName?.text,
+      formattedAddress: pl.formattedAddress,
+      city: city || undefined,
+      state: state || undefined,
+      phone: pl.nationalPhoneNumber,
+      internationalPhone: pl.internationalPhoneNumber,
+      website: pl.websiteUri,
+      googleMapsUri: pl.googleMapsUri,
+      rating: pl.rating,
+      reviewCount: pl.userRatingCount,
+      weekdayHours: pl.regularOpeningHours?.weekdayDescriptions,
+      businessStatus: pl.businessStatus,
+      photoReferences: pl.photos?.map((p) => p.name).filter((n): n is string => Boolean(n)),
+      fetchedAt: new Date().toISOString(),
     };
   } catch {
     return null;

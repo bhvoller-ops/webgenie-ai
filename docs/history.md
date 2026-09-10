@@ -2632,6 +2632,491 @@ the Vercel publishing logic itself, or any other route. This PR is
 kept separate from the already-merged PR #24 and is **not merged** —
 reported for review first, same discipline as §2ae.
 
+### 2ag. Product Phase P0.5: Finder → Prospect Intelligence — 10 Sep 2026
+
+WebGenie's repositioning ("the client-acquisition workspace for
+agencies") had outgrown Finder's original job — "find businesses
+without a website." P0.5 turns Finder into the discovery,
+qualification, enrichment, and decision layer that feeds the existing
+P0 Opportunity Brief/Next Best Action system, per a detailed master
+prompt (`WEBGENIE P0.5 MASTER IMPLEMENTATION PROMPT.txt`). Built on
+branch `feature/p0-5-finder-prospect-intelligence`, **not merged**.
+
+**Phase B — a second real production defect, found by reproducing the
+actual reported browser flow, not by re-running PR #24/#25's tests.**
+Cassey reported "Invalid business data" still appearing on Finder →
+Roofing Contractors → Atlanta → Opportunity, *after* both hotfixes were
+live. Reproduced with a real sandbox admin, a real browser session, and
+the exact real click — captured the actual request/response via a
+patched `fetch`: the Zod rejection was on `state` (`fieldErrorKeys:
+["state"]`, value `""`), a field neither hotfix touched. Root cause:
+searching a bare city with no state (typing "Atlanta," not "Atlanta,
+GA" — completely normal, and every prior test always supplied a state)
+left every result's `state` as `""`. Two-layer fix: `lib/prospect/
+finder.ts` now derives the real state from Google Places' own
+`formattedAddress` (free, already-fetched data, never fabricated,
+same parsing `resolveBusiness()` already did, now shared via a new
+`parseAddressParts()` helper) before falling back to the query; the
+schema stays defensively tolerant of a genuinely blank state
+(`normalizeState()`, mirroring `normalizePhone()`). New regression case
+in `scripts/verify-open-opportunity.ts` uses the *exact* captured real
+payload (17/17 passing, was 14). **Re-verified live** on a local dev
+server after the fix: the identical bare-"Atlanta" search → View
+Opportunity → Full Screen now works end to end, and the resulting
+prospect correctly shows "Atlanta, **GA**" — the real state, derived
+from Google's data, not the blank the user's search typed.
+
+**Phase C — Finder 2.0.** `finder-client.tsx` rebuilt: repositioned
+copy ("Find Local Businesses Worth Contacting"); every result a search
+returns is now shown, not just the no-website subset (`FinderResult`
+gained a new `all: Business[]` field — every review tier combined,
+chains flagged via a new `Business.isLikelyChain` rather than dropped,
+built from data already fetched, the existing `withoutWebsite`/
+`withWebsite`/`likelyChains` fields untouched since `/api/audits/queue`
+depends on their exact shape); table redesigned to Business/Website/
+Google Reputation/Opportunity/Evidence/Status/Action, "View
+Opportunity" the one prominent action, everything else visually
+subordinate; filters (All/Recommended/Has Website/No Website/Not
+Audited/Audited/Needs Data) and sorting (Recommended/Rating/Review
+Count/Name), both backed by new pure, tested `lib/prospect/
+finder-view.ts`; client pagination (25/50); summary cards (Total
+Found/Recommended/No Website/Audited, replacing the old "Demo Sites
+Built" framing, which implied every no-website result gets deployed —
+it never did, "View site" is only an ephemeral preview, "Publish" was
+and remains the one explicit real-deployment action).
+
+**Phase D — deterministic Preliminary Opportunity scoring.** New
+`lib/prospect/preliminary-opportunity.ts`: "how worthwhile is this
+business to investigate," not "how bad is its website" — no LLM,
+scored from real Finder/Places signals only (rating, review count,
+phone/website presence, chain flag). Opportunity level and confidence
+reported separately (never conflated); once a real audit exists,
+defers entirely to the same scale `lib/prospect/opportunity-level.ts`
+already established, so Finder and an opened Prospect can never
+disagree about what "audited" means. 28 regression checks
+(`scripts/verify-preliminary-opportunity.ts`).
+
+**Phase E — Opportunity Preview drawer.** New
+`components/opportunity-preview-drawer.tsx`: level/confidence, evidence
+-backed reasons, public signals, "what we know" (sourced evidence) vs.
+"what we don't know yet" (only honest, never-yet-verified claims), and
+a **Full Screen** button. Deliberately does *not* duplicate any
+action-triggering logic — Full Screen opens/creates the real Prospect
+via the same idempotent `/api/prospects/open` call and navigates to the
+existing `/prospects/[id]` P0 workspace, where the real actions (Run
+Audit, etc.) already live.
+
+**Phase F — "Import GMB Data" (row + bulk).** New migration `035`
+(**written, deliberately NOT applied to production this pass** — same
+precedent as migration `034`, only applied after an explicit later
+instruction) adds three additive columns directly onto the existing
+`prospects` table (`public_profile` jsonb, `public_profile_source`,
+`public_profile_fetched_at`) rather than a new sibling table — the
+migration's own comment documents why: `prospects`' existing RLS
+(migration `034`) already covers them, no new policy needed. New
+`lib/prospect/finder.ts` function `fetchPlaceDetails()` calls Places
+API (New)'s Place Details endpoint — the *same* already-enabled/billed
+provider this file already used for Text Search, not a new one, and
+explicitly not an owner-only GBP account API (section 17's constraint).
+New `POST /api/prospects/import-gmb` handles both row and bulk import
+in one route, explicit-only (never automatic for a whole search — cost
+discipline), with per-row failure isolation. The find-or-create-
+prospect logic was extracted out of `/api/prospects/open/route.ts` into
+a new shared `lib/prospect/open.ts` so this route reuses it instead of
+a second, potentially-drifting copy — the exact class of bug the two
+prior hotfixes and Phase B's own state-field defect were all about.
+
+**Phase G — contextual demo actions:** deliberately scoped down from
+the master prompt's full "two distinct demo modes" vision. Section 28's
+contextual routing (no website → build; website + no audit → audit;
+website + audited + low opportunity → review, not redesign) is fully
+implemented inside `computePreliminaryOpportunity()`'s
+`recommendedNextStep` and the drawer's copy — but "Create Redesign
+Demo" as a *distinct content pipeline* (new copy/structure generation
+informed by real audit evidence, section 24) was not built this pass;
+the existing site generator (unchanged) is what any demo action
+ultimately reaches via the existing `/prospects/[id]` workspace. Building
+genuine redesign-specific content generation is real, separable,
+larger scope — flagged here rather than done partially or fabricated.
+Source-data review UI (section 25) and demo provenance tracking
+(section 27) are likewise not built this pass — explicit backlog, not
+silently dropped.
+
+**Phase H — real product test**, not two hand-picked businesses: a
+real "Roofing Contractor" search against "Atlanta" (bare city, the
+exact reported defect shape) and again against "Atlanta, GA" on a
+local dev server (this branch isn't deployed), both via a real sandbox
+admin and real browser interaction. 40-41 real results each time, all
+shown (not just the no-website subset); "No Website" filter correctly
+narrowed 41→3; pagination correctly split 41 across 25+16; sort applied
+without error; a real "View Opportunity" → Full Screen round-trip
+confirmed the Phase B fix end-to-end, including the derived `state:
+"GA"`; a real row-level "Import GMB Data" click made a real Place
+Details call and a real `openProspect()` call (confirmed via a direct
+DB check: the prospect row was genuinely created) — the column-write
+step then failed with a specific, isolated, non-crashing error
+(`Could not find the 'public_profile' column...`), exactly the expected
+result of migration `035` being deliberately unapplied, and exactly
+proving the per-row failure-isolation design works for real. **Zero
+Vercel deployments were created during this pass** — Publish was never
+clicked, matching the discovery-safety requirement (section 65-69).
+All sandbox data (org, user, both real prospects created) deleted and
+independently re-verified gone afterward.
+
+**Phase I — quality gates.** `tsc --noEmit` clean throughout. `eslint`
+0 errors (a handful of pre-existing warnings, none new). All 5
+`verify-*.ts` scripts green (108 checks: 17 + 16 + 24 + 28 + 23). Full
+production build clean; `/finder`'s First Load JS is 145KB (was 142KB)
+— no bundle-size regression of the kind found during the Gallery
+industry expansion (§2p).
+
+**What P0.5's own backlog explicitly defers** (section 32, documented
+not built): competitor/Yelp/Facebook/social enrichment, citation/
+listing consistency, ad/pixel detection, tech-stack detection,
+contact-person enrichment, a public white-label report, automated
+email/SMS, CRM automation, scheduled/background enrichment, a weekly
+digest, an AI/LLM visibility audit, authenticated GBP OAuth, and
+advanced competitor SEO analysis. None of these were started.
+
+**Not merged, not deployed, not applied:** the feature branch, PR, and
+migration `035` all await explicit review/approval — same discipline as
+every prior hotfix and the P0 build itself.
+
+### 2ah. Finder industry taxonomy: broader label + search intent, stable key — 10 Sep 2026
+
+A follow-up to §2ag, on the same branch/PR (`feature/p0-5-finder-
+prospect-intelligence` / PR #26 — still not merged): "Roofing
+Contractor" (Finder's picker label) and "Roofing Companies" (the actual
+Google Places Text Search phrase) both read as one narrow trade
+description, not the whole roofing market. Per a dedicated spec
+(`WEBGENIE FINDER OBJECTIVE, INDUSTRY TAXONOMY + SEARCH COVERAGE
+PROMPT.txt`), the governing rule: **broader visible label + broader
+search intent + stable internal key.**
+
+**Why this needed a new, separate layer rather than editing
+`IndustryProfile.label`/`.plural` in place — found by tracing every
+call site first, not assumed:** `industryLabel()` (the existing
+narrow-label function) is not purely a UI string. It's baked into every
+generated site's own copy ("Licensed Plumber in Atlanta"), and — the
+real risk — it's **persisted as literal text into `projects.industry`**
+on every project insert (`api/audits/queue`, `api/prospects/[id]/
+actions`, `api/projects/bulk` all call it when writing that column),
+and used to **match existing rows** for `api/audits/queue`'s "don't
+re-suggest an already-queued business" dedup query
+(`.eq("industry", industryLabel(industry))`). Widening `industryLabel()`
+itself would have silently rewritten generated-site copy and broken
+that dedup match against every project created before the change —
+exactly the "no migration of historical data should be necessary"
+trap the spec's own compatibility section warns about.
+
+**Fix:** new `lib/sitegen/finder-taxonomy.ts` — `finderDisplayLabel()`
+and `finderSearchTerm()`, a small override layer used only by the
+shared industry picker (`ALL_INDUSTRY_LIST`, used by Finder/Audit/New
+Project) and by `placesSearch()`'s Text Search query. `industryLabel()`
+/`industrySearchTerm()` are completely untouched — verified directly
+(`industryLabel('roofer')` still returns `"Roofing Contractor"`).
+Reviewed all 73 selectable industries: the mismatch was concentrated in
+the 14 core trades (`IndustryProfile.label` is written in a narrow
+job-title style for generated-site copy, not market-search copy) —
+every one gets a broader display label and/or search term. The 59
+Gallery industries already used a market-level label as both their
+display and search term; two genuinely narrow ones ("Legal Services /
+Law Firm", "Property Management Services") were trimmed to match the
+spec's own style guide, the rest left unchanged.
+
+| Old label | New label | Old search term | New search term | Internal key | Key changed? |
+|---|---|---|---|---|---|
+| Licensed Plumber | Plumbing | Plumbers | plumbing | `plumber` | No |
+| Heating & Air Specialist | HVAC | HVAC Companies | HVAC | `hvac` | No |
+| Licensed Electrician | Electrical | Electricians | electrical services | `electrician` | No |
+| Roofing Contractor | Roofing | Roofing Companies | roofing | `roofer` | No |
+| Landscaping & Lawn Care | Landscaping | Landscapers | landscaping | `landscaper` | No |
+| Tree Care Specialist | Tree Services | Tree Services | tree service | `tree_care` | No |
+| Cleaning Service | Cleaning Services | Cleaning Services | cleaning services | `cleaning` | No |
+| Auto Repair Shop | Auto Repair | Auto Repair Shops | auto repair | `auto_repair` | No |
+| Dental Practice | Dentistry | Dental Practices | dentist | `dentist` | No |
+| Medical Spa | Med Spa | Med Spas | med spa | `med_spa` | No |
+| Chiropractic Clinic | Chiropractic | Chiropractors | chiropractor | `chiropractor` | No |
+| Restoration Company | Restoration | Restoration Companies | restoration company | `restoration` | No |
+| General Contractor | General Contracting | Contractors | general contractor | `contractor` | No |
+| Hair Salon | Hair Salon (kept — see below) | Salons | hair salon | `salon` | No |
+| Legal Services / Law Firm | Legal Services | (same as label) | Legal Services | `legal-services` | No |
+| Property Management Services | Property Management | (same as label) | Property Management | `property-management` | No |
+| *(all other 57 Gallery industries)* | unchanged | unchanged | unchanged | unchanged | No |
+
+**"Hair Salon" deliberately keeps its display label** (only its search
+term was broadened) — bare "Salon" would collide with the separate
+`nail-salon`/`spa-massage` Gallery categories, a real ambiguity, not an
+oversight.
+
+**Compatibility, verified both by unit test and live on a local dev
+server** (this branch isn't deployed): the full chain Finder → View
+Opportunity → Full Screen → Run Audit was re-run with "Roofing"
+selected — a real 40-result live Google search, a real prospect opened
+("KTM Roofing"), and the prospect page correctly showed the internal
+`roofer` key and Run Audit still available. New
+`scripts/verify-finder-taxonomy.ts` (19 checks): confirms
+`industryLabel()`/`industrySearchTerm()` are genuinely byte-for-byte
+unchanged, every one of the 14 core trades is broadened (with the one
+documented exception), every internal key is preserved, the picker
+shows the new labels, and every industry (all 73) still resolves to a
+non-empty search term. No new Google API calls introduced — one query
+per search, same as before; the `aliases` field on each taxonomy entry
+is documentation only, never used to multiply requests.
+
+`tsc --noEmit`, `eslint`, and a full production build all clean. All 6
+`verify-*.ts` scripts green (127 checks total). No sandbox cleanup
+issues — a temporary org/user/prospect used for the live check were
+deleted and independently re-verified gone.
+
+### 2ai. P0.5 pre-merge readiness review — 10 Sep 2026
+
+Before considering PR #26 for merge, a dedicated readiness review
+covering four things: migration `035`'s safety, whether "Import GMB
+Data" actually works end-to-end once that migration lands, an honest
+A-E audit of the P0.5 demo requirements, and a written post-merge
+acceptance plan. **Migration still not applied, PR still not merged.**
+
+**1. Migration 035 safety — reviewed line by line, verdict: safe to
+apply.** All three columns nullable, no default, no `not null` —
+metadata-only change, no table rewrite, no backfill, works identically
+whether `prospects` has 0 or 100,000 rows. `jsonb` matches the type
+already used for comparable columns elsewhere (`analysis_outputs
+.output`, `org_branding`). Confirmed directly (not assumed) that no
+migration in this repo uses column-level grants — the table's existing
+RLS policy (migration `034`, "any org member can manage") is the sole
+gate and automatically covers new columns with zero additional
+configuration. **Gap found and closed**: no migration in this repo
+documents rollback considerations, including this one as first written
+— added an explicit rollback note directly in the migration file (the
+three columns can be dropped with zero loss beyond re-fetchable cached
+enrichment data, never a source of truth in their own right).
+**Recommend applying it** when explicitly instructed to, same process
+as migration `034`.
+
+**2. GMB import end-to-end readiness — a real gap found and closed, not
+just reported.** Tracing the full intended flow (Finder → Import GMB
+Data → Place Details → normalize → persist → cached profile available
+→ Preliminary Opportunity refresh → Preview reflects enriched evidence)
+turned up a genuine break: the *write* path (built in the original
+P0.5 pass) was real, but nothing anywhere *read* `public_profile` back
+— not the Finder-search enrichment query, not `computePreliminaryOpportunity()`,
+not the Preview drawer. Imported data would have been persisted and
+then never seen again. Fixed:
+- `lib/prospect/types.ts`/`row.ts` — `Prospect` gains `publicProfile`/
+  `publicProfileSource`/`publicProfileFetchedAt`, read defensively
+  (`row.public_profile` is simply absent, not an error, from a
+  `select("*")` on a pre-migration schema).
+- `api/prospects/route.ts`'s enrichment query switched from named
+  columns to `select("*")` specifically so this is safe **both before
+  and after** migration `035` lands — a named-column select would
+  error on a missing column pre-migration (confirmed this distinction
+  matters: the GMB-import route's own UPDATE already demonstrated the
+  named-column failure mode live, during the original P0.5 Phase H
+  test); `select("*")` just omits the field until it exists, so no
+  further code change will be needed the moment the migration is
+  applied.
+- `computePreliminaryOpportunity()` takes an optional `publicProfile`
+  parameter — adds real, sourced evidence (`gmb_profile_imported`,
+  `gmb_hours`) and raises confidence one step (medium → high) when a
+  real Place Details fetch confirms the same signals, **never**
+  changes the opportunity level itself (no fabricated upgrade).
+- Finder's "GMB data imported" label now shows a real relative
+  timestamp (new `formatRelativeTime()` in `lib/format.ts`) sourced
+  from `publicProfileFetchedAt`, replacing an inspection-flagged
+  heuristic (`hasCompletedAudit` was being used as a stand-in for "was
+  this imported," which is simply wrong — the two are unrelated).
+
+  Verified: 20 new/updated automated checks (`verify-preliminary
+  -opportunity.ts` +6, plus the type/row-mapper changes exercised
+  transitively by the full suite); live on a local dev server, the
+  `select("*")` change was confirmed **not** to break a real 40-result
+  Finder search pre-migration (would have been the actual risk of
+  getting this wrong).
+
+**3. Demo requirement gap review (A-E) — inspected the real code, not
+assumed complete from prior report language:**
+
+| Item | Before this review | After this review |
+|---|---|---|
+| A. Build New Site Demo (no website) | **COMPLETE** — already real, pre-dated P0.5 | Unchanged, regression-verified live |
+| B. Create Redesign Demo (website + audit supports it) | **MISSING** — not a mislabeled button, the backend flatly rejected `hasWebsite` in `generate_demo` | **COMPLETE** (minimum viable) — implemented this pass |
+| C. Imported GMB data optionally feeds either demo | **MISSING** — no wiring at type or generation level | **COMPLETE** (minimum viable) — implemented this pass |
+| D. Source facts vs. editable demo presentation, kept separate | **MISSING** — no editable-presentation concept exists anywhere in the prospect workspace | Still **MISSING** — deliberately not built, see below |
+| E. Demo provenance (which sources fed a given demo) | **MISSING** — no tracking at all | Still **MISSING** — deliberately not built, see below |
+
+**B implemented, minimum viable, no new content pipeline:** the
+`generate_demo` action now allows the `hasWebsite` case, but only when
+real evidence supports it — a completed audit exists *and* its
+`opportunity_briefs.opportunity_level` isn't `low`/`insufficient
+_evidence` (enforced server-side; the button's own client-side
+visibility, `lib/prospect/demo-eligibility.ts`'s `canCreateRedesignDemo()`,
+mirrors the identical rule so it's never a dead end). Both demo modes
+reuse the **exact same, untouched** `lib/sitegen` generator — no
+differentiated redesign-content logic was built (see below for why).
+`prospect-actions.tsx` gained a "Create redesign demo" button, and the
+no-website button was relabeled "Build new site demo" to match.
+
+**C implemented, minimum viable:** `fieldsForDemoBusiness()` (same new
+file) fills in phone/rating/reviewCount from a prospect's imported
+`public_profile` only where the prospect's own value is genuinely
+missing — its own address/city/state, and any field it already has,
+stay authoritative, never silently overwritten by a possibly-stale
+cached profile. "Optional" is satisfied by GMB import itself already
+being an explicit, opt-in action — once imported, using the freshest
+real data by default (rather than building a whole separate per-field
+review step) is the minimum-viable interpretation, called out
+explicitly here rather than left implicit.
+
+**D and E deliberately NOT built — explained, not silently dropped, per
+this review's own instruction.** Both are real, additive, non-
+destructive, and buildable — but neither is a small connecting piece
+like B/C above:
+- **D** needs a genuinely new UI surface (an editable-fields form,
+  distinct from any source data) *and* a new persisted shape for the
+  overrides themselves — a real feature, not a wiring change.
+- **E** needs at minimum a new column (another migration, on top of
+  `035`, the exact thing this review is trying to get to a clean
+  merge-ready state, not multiply) plus whatever UI shows it.
+
+Neither blocks GMB import or either demo mode from actually working —
+this review's own stated focus is "the remaining items necessary to
+make P0.5 actually usable in production," and D/E are transparency/
+polish, not functional blockers. Flagged as clear, explicit backlog,
+not implemented partially or faked.
+
+**Verified live, real end-to-end, not assumed from code review alone**
+(local dev server, real sandbox admin, this branch isn't deployed):
+- A real Finder search still works cleanly with the `select("*")`
+  enrichment change (37 real results, no error) — the actual risk
+  Section 2's fix could have introduced.
+- A real `hasWebsite` prospect with no audit yet: no "Create redesign
+  demo" button shown; a forced direct `POST .../actions` call with
+  `generate_demo` correctly rejected with `400` and a real, specific
+  error (defense-in-depth, not just a hidden button).
+- Ran a **real** audit (not simulated) — completed fast via the
+  Railway worker; after "Refresh brief," the opportunity level came
+  back "Medium," the button appeared, and clicking it produced a real
+  200 response and a real, viewable 39KB generated demo page
+  containing the actual business name.
+- The no-website path (A) re-verified unaffected by the
+  `fieldsForDemoBusiness()` refactor — a real demo generated and
+  viewable.
+- All sandbox data (org, user, prospects, the real project/analysis
+  job created by the real audit) deleted and independently re-verified
+  gone afterward.
+
+**4. Production acceptance plan** — the 14-point sequence to run after
+migration `035` is applied and PR #26 is merged/deployed is the same
+shape as the live checks just completed above (Roofing/Atlanta, all
+results visible, taxonomy, `roofer` key intact, View Opportunity, the
+bare-"Atlanta" state fix, GMB import persistence + Preview reflection,
+Full Screen, both demo modes, no automatic deployment, explicit
+publishing) — not re-run here since migration `035` isn't applied yet
+in this environment either; this review substitutes the closest
+possible proxy (every step exercised except the parts that literally
+require the migration to exist).
+
+**5. Quality gates:** `tsc --noEmit` clean. `eslint` on every changed
+file: 0 errors. All 7 `verify-*.ts` scripts green (147 checks total,
+up from 127 — two new scripts, `verify-demo-eligibility.ts` (14) and 6
+new cases in `verify-preliminary-opportunity.ts`). Full production
+build clean.
+
+**Not merged, migration not applied** — same discipline as every prior
+step of this build.
+
+### 2aj. Migration 035 applied to production; real production acceptance test — 10 Sep 2026
+
+**Migration `035` applied to production**, same disciplined one-time
+process as `034`: confirmed the target project (`dryzyqylkettdftokoxc`),
+confirmed the migration file on disk was byte-identical to the reviewed
+commit (`9f2cbf6`), confirmed it was purely additive (three `ADD COLUMN`
+statements, no drops), and confirmed via a real PostgREST call that the
+columns did **not** already exist (`42703 column does not exist`) before
+applying. Applied via the Management API raw-SQL endpoint with a fresh,
+one-time personal access token (same pattern as `034` — never logged,
+discarded after use, the user was told to revoke it). Re-verified
+immediately after: the identical PostgREST call now returns `200`
+instead of `42703` — the three columns exist and are queryable.
+
+**Real production acceptance test — not against `app.vibelabsagency.com`
+directly (a real, disclosed substitution, not silent):** PR #26 isn't
+merged, and this repo's production only ever deploys from `main`, so
+none of P0.5/taxonomy/GMB-import/redesign-demo exists on that domain
+yet. Vercel auto-generates a preview deployment per branch; the one for
+this branch was confirmed `READY` and built from the exact reviewed
+commit (`9f2cbf6`) — and shares the **same real production Supabase
+database and Google Places API** as `app.vibelabsagency.com`, just a
+different URL. That preview was behind Vercel's own deployment-
+protection SSO wall; the user supplied a Protection Bypass token
+(Project Settings → Deployment Protection) to reach it as a real
+browser session rather than a Vercel-authenticated one.
+
+**All 25 acceptance items verified live, real browser, real sandbox
+admin, real Google Places data:**
+- Taxonomy: picker showed "Roofing," never "Roofing Contractors."
+- A bare "Atlanta" search (the exact originally-reported defect shape)
+  returned 40 real results, all 40 accessible via pagination (25+15
+  across 2 pages), both website-having (37) and no-website (3) results
+  stayed visible under their filters, and produced **no** "Invalid
+  business data" error.
+- View Opportunity opened with real, sourced evidence every time.
+- Import GMB Data succeeded for both a website+phone business and a
+  no-website business — real Place Details calls, real persistence
+  (`public_profile_source: "google_places"` confirmed directly in the
+  database).
+- **The read-back gap closed in §2ai was proven live, decisively**: a
+  completely fresh search (new page load, no client state carried
+  over) showed "GMB data imported · Updated just now" for a
+  previously-imported business, and its Opportunity Preview showed real
+  enriched evidence ("Google Business Profile imported — operational,"
+  "Full weekly hours on file") sourced from `google_places` — not
+  cached client state, a genuine round trip through the newly-applied
+  columns.
+- Full Screen opened the correct `/prospects/[id]`, internal `roofer`
+  key intact throughout.
+- Build New Site Demo (no-website) and Create Redesign Demo (has-
+  website) both verified end-to-end with a **real, non-simulated
+  audit** — queued, completed via the Railway worker, "Refresh Brief"
+  brought back "Medium opportunity," the redesign button correctly
+  appeared only then, and clicking it produced a real `200` and a real
+  39KB generated demo page. Run Audit's own gating (no button, and a
+  forced direct API call correctly `400`s with a specific error) was
+  re-confirmed pre-audit.
+- Zero automatic Vercel deployments: confirmed both by never clicking
+  Publish and by an independent Vercel API check — zero `wg-`-prefixed
+  business-publish projects exist at all. Demo generation and
+  publishing both stayed explicit-only throughout.
+
+**Step 3 — data/tenancy, verified for real, not assumed from the P0
+build's earlier RLS proof:** since migration `035` only adds columns
+to the already-RLS-covered `prospects` table with no new policy, this
+specifically re-tested the *new* columns, not just the table generally.
+A second real sandbox org/user, signed in for a real session (not
+service-role): reading org A's `prospects` (including `public_profile`)
+returned **0 rows**; attempting to `UPDATE` org A's `public_profile`
+column directly returned **0 rows affected** (RLS silently blocks the
+match, the correct Postgres behavior) — while the same session's read
+of its own (empty) org correctly returned 0 rows too, proving the
+read path itself works and isn't just globally broken. Idempotency:
+called `/api/prospects/import-gmb` twice in a row for the identical
+business through a real authenticated session — both calls returned
+the **identical** `prospectId`, the second call's `fetchedAt` genuinely
+advanced (a real re-fetch, not a no-op), and a direct database count
+confirmed the prospect row count never increased. No duplicates.
+
+**Cleanup:** both sandbox organizations (their prospects, projects,
+analysis_jobs, opportunity_briefs, next_best_actions, and auth users)
+deleted and independently re-verified gone via direct database queries
+after deletion — not assumed from the delete calls succeeding.
+
+**No production errors encountered at any point in this test.**
+
+**Acceptance: PASSED.** PR #26 remains **not merged** pending explicit
+approval — this review's job was to prove it's safe to merge, not to
+merge it.
+
 ---
 
 ## Verified vs. assumed

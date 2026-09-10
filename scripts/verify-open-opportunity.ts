@@ -107,7 +107,35 @@ console.log("9. cross-tenant protections remain unchanged");
   );
 }
 
-console.log("10. duplicate open of same Finder business behaves correctly");
+console.log("10. bare-city search (no state) — the real P0.5 production defect");
+{
+  // The exact real payload captured from a real browser click on production
+  // (10 Sep 2026, docs/history.md §2af/P0.5 entry): a Finder search for just
+  // "Atlanta" (no ", GA") left every result's state as "", rejected with
+  // fieldErrorKeys: ["state"] before this fix — a field neither PR #24 nor
+  // PR #25 touched, since both hotfixes' tests always supplied a state.
+  const realCapturedPayload = {
+    id: "ChIJ__-_MWEP9YgRWTnzIcCPx70",
+    name: "ROOFING COMPANY IN Atlanta, GA",
+    industry: "roofer",
+    phone: "(470) 789-9370",
+    address: "3565 Piedmont Rd NE",
+    city: "Atlanta",
+    state: "",
+    rating: 5,
+    reviewCount: 2,
+    website: null,
+    source: "places" as const
+  };
+  const r = businessSchema.safeParse(realCapturedPayload);
+  check("real captured bare-city payload (empty state) accepted", r.success);
+  const rAbsent = businessSchema.safeParse({ ...base, phone: "(404) 555-0100" });
+  check("state field entirely absent also accepted (defaults to \"\")", rAbsent.success);
+  const rNoCity = businessSchema.safeParse({ ...base, phone: "(404) 555-0100", city: "" });
+  check("empty city still correctly REJECTED (city stays required, unaffected by this fix)", !rNoCity.success);
+}
+
+console.log("11. duplicate open of same Finder business behaves correctly");
 {
   console.log("  Verified live in production (not a schema-level concern): re-opening the same");
   console.log("  business (same Google Place id) twice returned the identical prospectId both");

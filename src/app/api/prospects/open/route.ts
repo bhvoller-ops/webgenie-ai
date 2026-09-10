@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/access";
-import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
-import { rowToProspect } from "@/lib/prospect/row";
-import { businessSchema, normalizePhone } from "@/lib/prospect/business-schema";
+import { openProspect } from "@/lib/prospect/open";
+import { businessSchema } from "@/lib/prospect/business-schema";
 
 /**
  * Admin-only. Turns a Finder result (an ephemeral `Business`) into a real,
@@ -19,6 +18,9 @@ import { businessSchema, normalizePhone } from "@/lib/prospect/business-schema";
  * that's also the correct home for "one canonical shape between Finder
  * and this route" after the 10 Sep 2026 phone-validation defect
  * (docs/history.md) showed the schema and the real shape had drifted.
+ *
+ * The find-or-create logic itself lives in lib/prospect/open.ts (P0.5) —
+ * the new GMB-import route reuses it too, rather than a second copy.
  */
 export async function POST(request: Request) {
   const { ctx, response } = await requireAdminApi();
@@ -32,47 +34,11 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const b = parsed.data;
-  const isGooglePlace = b.source === "places";
-  const hasWebsite = Boolean(b.website);
-  const phone = normalizePhone(b.phone);
 
-  const existing = isGooglePlace
-    ? await supabase.from("prospects").select("*").eq("organization_id", organizationId).eq("google_place_id", b.id).maybeSingle()
-    : await supabase.from("prospects").select("*").eq("organization_id", organizationId).eq("business_name", b.name).eq("phone", phone).is("google_place_id", null).maybeSingle();
-
-  let prospectRow = existing.data;
-
-  if (!prospectRow) {
-    const { data, error } = await supabase
-      .from("prospects")
-      .insert({
-        organization_id: organizationId,
-        source: "finder",
-        google_place_id: isGooglePlace ? b.id : null,
-        business_name: b.name,
-        industry: b.industry,
-        phone,
-        website_url: b.website || null,
-        has_website: hasWebsite,
-        address: b.address,
-        city: b.city,
-        state: b.state,
-        rating: b.rating ?? null,
-        review_count: b.reviewCount ?? null,
-        open_24_hours: b.open24Hours ?? false,
-        created_by: user.id
-      })
-      .select("*")
-      .single();
-    if (error || !data) {
-      return NextResponse.json({ error: error?.message ?? "Unable to create prospect." }, { status: 500 });
-    }
-    prospectRow = data;
+  try {
+    const prospect = await openProspect(supabase, organizationId, user.id, parsed.data);
+    return NextResponse.json({ prospectId: prospect.id });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create prospect." }, { status: 500 });
   }
-
-  const prospect = rowToProspect(prospectRow);
-  await regenerateProspectIntelligence(supabase, prospect);
-
-  return NextResponse.json({ prospectId: prospect.id });
 }

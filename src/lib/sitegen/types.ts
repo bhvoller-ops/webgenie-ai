@@ -26,6 +26,15 @@ export interface Business {
   heroImageOverride?: string;
   /** Replaces the industry's default "in action" photo for this business only. */
   secondaryImageOverride?: string;
+  /**
+   * True when this result's brand name appears more than once in the same
+   * Finder search — a direct multi-location signal, not a review-count
+   * judgment call (see partitionChains() in lib/prospect/finder.ts). Set
+   * only by Finder's "show all results" list (P0.5) — a display/filter
+   * hint, not an exclusion; the older withoutWebsite/withWebsite lists
+   * still hold chains out entirely for /api/audits/queue's own logic.
+   */
+  isLikelyChain?: boolean;
 }
 
 /**

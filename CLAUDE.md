@@ -61,6 +61,40 @@ deliberately just the two-motion summary.
   pattern — confirmed live, fixed by reuse (`publishSiteBusinessSchema`
   in `lib/prospect/business-schema.ts`), on its own hotfix branch/PR,
   **not yet merged**. See `docs/history.md`'s P0 entries (§2ad, §2ae, §2af).
+- **P0.5 (Finder → Prospect Intelligence)** — built on branch
+  `feature/p0-5-finder-prospect-intelligence`, **not yet merged**. Finder
+  now shows every result a search returns (not just no-website), with a
+  redesigned table, filters, sorting, pagination, deterministic
+  Preliminary Opportunity scoring, an Opportunity Preview drawer, and
+  row/bulk "Import GMB Data." Also fixed a second real production defect:
+  a bare-city Finder search (no state typed) produced "Invalid business
+  data" on Opportunity — same class of bug as the phone-validation
+  defects above, this time on `state`. Migration `035` (additive columns
+  for GMB import persistence) has been **applied to production and
+  verified** (10 Sep) — `prospects.public_profile`/`public_profile_source`/
+  `public_profile_fetched_at` confirmed live via PostgREST. Also on this
+  branch/PR: Finder's industry picker/search
+  now uses a broader taxonomy layer (`lib/sitegen/finder-taxonomy.ts` —
+  "Roofing" not "Roofing Contractor", broader Places search intent,
+  internal keys unchanged; `industryLabel()`/`industrySearchTerm()`,
+  used by generated-site copy and persisted project data, are
+  untouched). A pre-merge readiness review (10 Sep) closed a real GMB-
+  import read-back gap (imported data was persisted but nothing ever
+  read it back — now flows into Preliminary Opportunity/Finder/demo
+  generation, safely both before and after migration `035`), and
+  implemented Create Redesign Demo (real, evidence-gated, reuses the
+  existing generator) plus GMB data optionally feeding either demo
+  mode. Source-facts/presentation separation and demo provenance are
+  explicit, documented backlog, not built. **A full real production
+  acceptance test (25 items) passed** against a live Vercel preview
+  deployment sharing production's real Supabase DB and Google Places
+  API (`app.vibelabsagency.com` itself won't have this code until
+  merge) — real 40-result Finder search, the bare-city defect confirmed
+  fixed live, real GMB import + read-back, a real non-simulated audit
+  driving Create Redesign Demo, cross-tenant RLS re-confirmed on the
+  new columns specifically, zero automatic Vercel deployments. **PR #26
+  is still not merged** — pending explicit approval. See
+  `docs/history.md` §2ag/§2ah/§2ai/§2aj.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
