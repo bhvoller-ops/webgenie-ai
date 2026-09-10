@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  BarChart3,
   BookOpen,
   CheckCheck,
   FolderKanban,
@@ -10,6 +11,8 @@ import {
   Phone,
   Plus,
   Radar,
+  Repeat,
+  Rocket,
   Search,
   Settings,
   Sparkles,
@@ -54,6 +57,24 @@ const PROSPECTOR_ITEMS: NavGroupItem[] = [
     label: "Find Audits",
     description: "Find businesses with a bad website and queue a real 11-module intelligence scan.",
     icon: <Radar className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/sequences",
+    label: "Sequences",
+    description: "Build a human-executed outreach plan and enroll prospects — you send it, WebGenie prepares it.",
+    icon: <Repeat className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/launch",
+    label: "Launch Mode",
+    description: "A guided week one for a new agency — real progress, no fake pipeline.",
+    icon: <Rocket className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/insights",
+    label: "Insights",
+    description: "Real, trustworthy counts of what's actually happened — never a fabricated pattern.",
+    icon: <BarChart3 className="h-4 w-4" aria-hidden />,
   },
 ];
 

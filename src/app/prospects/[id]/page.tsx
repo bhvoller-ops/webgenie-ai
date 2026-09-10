@@ -11,6 +11,9 @@ import { NEXT_BEST_ACTION_LABELS, RECOMMENDED_OFFER_LABELS } from "@/lib/prospec
 import { ProspectActions } from "./prospect-actions";
 import { PitchGenerator } from "./pitch-generator";
 import { DemoRoomPanel } from "./demo-room-panel";
+import { SuppressControl } from "./suppress-control";
+import { SequencePanel } from "./sequence-panel";
+import { HandoffPanel } from "./handoff-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +100,20 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
           hasIntelligence={Boolean(intelligence)}
           opportunityLevel={brief?.opportunityLevel}
         />
+        <SuppressControl prospectId={prospect.id} suppressedAt={prospect.suppressedAt ?? null} suppressionReason={prospect.suppressionReason ?? null} />
       </div>
+
+      {/* WON CLIENT HANDOFF (P2) — only once a sale is actually confirmed */}
+      {prospect.status === "won" ? (
+        <div className="mt-6">
+          <HandoffPanel
+            prospectId={prospect.id}
+            hasProject={Boolean(prospect.projectId)}
+            recommendedOffer={brief?.recommendedOffer ? RECOMMENDED_OFFER_LABELS[brief.recommendedOffer] : null}
+            recommendedOfferReason={brief?.recommendedOfferReason ?? null}
+          />
+        </div>
+      ) : null}
 
       {!brief ? (
         <div className="mt-8 card p-6">
@@ -146,6 +162,9 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
 
             {/* PITCH GENERATOR (P1) */}
             <PitchGenerator prospectId={prospect.id} />
+
+            {/* ASSISTED OUTREACH SEQUENCE (P2) */}
+            <SequencePanel prospectId={prospect.id} />
 
             {/* EVIDENCE */}
             {brief.evidenceReferences.length > 0 ? (
