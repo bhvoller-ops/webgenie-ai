@@ -95,13 +95,19 @@ deliberately just the two-motion summary.
   edit/copy/regenerate/mark-used with contact-outcome logging that
   closes the loop back into the Queue), and a client-facing Demo Room
   (`/demo/[token]`, public, client-safe findings only — no raw audit
-  JSON, no internal scores/sales-angle ever exposed). New migration
-  `036` (`prospect_actions`/`prospect_activities`/`pitches`/
-  `demo_rooms`) is written but **not applied to production** — every
-  new code path was verified to degrade safely (no crashes, real
-  errors, graceful empty states) against the current schema either
-  way. Full DB-backed integration testing (Queue↔Pitch↔Demo Room) is
-  pending that migration being applied. See `docs/history.md` §2al.
+  JSON, no internal scores/sales-angle ever exposed). Migration `036`
+  (`prospect_actions`/`prospect_activities`/`pitches`/`demo_rooms`) is
+  **applied to production** (RLS-verified both directions, a shared
+  cross-tenant FK-association trigger added during review). A full
+  real production acceptance test passed against the live PR preview
+  (Daily Queue, all 6 pitch channels, contact-outcome→follow-up,
+  Won/Lost, Demo Room, full integration chain, two-org tenancy) —
+  three real defects found by exercising the feature (a missing
+  `DEMO_GENERATED` activity log, a `FOLLOW_UP` completion that didn't
+  clear its own due date and so resurrected itself, and a broken
+  `demo_rooms.public_token` column default that blocked Demo Room
+  creation outright) were fixed the same session. See `docs/history.md`
+  §2al–§2am.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
