@@ -61,6 +61,17 @@ deliberately just the two-motion summary.
   pattern — confirmed live, fixed by reuse (`publishSiteBusinessSchema`
   in `lib/prospect/business-schema.ts`), on its own hotfix branch/PR,
   **not yet merged**. See `docs/history.md`'s P0 entries (§2ad, §2ae, §2af).
+- **P0.5 (Finder → Prospect Intelligence)** — built on branch
+  `feature/p0-5-finder-prospect-intelligence`, **not yet merged**. Finder
+  now shows every result a search returns (not just no-website), with a
+  redesigned table, filters, sorting, pagination, deterministic
+  Preliminary Opportunity scoring, an Opportunity Preview drawer, and
+  row/bulk "Import GMB Data." Also fixed a second real production defect:
+  a bare-city Finder search (no state typed) produced "Invalid business
+  data" on Opportunity — same class of bug as the phone-validation
+  defects above, this time on `state`. Migration `035` (additive columns
+  for GMB import persistence) is written but **not applied to
+  production**. See `docs/history.md` §2ag.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
