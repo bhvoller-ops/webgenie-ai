@@ -52,6 +52,16 @@ export interface FinderResult {
   withWebsite: Business[];
   /** Multi-location chains and high-volume operators, held out of the lists above. */
   likelyChains: Business[];
+  /**
+   * Every candidate this search actually returned (all review tiers
+   * combined, chains included and flagged via `isLikelyChain`) — added for
+   * P0.5's "the user should be able to inspect all N businesses returned
+   * by the provider" requirement. Built from data already fetched, no
+   * extra API calls. `withoutWebsite`/`withWebsite`/`likelyChains` above
+   * are untouched (still exactly one review tier, chains excluded) since
+   * /api/audits/queue's existing logic depends on that exact shape.
+   */
+  all: Business[];
   ranAt: string;
   /** Present when Places was attempted but unavailable. */
   notice?: string;
@@ -170,6 +180,7 @@ export function sampleSearch(q: FinderQuery): FinderResult {
     withoutWebsite: all.filter((b) => !b.website),
     withWebsite: all.filter((b) => b.website),
     likelyChains: [],
+    all,
     ranAt: new Date().toISOString(),
   };
 }
@@ -465,6 +476,15 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     const tier = q.reviewTier ?? "small";
     const candidates = byTier[tier];
 
+    // Every candidate this search actually returned, across all three review
+    // tiers, chains included and flagged rather than dropped — see the
+    // `all` field's own doc comment on FinderResult. Built from data already
+    // computed above (byTier + likelyChains), so this costs nothing extra.
+    const everyResult: Business[] = [
+      ...REVIEW_TIERS.flatMap((t) => byTier[t.key]),
+      ...likelyChains.map((b) => ({ ...b, isLikelyChain: true })),
+    ];
+
     return {
       provider: "places",
       query: q,
@@ -473,6 +493,7 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
       withoutWebsite: candidates.filter((b) => !b.website && b.phone),
       withWebsite: candidates.filter((b) => b.website),
       likelyChains,
+      all: everyResult,
       ranAt: new Date().toISOString(),
       notice,
     };
