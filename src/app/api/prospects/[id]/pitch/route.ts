@@ -89,7 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString();
   let pitchRow;
   if (existing) {
-    const { data } = await supabase
+    const { data, error: updateError } = await supabase
       .from("pitches")
       .update({
         subject: generated.subject,
@@ -103,9 +103,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq("id", existing.id)
       .select("*")
       .single();
+    if (updateError || !data) return NextResponse.json({ error: updateError?.message ?? "Unable to save the regenerated pitch." }, { status: 500 });
     pitchRow = data;
   } else {
-    const { data } = await supabase
+    const { data, error: insertError } = await supabase
       .from("pitches")
       .insert({
         organization_id: organizationId,
@@ -119,6 +120,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .select("*")
       .single();
+    if (insertError || !data) return NextResponse.json({ error: insertError?.message ?? "Unable to save the generated pitch." }, { status: 500 });
     pitchRow = data;
   }
 
