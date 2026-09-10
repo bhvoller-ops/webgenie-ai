@@ -55,15 +55,28 @@
 --    migration actually produced -- safer than a hardcoded guess that
 --    could fail the whole migration on a wrong name.
 -- ------------------------------------------------------------------
+-- The first version of this block matched on
+-- `pg_get_constraintdef(oid) ilike '%status%'`, a text substring of the
+-- constraint's rendered definition -- found to be genuinely wrong when
+-- actually applying this migration: call_log has THREE columns whose
+-- name contains "status" (status, payment_status, commission_status),
+-- so all three of their CHECK constraints match that substring, and a
+-- bare `select ... into` with no ordering picked one arbitrarily. It
+-- dropped a *different* column's constraint and then collided with the
+-- real, still-present `status`-column one on the ADD. Fixed to match
+-- the actual constrained *column* via pg_attribute/conkey, not a text
+-- substring of the definition.
 do $$
 declare
   constraint_name text;
 begin
-  select conname into constraint_name
-  from pg_constraint
-  where conrelid = 'public.prospects'::regclass
-    and contype = 'c'
-    and pg_get_constraintdef(oid) ilike '%status%';
+  select con.conname into constraint_name
+  from pg_constraint con
+  join pg_attribute att on att.attrelid = con.conrelid and att.attnum = any(con.conkey)
+  where con.conrelid = 'public.prospects'::regclass
+    and con.contype = 'c'
+    and att.attname = 'status'
+    and array_length(con.conkey, 1) = 1;
   if constraint_name is not null then
     execute format('alter table public.prospects drop constraint %I', constraint_name);
   end if;
@@ -72,11 +85,13 @@ begin
       'new', 'audited', 'demo_ready', 'contacted', 'follow_up', 'meeting', 'won', 'lost', 'deprioritized'
     ));
 
-  select conname into constraint_name
-  from pg_constraint
-  where conrelid = 'public.call_log'::regclass
-    and contype = 'c'
-    and pg_get_constraintdef(oid) ilike '%status%';
+  select con.conname into constraint_name
+  from pg_constraint con
+  join pg_attribute att on att.attrelid = con.conrelid and att.attnum = any(con.conkey)
+  where con.conrelid = 'public.call_log'::regclass
+    and con.contype = 'c'
+    and att.attname = 'status'
+    and array_length(con.conkey, 1) = 1;
   if constraint_name is not null then
     execute format('alter table public.call_log drop constraint %I', constraint_name);
   end if;
