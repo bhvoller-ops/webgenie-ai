@@ -2488,12 +2488,94 @@ Calling regenerate a second time with no state change left `version` and
 `input_fingerprint` unchanged, confirming the "don't regenerate
 unnecessarily" behavior holds against production, not just in-memory.
 
-**Still open, deliberately not run this pass:** a real end-to-end
-audit-completion cycle (Run Audit → real Playwright capture → real
-analysis → Brief refresh reflecting the richer evidence) — needs real
-time against production infrastructure; the underlying code path was
-already unit-verified against a real `WebsiteIntelligenceOutput` shape.
-Flagged as a post-merge validation item, not skipped silently.
+**Update, 10 Sep 2026 — the real audit-completion E2E flagged above as
+still open is now done, and PR #23 is merged.** Merge commit
+`6cfc339` — confirmed live in production (Vercel API,
+`githubCommitSha` match). Real routes verified post-merge: `/`,
+`/signup`, `/login`, `/samples` all 200; `/finder` correctly 307s an
+unauthenticated visitor. Using a real temporary sandbox admin (real
+login through the actual `/login` form, real session cookies):
+
+- **No-website case:** a real live Google Places search surfaced "Ajax
+  Plumbing & Drain Services" (Macon, GA, no website) — opened, brief
+  generated correctly (`low` opportunity, matching its real lack of
+  review data — not fabricated as high), `NBA: GENERATE_DEMO`.
+- **Has-website case, full cycle:** opened the agency's own
+  `simpleonlinesteps.com` (chosen specifically to avoid any third-party
+  risk). Pre-audit: `insufficient_evidence`, `recommended_offer: null`,
+  `NBA: RUN_AUDIT`. Ran a **real** audit — the real Railway worker
+  claimed and completed a genuine capture + 11-module analysis, no
+  mocking. Refreshed the brief: `medium` opportunity (real score
+  57/100), `recommended_offer: audit_led_rebuild` citing the real
+  score, 5 real evidence references (real measured facts — 0 headings,
+  0 forms, 0 CTAs, 673 words, no meta description), a suggested opener
+  correctly pairing one real strength with one real weakness and no
+  fabricated claim, `NBA` correctly advanced `RUN_AUDIT → CONTACT`,
+  brief version incremented 1 → 2. Every P0 success criterion now
+  proven end-to-end against real production data, not just unit tests.
+
+All sandbox fixtures (2 orgs across sessions, 2 users, 2 prospects, 1
+project + its real analysis job/output) deleted and independently
+confirmed gone. No outreach sent to either business.
+
+### 2ae. Finder → Open Opportunity: real production defect, found and fixed — 10 Sep 2026
+
+Reported: clicking "Open Opportunity" on real Finder results returned
+"Invalid business data." for Roofing companies in the Atlanta metro,
+and other industries too. Reproduced first, not guessed — a real
+temporary sandbox admin, a real live Finder search, then every single
+returned business run through the real, unmodified `/api/prospects/open`
+route. An initial 35-business Roofing/Atlanta batch all succeeded (no
+repro); broadening to 152 businesses across 7 real searches (Roofing in
+Marietta/Alpharetta/Decatur/Sandy Springs, plus Electrician/HVAC/
+Landscaper in Atlanta) surfaced 3 real failures — "ATLANTA ROOFING
+CONTRACTORS, LLC" (Alpharetta), "Intown Craftsmen" (Decatur), and
+"DaGraca Landscaping Services" (Atlanta) — real businesses with real
+websites and real reviews, all sharing the exact same signature:
+`phone: ""`.
+
+**Root cause:** `lib/prospect/finder.ts` normalizes a Google Places
+result with no phone on file to `phone: pl.nationalPhoneNumber ?? ""`
+— an empty string, the same convention `address` already uses there —
+not `undefined`/`null`. `/api/prospects/open`'s validation schema
+required `phone: z.string().min(1).max(40)`, rejecting that empty
+string outright. `Business.phone` (`lib/sitegen/types.ts`) is a
+required `string` everywhere else in the app (every generated site's
+phone link, the SMS button, etc. assume it's real), so loosening it at
+the source would have rippled far wider than this one boundary — fixed
+instead at the correct seam: where the loose, UI-friendly `Business`
+shape becomes a persisted `Prospect` row. Why the earlier P0 field test
+didn't catch this: it only tested two specific, manually-picked
+businesses (one already known to have a phone number), never a broad
+enough real sample to hit the empty-phone case — this defect's own
+152-business scan is what P0's original test should have been.
+
+**Fix:** `phone` is now optional in the schema (`z.string().max(40)
+.optional()`), normalized to a real `null` (not a fabricated value) via
+a new shared `normalizePhone()` helper before persisting — never
+silently stored as `""`. The schema itself moved out of the route file
+into `lib/prospect/business-schema.ts` — the "one canonical shape"
+angle wasn't optional cleanup, `tsc --noEmit` genuinely fails if a
+`route.ts` exports anything beyond the recognized HTTP-method/config
+set, which blocked testing the schema directly at all. `city`/`state`
+deliberately stay required — Finder always sets them from the real
+search query, never Places' own (sometimes-absent) data, and the real
+scan found zero failures there.
+
+**Also found, not fixed here:** `/api/publish-site/route.ts` has the
+identical `phone: z.string().min(1).max(40)` requirement — "Publish"
+almost certainly fails on the same class of real business. Flagged,
+not silently fixed alongside this, since it wasn't the reported defect
+and touching a second route wasn't in scope for this pass.
+
+**Verified:** a new `scripts/verify-open-opportunity.ts` imports the
+real, unmodified `businessSchema` directly (not a reimplementation) —
+14 checks covering all 10 required cases (phone/rating/review-count
+missing, partial address, a real Google Place id, malformed payloads
+still correctly rejected, no org-id trusted from the request body),
+all passing. `scripts/verify-opportunity-brief.ts` re-run clean (24/24,
+unaffected). `tsc --noEmit`, `eslint`, and a full production build all
+clean.
 
 ---
 
