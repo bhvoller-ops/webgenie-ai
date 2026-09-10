@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   BookOpen,
+  CheckCheck,
   FolderKanban,
   Handshake,
   Inbox,
@@ -36,6 +37,12 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 }
 
 const PROSPECTOR_ITEMS: NavGroupItem[] = [
+  {
+    href: "/prospecting",
+    label: "Daily Queue",
+    description: "Today's prospects and follow-ups worth acting on, in priority order.",
+    icon: <CheckCheck className="h-4 w-4" aria-hidden />,
+  },
   {
     href: "/finder",
     label: "Find Clients",
