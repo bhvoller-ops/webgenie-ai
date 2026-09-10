@@ -28,6 +28,23 @@
 --   - No activity/event log and no pitch/demo-room persistence existed
 --     anywhere in this schema before this migration — prospect_activities,
 --     pitches, and demo_rooms are the only genuinely new concepts.
+--
+-- Rollback: the two CHECK-constraint widenings are reversible only if no
+-- row has actually used a new value yet (dropping back to the narrower
+-- constraint would fail otherwise, correctly, rather than silently
+-- truncating real data) -- check for that first, then re-run the same
+-- dynamic drop-and-recreate this migration uses with the original value
+-- lists. The four new tables and their triggers/functions are trivially
+-- and safely reversible with a plain
+--   drop table if exists public.demo_rooms, public.pitches,
+--     public.prospect_activities, public.prospect_actions cascade;
+--   drop function if exists public.enforce_prospect_tenant_match();
+-- since none of them are referenced by any other table's foreign key,
+-- and every real fact they hold either originates elsewhere (a prospect's
+-- own fields) or is itself the only copy of something re-creatable on
+-- demand (a pitch can be regenerated, a Demo Room recreated) -- rolling
+-- back loses queue/activity/pitch/demo-room history, never a canonical
+-- prospect fact.
 
 -- ------------------------------------------------------------------
 -- 1/2. Widen prospects.status and call_log.status with new allowed
@@ -231,7 +248,9 @@ create table public.demo_rooms (
   updated_at timestamptz not null default now()
 );
 create index demo_rooms_org_idx on public.demo_rooms(organization_id);
-create unique index demo_rooms_token_idx on public.demo_rooms(public_token);
+-- No separate index on public_token: the column's own `unique` constraint
+-- above already creates one (found as a redundant duplicate during the
+-- P1 pre-apply review — removed here rather than applied and left in).
 
 alter table public.demo_rooms enable row level security;
 -- Admin/org-member management (the internal side — creating, editing, archiving).
@@ -257,3 +276,65 @@ with check (
 -- pattern already established for beta_testers (migration 024) and
 -- /pay/[callLogId] — never through this RLS policy, which requires a
 -- real org membership a demo-room visitor will never have.
+
+-- ------------------------------------------------------------------
+-- 7. Cross-tenant foreign-key guard — found during the P1 pre-apply
+--    production-safety review, same class of gap already found and
+--    fixed once before in this project for call_log.prospect_id
+--    (migration 034's enforce_call_log_prospect_tenant()): each of the
+--    four tables above stores its own organization_id (denormalized,
+--    not joined-through-parent), and each one's RLS policy only checks
+--    "is the caller a member of THIS row's organization_id" — it never
+--    verifies that the referenced prospect_id actually belongs to a
+--    prospect row in that same organization. Every real application
+--    code path already looks up the prospect scoped to the caller's own
+--    org before ever referencing its id (so this was never reachable
+--    through this app's own routes), but a direct authenticated
+--    PostgREST call bypassing the app could otherwise insert a row
+--    whose organization_id is real (the caller's own) but whose
+--    prospect_id points at a different organization's prospect —
+--    closed at the schema level rather than trusted to app code, the
+--    same discipline call_log's own guard, bootstrap_organization (013)
+--    and assign_founding_seat (028) already use for cross-cutting
+--    invariants. One shared function, reused across all four tables
+--    rather than four near-duplicates.
+-- ------------------------------------------------------------------
+create or replace function public.enforce_prospect_tenant_match()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.prospect_id is not null then
+    if not exists (
+      select 1 from public.prospects p
+      where p.id = new.prospect_id
+        and p.organization_id = new.organization_id
+    ) then
+      raise exception '%.prospect_id must belong to the same organization as %.organization_id', tg_table_name, tg_table_name;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists prospect_actions_tenant_guard on public.prospect_actions;
+create trigger prospect_actions_tenant_guard
+before insert or update of prospect_id, organization_id on public.prospect_actions
+for each row execute function public.enforce_prospect_tenant_match();
+
+drop trigger if exists prospect_activities_tenant_guard on public.prospect_activities;
+create trigger prospect_activities_tenant_guard
+before insert or update of prospect_id, organization_id on public.prospect_activities
+for each row execute function public.enforce_prospect_tenant_match();
+
+drop trigger if exists pitches_tenant_guard on public.pitches;
+create trigger pitches_tenant_guard
+before insert or update of prospect_id, organization_id on public.pitches
+for each row execute function public.enforce_prospect_tenant_match();
+
+drop trigger if exists demo_rooms_tenant_guard on public.demo_rooms;
+create trigger demo_rooms_tenant_guard
+before insert or update of prospect_id, organization_id on public.demo_rooms
+for each row execute function public.enforce_prospect_tenant_match();
