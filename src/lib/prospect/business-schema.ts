@@ -38,6 +38,23 @@ export const businessSchema = z.object({
 
 export type ValidatedBusinessInput = z.infer<typeof businessSchema>;
 
+/**
+ * `/api/publish-site`'s shape — the same canonical fields above, extended
+ * with the two site-generation fields (`hours`, `placeUrl`) and the two
+ * per-request photo overrides Publish alone needs. `/api/publish-site`
+ * had the identical `phone: z.string().min(1)` bug as Open Opportunity
+ * (confirmed live 10 Sep 2026 against a real phone-less business,
+ * docs/history.md) precisely because it redefined the shared fields
+ * instead of reusing them. `.extend()` here means it can never drift from
+ * `businessSchema`'s fix again.
+ */
+export const publishSiteBusinessSchema = businessSchema.extend({
+  hours: z.string().max(200).optional(),
+  placeUrl: z.string().optional(),
+  heroImageOverride: z.string().optional(),
+  secondaryImageOverride: z.string().optional()
+});
+
 /** Empty-string phone means "not on file," same as address's own
  * convention — normalize it to a real absence before it's ever persisted,
  * never store a fabricated or misleading empty value. */
