@@ -3,6 +3,9 @@ import type { WebsiteIntelligenceOutput } from "@/lib/intelligence/types";
 import { generateOpportunityBrief } from "@/lib/prospect/opportunity-brief";
 import { computeNextBestAction, type CallLogSnapshot } from "@/lib/prospect/next-best-action";
 import { computeOpportunityLevel } from "@/lib/prospect/opportunity-level";
+import { syncProspectAction } from "@/lib/prospect/action-sync";
+import type { CallLogSnapshot as P1CallLogSnapshot } from "@/lib/prospect/action-generation";
+import { logActivity } from "@/lib/prospect/activity";
 import type { Prospect } from "@/lib/prospect/types";
 
 /**
@@ -107,7 +110,58 @@ export async function regenerateProspectIntelligence(
   const status = deriveStatus({ prospect, hasCompletedAudit, callLog });
   if (status !== prospect.status) {
     await supabase.from("prospects").update({ status, updated_at: new Date().toISOString() }).eq("id", prospect.id);
+
+    // Log the transitions that matter as real history (P1 section 13) —
+    // only on the actual transition, not on every regenerate call while
+    // already in that state.
+    if (status === "won") {
+      await logActivity(supabase, { organizationId: prospect.organizationId, prospectId: prospect.id, activityType: "PROSPECT_WON", summary: "Marked as won." });
+    } else if (status === "lost") {
+      await logActivity(supabase, { organizationId: prospect.organizationId, prospectId: prospect.id, activityType: "PROSPECT_LOST", summary: "Marked as lost." });
+    } else if (status === "meeting") {
+      await logActivity(supabase, { organizationId: prospect.organizationId, prospectId: prospect.id, activityType: "MEETING_LOGGED", summary: "Meeting booked." });
+    }
   }
+
+  // Audit completion happens asynchronously (the Railway worker, outside
+  // this app's request cycle) — detected here, the first time this
+  // function runs after it finished, by checking whether it's already
+  // been logged for this project rather than assuming "just happened."
+  if (hasCompletedAudit && prospect.projectId) {
+    const { data: alreadyLogged } = await supabase
+      .from("prospect_activities")
+      .select("id")
+      .eq("prospect_id", prospect.id)
+      .eq("activity_type", "AUDIT_COMPLETED")
+      .contains("metadata", { projectId: prospect.projectId })
+      .maybeSingle();
+    if (!alreadyLogged) {
+      await logActivity(supabase, {
+        organizationId: prospect.organizationId,
+        prospectId: prospect.id,
+        activityType: "AUDIT_COMPLETED",
+        summary: typeof intelligence?.overallScore === "number" ? `Audit completed — scored ${intelligence.overallScore}/100.` : "Audit completed.",
+        metadata: { projectId: prospect.projectId }
+      });
+    }
+  }
+
+  // P1: reconcile the Daily Queue's own persisted action item. Uses the
+  // freshly-derived `status` (not the stale `prospect.status` param) so a
+  // won/lost/meeting transition that just happened this same call
+  // correctly suppresses the queue item immediately, not one page load
+  // later.
+  const p1CallLog: P1CallLogSnapshot = callLog
+    ? { status: callLog.status, followUpDueAt: callLog.followUpDueAt }
+    : null;
+  await syncProspectAction(supabase, prospect.organizationId, prospect.id, {
+    prospect: { hasWebsite: prospect.hasWebsite, demoUrl: prospect.demoUrl, status, projectId: prospect.projectId },
+    hasCompletedAudit,
+    opportunityLevel,
+    hasPublicProfile: Boolean(prospect.publicProfile),
+    isSparseData: !prospect.rating && !prospect.reviewCount && !prospect.publicProfile,
+    callLog: p1CallLog
+  });
 }
 
 function deriveStatus(input: {
@@ -120,6 +174,9 @@ function deriveStatus(input: {
   if (input.prospect.status === "deprioritized" && !input.callLog) return "deprioritized";
   if (input.callLog?.status === "closed") return "won";
   if (input.callLog?.status === "lost" || input.callLog?.status === "not_interested") return "lost";
+  // A booked meeting takes precedence over a merely-scheduled follow-up —
+  // there's nothing to prospect until the meeting happens.
+  if (input.callLog?.status === "meeting_booked") return "meeting";
   if (input.callLog?.followUpDueAt) return "follow_up";
   if (input.callLog && input.callLog.status !== "not_called") return "contacted";
   if (input.prospect.demoUrl) return "demo_ready";

@@ -9,7 +9,9 @@ import type { ActionPriority, NextBestActionKey, OpportunityLevel, Prospect } fr
  */
 
 export type CallLogSnapshot = {
-  status: "not_called" | "no_answer" | "not_interested" | "agreed_to_see_site" | "viewed_site" | "closed" | "lost";
+  status:
+    | "not_called" | "no_answer" | "not_interested" | "agreed_to_see_site" | "viewed_site"
+    | "closed" | "lost" | "left_voicemail" | "sent" | "interested" | "replied" | "meeting_booked";
   followUpDueAt: string | null;
 } | null;
 

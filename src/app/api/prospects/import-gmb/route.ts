@@ -3,6 +3,9 @@ import { requireAdminApi } from "@/lib/auth/access";
 import { businessSchema } from "@/lib/prospect/business-schema";
 import { openProspect } from "@/lib/prospect/open";
 import { fetchPlaceDetails } from "@/lib/prospect/finder";
+import { logActivity } from "@/lib/prospect/activity";
+import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
+import { rowToProspect } from "@/lib/prospect/row";
 import { z } from "zod";
 
 /**
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
 
       const prospect = await openProspect(supabase, organizationId, user.id, business);
 
-      const { error: updateError } = await supabase
+      const { data: updatedRow, error: updateError } = await supabase
         .from("prospects")
         .update({
           public_profile: profile,
@@ -55,8 +58,23 @@ export async function POST(request: Request) {
           public_profile_fetched_at: profile.fetchedAt,
           updated_at: new Date().toISOString()
         })
-        .eq("id", prospect.id);
+        .eq("id", prospect.id)
+        .select("*")
+        .single();
       if (updateError) throw new Error(updateError.message);
+
+      await logActivity(supabase, {
+        organizationId,
+        prospectId: prospect.id,
+        activityType: "GMB_DATA_IMPORTED",
+        summary: "Imported Google Business Profile data.",
+        createdBy: user.id
+      });
+      // Re-sync so the queue reflects the freshly-imported data (e.g. no
+      // longer recommending IMPORT_GMB_DATA once real signals exist).
+      if (updatedRow) {
+        await regenerateProspectIntelligence(supabase, rowToProspect(updatedRow));
+      }
 
       imported.push({ businessId: business.id, prospectId: prospect.id, fetchedAt: profile.fetchedAt });
     } catch (error) {
