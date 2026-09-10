@@ -3026,6 +3026,97 @@ build clean.
 **Not merged, migration not applied** — same discipline as every prior
 step of this build.
 
+### 2aj. Migration 035 applied to production; real production acceptance test — 10 Sep 2026
+
+**Migration `035` applied to production**, same disciplined one-time
+process as `034`: confirmed the target project (`dryzyqylkettdftokoxc`),
+confirmed the migration file on disk was byte-identical to the reviewed
+commit (`9f2cbf6`), confirmed it was purely additive (three `ADD COLUMN`
+statements, no drops), and confirmed via a real PostgREST call that the
+columns did **not** already exist (`42703 column does not exist`) before
+applying. Applied via the Management API raw-SQL endpoint with a fresh,
+one-time personal access token (same pattern as `034` — never logged,
+discarded after use, the user was told to revoke it). Re-verified
+immediately after: the identical PostgREST call now returns `200`
+instead of `42703` — the three columns exist and are queryable.
+
+**Real production acceptance test — not against `app.vibelabsagency.com`
+directly (a real, disclosed substitution, not silent):** PR #26 isn't
+merged, and this repo's production only ever deploys from `main`, so
+none of P0.5/taxonomy/GMB-import/redesign-demo exists on that domain
+yet. Vercel auto-generates a preview deployment per branch; the one for
+this branch was confirmed `READY` and built from the exact reviewed
+commit (`9f2cbf6`) — and shares the **same real production Supabase
+database and Google Places API** as `app.vibelabsagency.com`, just a
+different URL. That preview was behind Vercel's own deployment-
+protection SSO wall; the user supplied a Protection Bypass token
+(Project Settings → Deployment Protection) to reach it as a real
+browser session rather than a Vercel-authenticated one.
+
+**All 25 acceptance items verified live, real browser, real sandbox
+admin, real Google Places data:**
+- Taxonomy: picker showed "Roofing," never "Roofing Contractors."
+- A bare "Atlanta" search (the exact originally-reported defect shape)
+  returned 40 real results, all 40 accessible via pagination (25+15
+  across 2 pages), both website-having (37) and no-website (3) results
+  stayed visible under their filters, and produced **no** "Invalid
+  business data" error.
+- View Opportunity opened with real, sourced evidence every time.
+- Import GMB Data succeeded for both a website+phone business and a
+  no-website business — real Place Details calls, real persistence
+  (`public_profile_source: "google_places"` confirmed directly in the
+  database).
+- **The read-back gap closed in §2ai was proven live, decisively**: a
+  completely fresh search (new page load, no client state carried
+  over) showed "GMB data imported · Updated just now" for a
+  previously-imported business, and its Opportunity Preview showed real
+  enriched evidence ("Google Business Profile imported — operational,"
+  "Full weekly hours on file") sourced from `google_places` — not
+  cached client state, a genuine round trip through the newly-applied
+  columns.
+- Full Screen opened the correct `/prospects/[id]`, internal `roofer`
+  key intact throughout.
+- Build New Site Demo (no-website) and Create Redesign Demo (has-
+  website) both verified end-to-end with a **real, non-simulated
+  audit** — queued, completed via the Railway worker, "Refresh Brief"
+  brought back "Medium opportunity," the redesign button correctly
+  appeared only then, and clicking it produced a real `200` and a real
+  39KB generated demo page. Run Audit's own gating (no button, and a
+  forced direct API call correctly `400`s with a specific error) was
+  re-confirmed pre-audit.
+- Zero automatic Vercel deployments: confirmed both by never clicking
+  Publish and by an independent Vercel API check — zero `wg-`-prefixed
+  business-publish projects exist at all. Demo generation and
+  publishing both stayed explicit-only throughout.
+
+**Step 3 — data/tenancy, verified for real, not assumed from the P0
+build's earlier RLS proof:** since migration `035` only adds columns
+to the already-RLS-covered `prospects` table with no new policy, this
+specifically re-tested the *new* columns, not just the table generally.
+A second real sandbox org/user, signed in for a real session (not
+service-role): reading org A's `prospects` (including `public_profile`)
+returned **0 rows**; attempting to `UPDATE` org A's `public_profile`
+column directly returned **0 rows affected** (RLS silently blocks the
+match, the correct Postgres behavior) — while the same session's read
+of its own (empty) org correctly returned 0 rows too, proving the
+read path itself works and isn't just globally broken. Idempotency:
+called `/api/prospects/import-gmb` twice in a row for the identical
+business through a real authenticated session — both calls returned
+the **identical** `prospectId`, the second call's `fetchedAt` genuinely
+advanced (a real re-fetch, not a no-op), and a direct database count
+confirmed the prospect row count never increased. No duplicates.
+
+**Cleanup:** both sandbox organizations (their prospects, projects,
+analysis_jobs, opportunity_briefs, next_best_actions, and auth users)
+deleted and independently re-verified gone via direct database queries
+after deletion — not assumed from the delete calls succeeding.
+
+**No production errors encountered at any point in this test.**
+
+**Acceptance: PASSED.** PR #26 remains **not merged** pending explicit
+approval — this review's job was to prove it's safe to merge, not to
+merge it.
+
 ---
 
 ## Verified vs. assumed
