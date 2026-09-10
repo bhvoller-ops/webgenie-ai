@@ -54,47 +54,36 @@ deliberately just the two-motion summary.
   migration `034` applied and RLS-verified both directions; a real
   audit-completion E2E confirmed the full cycle in production (score
   57/100 real audit → brief refreshed, offer assigned, `NBA` advanced
-  `RUN_AUDIT → CONTACT`). One real production defect found and fixed
-  10 Sep: Finder → "Open Opportunity" rejected any real business with
-  no phone on Google Places (`phone: ""` failing a `.min(1)` check),
-  merged as PR #24 (`abea62f`). `/api/publish-site` had the identical
-  pattern — confirmed live, fixed by reuse (`publishSiteBusinessSchema`
-  in `lib/prospect/business-schema.ts`), on its own hotfix branch/PR,
-  **not yet merged**. See `docs/history.md`'s P0 entries (§2ad, §2ae, §2af).
-- **P0.5 (Finder → Prospect Intelligence)** — built on branch
-  `feature/p0-5-finder-prospect-intelligence`, **not yet merged**. Finder
-  now shows every result a search returns (not just no-website), with a
-  redesigned table, filters, sorting, pagination, deterministic
-  Preliminary Opportunity scoring, an Opportunity Preview drawer, and
-  row/bulk "Import GMB Data." Also fixed a second real production defect:
-  a bare-city Finder search (no state typed) produced "Invalid business
-  data" on Opportunity — same class of bug as the phone-validation
-  defects above, this time on `state`. Migration `035` (additive columns
-  for GMB import persistence) has been **applied to production and
-  verified** (10 Sep) — `prospects.public_profile`/`public_profile_source`/
-  `public_profile_fetched_at` confirmed live via PostgREST. Also on this
-  branch/PR: Finder's industry picker/search
-  now uses a broader taxonomy layer (`lib/sitegen/finder-taxonomy.ts` —
-  "Roofing" not "Roofing Contractor", broader Places search intent,
-  internal keys unchanged; `industryLabel()`/`industrySearchTerm()`,
-  used by generated-site copy and persisted project data, are
-  untouched). A pre-merge readiness review (10 Sep) closed a real GMB-
-  import read-back gap (imported data was persisted but nothing ever
-  read it back — now flows into Preliminary Opportunity/Finder/demo
-  generation, safely both before and after migration `035`), and
-  implemented Create Redesign Demo (real, evidence-gated, reuses the
-  existing generator) plus GMB data optionally feeding either demo
-  mode. Source-facts/presentation separation and demo provenance are
-  explicit, documented backlog, not built. **A full real production
-  acceptance test (25 items) passed** against a live Vercel preview
-  deployment sharing production's real Supabase DB and Google Places
-  API (`app.vibelabsagency.com` itself won't have this code until
-  merge) — real 40-result Finder search, the bare-city defect confirmed
-  fixed live, real GMB import + read-back, a real non-simulated audit
-  driving Create Redesign Demo, cross-tenant RLS re-confirmed on the
-  new columns specifically, zero automatic Vercel deployments. **PR #26
-  is still not merged** — pending explicit approval. See
-  `docs/history.md` §2ag/§2ah/§2ai/§2aj.
+  `RUN_AUDIT → CONTACT`). Two real production defects found and fixed,
+  both merged and live: Finder → "Open Opportunity" rejecting a
+  phone-less business (PR #24, `abea62f`) and the identical pattern in
+  `/api/publish-site` (PR #25, `1d14226`, fixed by reuse via
+  `publishSiteBusinessSchema` in `lib/prospect/business-schema.ts`).
+  See `docs/history.md`'s P0 entries (§2ad, §2ae, §2af).
+- **P0.5 (Finder → Prospect Intelligence) — merged and live**
+  (`3ad12e9`, PR #26). Finder now shows every result a search returns
+  (not just no-website), with a redesigned table, filters, sorting,
+  pagination, deterministic Preliminary Opportunity scoring, an
+  Opportunity Preview drawer, and row/bulk "Import GMB Data" (migration
+  `035` applied to production and verified). A second real production
+  defect (a bare-city search leaving `state` blank, rejecting the
+  request) was found and fixed the same way as P0's phone-validation
+  bugs. Finder's industry picker/search now uses a broader taxonomy
+  layer (`lib/sitegen/finder-taxonomy.ts` — "Roofing" not "Roofing
+  Contractor"; internal keys, `industryLabel()`/`industrySearchTerm()`,
+  and persisted project data all untouched). Both demo modes now work:
+  Build New Site Demo (no website) and Create Redesign Demo (has
+  website + real audit evidence supporting it) — evidence-gated, reuse
+  the existing generator. **Known, deliberate backlog, not built**:
+  source-facts-vs-editable-presentation separation and demo provenance
+  tracking (§2ai items D/E), plus P0.5's own §32 competitive backlog
+  (competitor/Yelp/social enrichment, citation consistency, automated
+  outreach, CRM automation, an LLM visibility audit, GBP OAuth, and
+  more) — none of it started. Verified end-to-end on real production
+  after merge (real 40-result Finder search, GMB import + persisted
+  read-back surviving a fresh reload, a real audit driving Create
+  Redesign Demo, zero automatic Vercel deployments). See
+  `docs/history.md` §2ag–§2ak.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch

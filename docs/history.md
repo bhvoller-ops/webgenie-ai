@@ -3117,6 +3117,55 @@ after deletion — not assumed from the delete calls succeeding.
 approval — this review's job was to prove it's safe to merge, not to
 merge it.
 
+### 2ak. PR #26 merged; P0.5 live on production, verified — 10 Sep 2026
+
+Merged with explicit approval: `gh pr merge 26 --merge` (a regular
+merge commit, same strategy as every other PR in this repo). Merge
+commit / resulting `main` SHA: `3ad12e9b37c192d4246efe6d557a66661c0c8f0f`.
+`vibelabs-membership-phase0` and PR #22 untouched; no P1 work started.
+
+**Production deployment verified, not assumed from GitHub alone:**
+Vercel's auto-deploy (push to `main`) built `dpl_8T1fudirBEAi57bk3pZk2U2VEpBX`
+from that exact commit; polled until `READY`; confirmed its
+`githubCommitSha` matches the merge commit exactly and its alias list
+includes `app.vibelabsagency.com`; then independently curled the real
+domain directly (`200`, real content) rather than trusting the alias
+list alone.
+
+**Short post-merge smoke test, real browser, real production, real
+sandbox admin — all 10 items passed:** Finder shows "Roofing"; a real
+40-result search on bare "Atlanta" returned real live data with no
+"Invalid business data" error; both website (37) and no-website (3)
+businesses stayed visible; View Opportunity opened with real evidence;
+Import GMB Data succeeded on real production; **a completely fresh
+reload showed the imported data persisted** ("GMB data imported ·
+Updated 1 minute ago" — a genuine round trip through the now-live
+`public_profile` columns, not a repeat of the pre-merge preview test);
+Full Screen opened the correct `/prospects/[id]`; the internal `roofer`
+key stayed intact throughout; and an independent Vercel API check
+confirmed zero automatic business-publish deployments were created by
+any of this. No audit was re-run (not needed — already proven pre-merge
+and explicitly out of scope for this smoke pass). Sandbox org/user/
+prospect deleted and independently re-verified gone.
+
+**No production errors encountered.**
+
+**P0.5 status: COMPLETE.** Live on `app.vibelabsagency.com`: Finder 2.0
+(all results, redesigned table/filters/sort/pagination), deterministic
+Preliminary Opportunity scoring, the Opportunity Preview drawer,
+row/bulk Import GMB Data (migration `035` applied and verified), the
+broader Finder industry taxonomy (stable internal keys throughout), and
+both demo modes (Build New Site Demo, Create Redesign Demo — evidence-
+gated, reusing the existing generator). Explicit, documented backlog
+carried forward, not silently dropped: source-facts-vs-presentation
+separation and demo provenance (§2ai items D/E), and P0.5's own §32
+competitive backlog (competitor/Yelp/social enrichment, citation
+consistency, ad/pixel/tech-stack detection, contact enrichment,
+white-label reports, automated email/SMS, CRM automation, scheduled
+enrichment, a weekly digest, an LLM visibility audit, GBP OAuth,
+competitor SEO analysis) — none of these were started, and P1 has not
+been started either.
+
 ---
 
 ## Verified vs. assumed
