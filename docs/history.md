@@ -2577,6 +2577,61 @@ all passing. `scripts/verify-opportunity-brief.ts` re-run clean (24/24,
 unaffected). `tsc --noEmit`, `eslint`, and a full production build all
 clean.
 
+### 2af. `/api/publish-site`: the same phone-validation defect, found live and fixed — 10 Sep 2026
+
+§2ae flagged `/api/publish-site/route.ts` as carrying the identical
+`phone: z.string().min(1).max(40)` bug but explicitly left it unfixed,
+out of scope for that pass. Investigated separately, on its own hotfix
+branch, after PR #24 (§2ae's fix) was merged and verified in
+production.
+
+**Confirmed live, safely, before writing any fix:** a real temporary
+sandbox org/admin, a real Finder search, and a real phone-less business
+("ATLANTA ROOFING CONTRACTORS, LLC") sent through the actual, unmodified
+`/api/publish-site` route — `400 "Invalid business data."`, the same
+symptom as §2ae, for the identical reason: the route's own inline schema
+required `phone` non-empty. Safe to reproduce this way because the Zod
+rejection happens before `publishBusinessSite()` is ever called — no
+real Vercel project or deployment was created by this reproduction. The
+sandbox org and user were deleted immediately after and cleanup
+independently re-verified.
+
+**Fix — reuse, not a second drifting definition.** `lib/prospect/
+business-schema.ts` gained a new named export, `publishSiteBusinessSchema
+= businessSchema.extend({ hours, placeUrl, heroImageOverride,
+secondaryImageOverride })`, replacing the route's own inline
+`baseBusinessSchema.extend({...})` local constant. Composing the
+`.extend()` in the shared module rather than inline in the route (the
+first draft of this fix put it inline, which typechecked fine — a
+non-exported local `.extend()` doesn't trip Next.js's typed-routes
+export restriction — but couldn't be imported by a regression test)
+means both routes now genuinely share one canonical, testable phone
+rule instead of two copies that could silently re-diverge exactly the
+way this bug happened the first time. `/api/publish-site/route.ts`
+itself shrank to just importing `publishSiteBusinessSchema` — no local
+schema definition left in the route file at all.
+
+**Verified:** a new `scripts/verify-publish-site.ts` imports the real,
+unmodified `publishSiteBusinessSchema` directly (not a
+reimplementation) — 16 checks covering the same required cases as
+§2ae's script (phone missing as empty-string/absent, rating/
+reviewCount missing, partial address with city still required, a real
+Google Place id, malformed payloads still rejected, no org-id trusted
+from the payload) plus this route's own extra fields (hours/placeUrl/
+image overrides all optional and correctly accepted when omitted) and
+its separate `industry in INDUSTRIES` membership check (not itself part
+of the Zod schema, exercised the same way the route does), all passing.
+`scripts/verify-open-opportunity.ts` re-run clean (14/14, unaffected —
+confirms the shared base schema's behavior didn't change).
+`scripts/verify-opportunity-brief.ts` not re-run (untouched by this
+change, no shared code path). `tsc --noEmit`, `eslint`, and a full
+production build all clean.
+
+**Scope, deliberately tight:** no change to `publishBusinessSite()`,
+the Vercel publishing logic itself, or any other route. This PR is
+kept separate from the already-merged PR #24 and is **not merged** —
+reported for review first, same discipline as §2ae.
+
 ---
 
 ## Verified vs. assumed

@@ -1,33 +1,24 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/access";
 import { publishBusinessSite } from "@/lib/publish/vercel";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { publishSiteBusinessSchema as businessSchema } from "@/lib/prospect/business-schema";
 import type { Business } from "@/lib/sitegen/types";
 
 /**
  * Agency-only — requires a logged-in session, unlike the public site-chat/
  * site-lead routes. Publishing costs a real Vercel deployment + domain, so
  * this shouldn't be reachable by an anonymous site visitor.
+ *
+ * Uses the canonical `publishSiteBusinessSchema` (lib/prospect/
+ * business-schema.ts, introduced by the Open Opportunity phone-validation
+ * fix and extended there rather than inline here so a regression test can
+ * import it) — this route had the exact same `phone: z.string().min(1)`
+ * bug, confirmed live 10 Sep 2026 against a real phone-less business
+ * (docs/history.md): "Invalid business data." before any Vercel API call
+ * was ever made. Importing the shared, already-extended schema means it
+ * can never drift from that fix again.
  */
-const businessSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1).max(200),
-  industry: z.string().min(1),
-  phone: z.string().min(1).max(40),
-  address: z.string().max(300).optional().default(""),
-  city: z.string().min(1).max(100),
-  state: z.string().min(1).max(20),
-  rating: z.number().optional(),
-  reviewCount: z.number().optional(),
-  hours: z.string().max(200).optional(),
-  website: z.string().nullable().optional(),
-  placeUrl: z.string().optional(),
-  source: z.enum(["places", "manual", "sample"]),
-  heroImageOverride: z.string().optional(),
-  secondaryImageOverride: z.string().optional()
-});
-
 export async function POST(request: Request) {
   const { ctx, response } = await requireAdminApi();
   if (response) return response;

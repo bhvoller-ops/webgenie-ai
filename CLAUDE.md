@@ -56,9 +56,11 @@ deliberately just the two-motion summary.
   57/100 real audit → brief refreshed, offer assigned, `NBA` advanced
   `RUN_AUDIT → CONTACT`). One real production defect found and fixed
   10 Sep: Finder → "Open Opportunity" rejected any real business with
-  no phone on Google Places (`phone: ""` failing a `.min(1)` check) —
-  `/api/publish-site` has the identical unfixed pattern, flagged not
-  yet fixed. See `docs/history.md`'s P0 entries (§2ad, §2ae).
+  no phone on Google Places (`phone: ""` failing a `.min(1)` check),
+  merged as PR #24 (`abea62f`). `/api/publish-site` had the identical
+  pattern — confirmed live, fixed by reuse (`publishSiteBusinessSchema`
+  in `lib/prospect/business-schema.ts`), on its own hotfix branch/PR,
+  **not yet merged**. See `docs/history.md`'s P0 entries (§2ad, §2ae, §2af).
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
