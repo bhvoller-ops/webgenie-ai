@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth/access";
+import { rowToProspect } from "@/lib/prospect/row";
+import { advanceSequenceStep } from "@/lib/prospect/sequence-sync";
+import { logActivity } from "@/lib/prospect/activity";
+import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
+import type { SequenceStepActionMetadata } from "@/lib/prospect/types";
 
 /**
  * Snooze/skip/complete a single Daily Queue item (master prompt section
@@ -35,7 +40,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: actionRow } = await supabase
     .from("prospect_actions")
-    .select("id, status, action_type, prospect_id")
+    .select("id, status, action_type, prospect_id, metadata")
     .eq("id", actionId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -55,6 +60,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // generic "done" click has now handled.
     if (actionRow.action_type === "FOLLOW_UP") {
       await supabase.from("call_log").update({ follow_up_due_at: null, updated_at: now }).eq("prospect_id", actionRow.prospect_id).eq("organization_id", organizationId);
+    }
+    // P2: the generic "Mark done" checkmark on a due sequence step counts
+    // as "I performed this" (a lighter-weight path than the dedicated
+    // outcome-picker at /sequence-enrollments/[id]/perform, which lets the
+    // user log a specific outcome AND advance in one call). This does not
+    // touch call_log -- no specific outcome was declared -- only advances
+    // the sequence and records that the step was handled.
+    if (actionRow.action_type === "SEQUENCE_STEP" && actionRow.metadata) {
+      const meta = actionRow.metadata as unknown as SequenceStepActionMetadata;
+      const { data: enrollment } = await supabase
+        .from("prospect_sequence_enrollments")
+        .select("current_step_order")
+        .eq("id", meta.enrollmentId)
+        .maybeSingle();
+      if (enrollment) {
+        await advanceSequenceStep(supabase, {
+          organizationId,
+          prospectId: actionRow.prospect_id,
+          enrollmentId: meta.enrollmentId,
+          expectedCurrentStepOrder: enrollment.current_step_order
+        });
+        await logActivity(supabase, {
+          organizationId,
+          prospectId: actionRow.prospect_id,
+          activityType: "CONTACT_ATTEMPTED",
+          channel: meta.channel,
+          summary: `${meta.channel} sequence step marked done from the Queue.`,
+          metadata: { sequenceId: meta.sequenceId, sequenceStepId: meta.sequenceStepId, enrollmentId: meta.enrollmentId, outcome: "sent" }
+        });
+      }
+      const { data: prospectRow } = await supabase.from("prospects").select("*").eq("id", actionRow.prospect_id).eq("organization_id", organizationId).maybeSingle();
+      if (prospectRow) await regenerateProspectIntelligence(supabase, rowToProspect(prospectRow), { force: true });
     }
   } else if (parsed.data.op === "skip") {
     await supabase.from("prospect_actions").update({ status: "SKIPPED", updated_at: now }).eq("id", actionId);
