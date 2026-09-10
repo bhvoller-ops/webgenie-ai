@@ -9,6 +9,7 @@ import { requireAdminPage } from "@/lib/auth/access";
 import { getBlueprint, getIntelligence, getNextBestAction, getOpportunityBrief, getProspect } from "@/lib/data/provider";
 import { NEXT_BEST_ACTION_LABELS, RECOMMENDED_OFFER_LABELS } from "@/lib/prospect/types";
 import { ProspectActions } from "./prospect-actions";
+import { PitchGenerator } from "./pitch-generator";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,9 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                 <p className="text-sm leading-relaxed text-ink">&ldquo;{brief.suggestedOpener}&rdquo;</p>
               </div>
             ) : null}
+
+            {/* PITCH GENERATOR (P1) */}
+            <PitchGenerator prospectId={prospect.id} />
 
             {/* EVIDENCE */}
             {brief.evidenceReferences.length > 0 ? (
