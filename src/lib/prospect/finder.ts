@@ -630,6 +630,105 @@ export async function resolveBusiness(
 }
 
 /* ------------------------------------------------------------------ */
+/* "Import GMB Data" — Place Details, P0.5                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The real, legitimately-available public fields Places API (New)'s Place
+ * Details endpoint returns — the same already-enabled/billed Places API
+ * this file already calls for Text Search, just a different endpoint, not
+ * a new provider. Deliberately does NOT use any owner-only GBP
+ * account-management API (see P0.5 master prompt section 17) — this is
+ * public-profile data any Places caller can read for any place id, not
+ * something requiring the business's own authorization.
+ */
+export interface PublicBusinessProfile {
+  placeId: string;
+  name?: string;
+  primaryCategory?: string;
+  formattedAddress?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  internationalPhone?: string;
+  website?: string;
+  googleMapsUri?: string;
+  rating?: number;
+  reviewCount?: number;
+  weekdayHours?: string[];
+  businessStatus?: string;
+  photoReferences?: string[];
+  fetchedAt: string;
+}
+
+/**
+ * Fetches the richer Place Details fields for one real Google Place id.
+ * Only ever called explicitly (a row or bulk "Import GMB Data" click) —
+ * never automatically for every Finder result, per the cost-discipline
+ * rule in the P0.5 master prompt (section 40). Returns null (never
+ * throws) on any failure so a bulk batch can report one row's failure
+ * without aborting the rest (section 35).
+ */
+export async function fetchPlaceDetails(placeId: string): Promise<PublicBusinessProfile | null> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || !placeId) return null;
+
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: {
+        "X-Goog-Api-Key": key,
+        "X-Goog-FieldMask": [
+          "id",
+          "displayName",
+          "primaryTypeDisplayName",
+          "formattedAddress",
+          "nationalPhoneNumber",
+          "internationalPhoneNumber",
+          "websiteUri",
+          "googleMapsUri",
+          "rating",
+          "userRatingCount",
+          "regularOpeningHours",
+          "businessStatus",
+          "photos",
+        ].join(","),
+      },
+    });
+    if (!res.ok) return null;
+
+    const pl = (await res.json()) as PlacesPlaceFull & {
+      primaryTypeDisplayName?: { text?: string };
+      internationalPhoneNumber?: string;
+      businessStatus?: string;
+      photos?: Array<{ name?: string }>;
+    };
+
+    const { city, state } = parseAddressParts(pl.formattedAddress);
+
+    return {
+      placeId: pl.id ?? placeId,
+      name: pl.displayName?.text,
+      primaryCategory: pl.primaryTypeDisplayName?.text,
+      formattedAddress: pl.formattedAddress,
+      city: city || undefined,
+      state: state || undefined,
+      phone: pl.nationalPhoneNumber,
+      internationalPhone: pl.internationalPhoneNumber,
+      website: pl.websiteUri,
+      googleMapsUri: pl.googleMapsUri,
+      rating: pl.rating,
+      reviewCount: pl.userRatingCount,
+      weekdayHours: pl.regularOpeningHours?.weekdayDescriptions,
+      businessStatus: pl.businessStatus,
+      photoReferences: pl.photos?.map((p) => p.name).filter((n): n is string => Boolean(n)),
+      fetchedAt: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* CSV export                                                          */
 /* ------------------------------------------------------------------ */
 
