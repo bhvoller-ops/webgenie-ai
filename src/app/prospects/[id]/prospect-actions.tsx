@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2, Phone, RefreshCw, Sparkles, TestTube } from "lucide-react";
-import type { Prospect } from "@/lib/prospect/types";
+import { Loader2, Phone, RefreshCw, Sparkles, TestTube, Wand2 } from "lucide-react";
+import type { OpportunityLevel, Prospect } from "@/lib/prospect/types";
+import { canCreateRedesignDemo } from "@/lib/prospect/demo-eligibility";
 import { cn } from "@/lib/format";
 
 type ActionKey = "run_audit" | "generate_demo" | "contact" | "refresh";
@@ -11,11 +12,13 @@ type ActionKey = "run_audit" | "generate_demo" | "contact" | "refresh";
 export function ProspectActions({
   prospect,
   hasBlueprint,
-  hasIntelligence
+  hasIntelligence,
+  opportunityLevel
 }: {
   prospect: Prospect;
   hasBlueprint: boolean;
   hasIntelligence: boolean;
+  opportunityLevel?: OpportunityLevel;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<ActionKey | null>(null);
@@ -50,7 +53,19 @@ export function ProspectActions({
         {!prospect.hasWebsite ? (
           <button type="button" className={buttonClass} disabled={pending !== null} onClick={() => run("generate_demo")}>
             {pending === "generate_demo" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
-            {prospect.demoUrl ? "Regenerate demo" : "Generate demo"}
+            {prospect.demoUrl ? "Rebuild new site demo" : "Build new site demo"}
+          </button>
+        ) : null}
+        {canCreateRedesignDemo(prospect, hasIntelligence, opportunityLevel) ? (
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={pending !== null}
+            onClick={() => run("generate_demo")}
+            title="Uses the same site generator as a new-site demo, gated on real audit evidence supporting a redesign"
+          >
+            {pending === "generate_demo" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Wand2 className="h-4 w-4" aria-hidden />}
+            {prospect.demoUrl ? "Recreate redesign demo" : "Create redesign demo"}
           </button>
         ) : null}
         {prospect.demoUrl ? (

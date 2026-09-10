@@ -2869,6 +2869,163 @@ is documentation only, never used to multiply requests.
 issues — a temporary org/user/prospect used for the live check were
 deleted and independently re-verified gone.
 
+### 2ai. P0.5 pre-merge readiness review — 10 Sep 2026
+
+Before considering PR #26 for merge, a dedicated readiness review
+covering four things: migration `035`'s safety, whether "Import GMB
+Data" actually works end-to-end once that migration lands, an honest
+A-E audit of the P0.5 demo requirements, and a written post-merge
+acceptance plan. **Migration still not applied, PR still not merged.**
+
+**1. Migration 035 safety — reviewed line by line, verdict: safe to
+apply.** All three columns nullable, no default, no `not null` —
+metadata-only change, no table rewrite, no backfill, works identically
+whether `prospects` has 0 or 100,000 rows. `jsonb` matches the type
+already used for comparable columns elsewhere (`analysis_outputs
+.output`, `org_branding`). Confirmed directly (not assumed) that no
+migration in this repo uses column-level grants — the table's existing
+RLS policy (migration `034`, "any org member can manage") is the sole
+gate and automatically covers new columns with zero additional
+configuration. **Gap found and closed**: no migration in this repo
+documents rollback considerations, including this one as first written
+— added an explicit rollback note directly in the migration file (the
+three columns can be dropped with zero loss beyond re-fetchable cached
+enrichment data, never a source of truth in their own right).
+**Recommend applying it** when explicitly instructed to, same process
+as migration `034`.
+
+**2. GMB import end-to-end readiness — a real gap found and closed, not
+just reported.** Tracing the full intended flow (Finder → Import GMB
+Data → Place Details → normalize → persist → cached profile available
+→ Preliminary Opportunity refresh → Preview reflects enriched evidence)
+turned up a genuine break: the *write* path (built in the original
+P0.5 pass) was real, but nothing anywhere *read* `public_profile` back
+— not the Finder-search enrichment query, not `computePreliminaryOpportunity()`,
+not the Preview drawer. Imported data would have been persisted and
+then never seen again. Fixed:
+- `lib/prospect/types.ts`/`row.ts` — `Prospect` gains `publicProfile`/
+  `publicProfileSource`/`publicProfileFetchedAt`, read defensively
+  (`row.public_profile` is simply absent, not an error, from a
+  `select("*")` on a pre-migration schema).
+- `api/prospects/route.ts`'s enrichment query switched from named
+  columns to `select("*")` specifically so this is safe **both before
+  and after** migration `035` lands — a named-column select would
+  error on a missing column pre-migration (confirmed this distinction
+  matters: the GMB-import route's own UPDATE already demonstrated the
+  named-column failure mode live, during the original P0.5 Phase H
+  test); `select("*")` just omits the field until it exists, so no
+  further code change will be needed the moment the migration is
+  applied.
+- `computePreliminaryOpportunity()` takes an optional `publicProfile`
+  parameter — adds real, sourced evidence (`gmb_profile_imported`,
+  `gmb_hours`) and raises confidence one step (medium → high) when a
+  real Place Details fetch confirms the same signals, **never**
+  changes the opportunity level itself (no fabricated upgrade).
+- Finder's "GMB data imported" label now shows a real relative
+  timestamp (new `formatRelativeTime()` in `lib/format.ts`) sourced
+  from `publicProfileFetchedAt`, replacing an inspection-flagged
+  heuristic (`hasCompletedAudit` was being used as a stand-in for "was
+  this imported," which is simply wrong — the two are unrelated).
+
+  Verified: 20 new/updated automated checks (`verify-preliminary
+  -opportunity.ts` +6, plus the type/row-mapper changes exercised
+  transitively by the full suite); live on a local dev server, the
+  `select("*")` change was confirmed **not** to break a real 40-result
+  Finder search pre-migration (would have been the actual risk of
+  getting this wrong).
+
+**3. Demo requirement gap review (A-E) — inspected the real code, not
+assumed complete from prior report language:**
+
+| Item | Before this review | After this review |
+|---|---|---|
+| A. Build New Site Demo (no website) | **COMPLETE** — already real, pre-dated P0.5 | Unchanged, regression-verified live |
+| B. Create Redesign Demo (website + audit supports it) | **MISSING** — not a mislabeled button, the backend flatly rejected `hasWebsite` in `generate_demo` | **COMPLETE** (minimum viable) — implemented this pass |
+| C. Imported GMB data optionally feeds either demo | **MISSING** — no wiring at type or generation level | **COMPLETE** (minimum viable) — implemented this pass |
+| D. Source facts vs. editable demo presentation, kept separate | **MISSING** — no editable-presentation concept exists anywhere in the prospect workspace | Still **MISSING** — deliberately not built, see below |
+| E. Demo provenance (which sources fed a given demo) | **MISSING** — no tracking at all | Still **MISSING** — deliberately not built, see below |
+
+**B implemented, minimum viable, no new content pipeline:** the
+`generate_demo` action now allows the `hasWebsite` case, but only when
+real evidence supports it — a completed audit exists *and* its
+`opportunity_briefs.opportunity_level` isn't `low`/`insufficient
+_evidence` (enforced server-side; the button's own client-side
+visibility, `lib/prospect/demo-eligibility.ts`'s `canCreateRedesignDemo()`,
+mirrors the identical rule so it's never a dead end). Both demo modes
+reuse the **exact same, untouched** `lib/sitegen` generator — no
+differentiated redesign-content logic was built (see below for why).
+`prospect-actions.tsx` gained a "Create redesign demo" button, and the
+no-website button was relabeled "Build new site demo" to match.
+
+**C implemented, minimum viable:** `fieldsForDemoBusiness()` (same new
+file) fills in phone/rating/reviewCount from a prospect's imported
+`public_profile` only where the prospect's own value is genuinely
+missing — its own address/city/state, and any field it already has,
+stay authoritative, never silently overwritten by a possibly-stale
+cached profile. "Optional" is satisfied by GMB import itself already
+being an explicit, opt-in action — once imported, using the freshest
+real data by default (rather than building a whole separate per-field
+review step) is the minimum-viable interpretation, called out
+explicitly here rather than left implicit.
+
+**D and E deliberately NOT built — explained, not silently dropped, per
+this review's own instruction.** Both are real, additive, non-
+destructive, and buildable — but neither is a small connecting piece
+like B/C above:
+- **D** needs a genuinely new UI surface (an editable-fields form,
+  distinct from any source data) *and* a new persisted shape for the
+  overrides themselves — a real feature, not a wiring change.
+- **E** needs at minimum a new column (another migration, on top of
+  `035`, the exact thing this review is trying to get to a clean
+  merge-ready state, not multiply) plus whatever UI shows it.
+
+Neither blocks GMB import or either demo mode from actually working —
+this review's own stated focus is "the remaining items necessary to
+make P0.5 actually usable in production," and D/E are transparency/
+polish, not functional blockers. Flagged as clear, explicit backlog,
+not implemented partially or faked.
+
+**Verified live, real end-to-end, not assumed from code review alone**
+(local dev server, real sandbox admin, this branch isn't deployed):
+- A real Finder search still works cleanly with the `select("*")`
+  enrichment change (37 real results, no error) — the actual risk
+  Section 2's fix could have introduced.
+- A real `hasWebsite` prospect with no audit yet: no "Create redesign
+  demo" button shown; a forced direct `POST .../actions` call with
+  `generate_demo` correctly rejected with `400` and a real, specific
+  error (defense-in-depth, not just a hidden button).
+- Ran a **real** audit (not simulated) — completed fast via the
+  Railway worker; after "Refresh brief," the opportunity level came
+  back "Medium," the button appeared, and clicking it produced a real
+  200 response and a real, viewable 39KB generated demo page
+  containing the actual business name.
+- The no-website path (A) re-verified unaffected by the
+  `fieldsForDemoBusiness()` refactor — a real demo generated and
+  viewable.
+- All sandbox data (org, user, prospects, the real project/analysis
+  job created by the real audit) deleted and independently re-verified
+  gone afterward.
+
+**4. Production acceptance plan** — the 14-point sequence to run after
+migration `035` is applied and PR #26 is merged/deployed is the same
+shape as the live checks just completed above (Roofing/Atlanta, all
+results visible, taxonomy, `roofer` key intact, View Opportunity, the
+bare-"Atlanta" state fix, GMB import persistence + Preview reflection,
+Full Screen, both demo modes, no automatic deployment, explicit
+publishing) — not re-run here since migration `035` isn't applied yet
+in this environment either; this review substitutes the closest
+possible proxy (every step exercised except the parts that literally
+require the migration to exist).
+
+**5. Quality gates:** `tsc --noEmit` clean. `eslint` on every changed
+file: 0 errors. All 7 `verify-*.ts` scripts green (147 checks total,
+up from 127 — two new scripts, `verify-demo-eligibility.ts` (14) and 6
+new cases in `verify-preliminary-opportunity.ts`). Full production
+build clean.
+
+**Not merged, migration not applied** — same discipline as every prior
+step of this build.
+
 ---
 
 ## Verified vs. assumed

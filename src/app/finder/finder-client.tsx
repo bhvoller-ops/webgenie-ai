@@ -41,7 +41,7 @@ import {
   type FinderFilter,
   type FinderSort,
 } from "@/lib/prospect/finder-view";
-import { cn } from "@/lib/format";
+import { cn, formatRelativeTime } from "@/lib/format";
 
 interface FinderResponse {
   provider: "sample" | "places";
@@ -503,7 +503,11 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
                   const b = withOverrides(raw);
                   const opp = b.preliminaryOpportunity;
                   const isImporting = importingIds.has(b.id);
-                  const wasImported = importedIds.has(b.id) || Boolean(b.prospectId && b.hasCompletedAudit);
+                  // Real, persisted timestamp (migration 035) once available;
+                  // `importedIds` covers the instant this-session gap between a
+                  // successful import and this page's next full reload.
+                  const importedAt = b.publicProfileFetchedAt ?? (importedIds.has(b.id) ? new Date().toISOString() : null);
+                  const wasImported = Boolean(importedAt);
                   return (
                     <>
                     <tr key={b.id} className="border-t border-hairline transition-colors hover:bg-raised/40">
@@ -573,8 +577,10 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
                       </td>
                       <td className="px-4 py-4 align-top">
                         <Pill tone="neutral" className="text-[11px]">{statusLabel(b)}</Pill>
-                        {wasImported ? (
-                          <span className="mt-1 block text-[10px] text-signal-good">GMB data imported</span>
+                        {wasImported && importedAt ? (
+                          <span className="mt-1 block text-[10px] text-signal-good">
+                            GMB data imported · Updated {formatRelativeTime(importedAt)}
+                          </span>
                         ) : null}
                       </td>
                       <td className="px-4 py-4 align-top">

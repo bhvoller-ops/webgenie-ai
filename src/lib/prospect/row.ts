@@ -24,6 +24,12 @@ export function rowToProspect(row: Record<string, unknown>): Prospect {
     demoUrl: (row.demo_url as string | null) ?? undefined,
     projectId: (row.project_id as string | null) ?? undefined,
     status: row.status as Prospect["status"],
+    // migration 035 columns -- `row.public_profile` is simply absent (not
+    // an error) from a `select("*")` result on a schema where the
+    // migration hasn't run yet, so this is safe before and after it lands.
+    publicProfile: (row.public_profile as Record<string, unknown> | null) ?? null,
+    publicProfileSource: (row.public_profile_source as string | null) ?? null,
+    publicProfileFetchedAt: (row.public_profile_fetched_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   };

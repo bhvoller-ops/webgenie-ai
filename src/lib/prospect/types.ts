@@ -37,6 +37,14 @@ export interface Prospect {
   demoUrl?: string;
   projectId?: string;
   status: ProspectStatus;
+  /**
+   * "Import GMB Data" (P0.5, migration 035). Undefined/null before that
+   * migration is applied or before an import has ever run for this
+   * prospect — read defensively everywhere, never assumed present.
+   */
+  publicProfile?: Record<string, unknown> | null;
+  publicProfileSource?: string | null;
+  publicProfileFetchedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -89,7 +89,12 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
           ) : null}
         </div>
 
-        <ProspectActions prospect={prospect} hasBlueprint={Boolean(blueprint)} hasIntelligence={Boolean(intelligence)} />
+        <ProspectActions
+          prospect={prospect}
+          hasBlueprint={Boolean(blueprint)}
+          hasIntelligence={Boolean(intelligence)}
+          opportunityLevel={brief?.opportunityLevel}
+        />
       </div>
 
       {!brief ? (

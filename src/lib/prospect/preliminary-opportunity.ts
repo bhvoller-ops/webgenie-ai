@@ -1,4 +1,5 @@
 import type { Business } from "@/lib/sitegen/types";
+import type { PublicBusinessProfile } from "@/lib/prospect/finder";
 
 /**
  * Preliminary Opportunity — P0.5. Computed directly on a raw Finder result
@@ -84,7 +85,15 @@ function websiteStatusOf(website: Business["website"]): WebsiteStatus {
 
 export function computePreliminaryOpportunity(
   business: PreliminarySignals,
-  existingAudit?: ExistingAuditContext | null
+  existingAudit?: ExistingAuditContext | null,
+  /**
+   * Present once "Import GMB Data" has successfully persisted a Place
+   * Details fetch for this prospect (migration 035). A real, fresher,
+   * explicitly-fetched confirmation of the same public signals — raises
+   * confidence and is shown as its own evidence item, never silently
+   * replaces the original Finder-search values.
+   */
+  publicProfile?: PublicBusinessProfile | null
 ): PreliminaryOpportunity {
   const websiteStatus = websiteStatusOf(business.website);
   const hasWebsite = websiteStatus === "present";
@@ -114,6 +123,17 @@ export function computePreliminaryOpportunity(
   });
   if (business.isLikelyChain) {
     evidence.push({ type: "multi_location_signal", value: true, source: "finder", label: "Possible multi-location brand" });
+  }
+  if (publicProfile) {
+    evidence.push({
+      type: "gmb_profile_imported",
+      value: true,
+      source: "google_places",
+      label: `Google Business Profile imported${publicProfile.businessStatus ? ` — ${publicProfile.businessStatus.toLowerCase().replace(/_/g, " ")}` : ""}`
+    });
+    if (publicProfile.weekdayHours?.length) {
+      evidence.push({ type: "gmb_hours", value: true, source: "google_places", label: "Full weekly hours on file" });
+    }
   }
   if (existingAudit?.hasCompletedAudit && typeof existingAudit.auditOverallScore === "number") {
     evidence.push({
@@ -202,11 +222,18 @@ export function computePreliminaryOpportunity(
   if (business.isLikelyChain) {
     reasons.push({ text: "Looks like a multi-location brand — often a harder cold-outreach target." });
   }
+  if (publicProfile) {
+    reasons.push({ text: "Google Business Profile data imported and confirmed — this isn't just a search snapshot." });
+  }
   if (reasons.length === 0) {
     reasons.push({ text: "Limited public data available — worth a closer look before deciding." });
   }
 
-  const confidence: PreliminaryConfidence = dataPointCount >= 3 ? "high" : dataPointCount === 2 ? "medium" : "low";
+  // An explicit Place Details fetch is a real, fresher confirmation of the
+  // same signals — bump confidence one step (never fabricates a higher
+  // opportunity level, only how sure we are of it).
+  const rawConfidence: PreliminaryConfidence = dataPointCount >= 3 ? "high" : dataPointCount === 2 ? "medium" : "low";
+  const confidence: PreliminaryConfidence = publicProfile && rawConfidence === "medium" ? "high" : rawConfidence;
 
   let level: PreliminaryOpportunityLevel;
   if (score >= 60) level = "high";

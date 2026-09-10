@@ -76,7 +76,15 @@ deliberately just the two-motion summary.
   "Roofing" not "Roofing Contractor", broader Places search intent,
   internal keys unchanged; `industryLabel()`/`industrySearchTerm()`,
   used by generated-site copy and persisted project data, are
-  untouched). See `docs/history.md` §2ag/§2ah.
+  untouched). A pre-merge readiness review (10 Sep) closed a real GMB-
+  import read-back gap (imported data was persisted but nothing ever
+  read it back — now flows into Preliminary Opportunity/Finder/demo
+  generation, safely both before and after migration `035`), and
+  implemented Create Redesign Demo (real, evidence-gated, reuses the
+  existing generator) plus GMB data optionally feeding either demo
+  mode. Source-facts/presentation separation and demo provenance are
+  explicit, documented backlog, not built. See `docs/history.md`
+  §2ag/§2ah/§2ai.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch

@@ -111,5 +111,28 @@ console.log("10. website present, no audit yet -> RUN_AUDIT, never a redesign re
   check("recommendedNextStep is RUN_AUDIT, not CREATE_REDESIGN_DEMO", r.recommendedNextStep === "RUN_AUDIT");
 }
 
+console.log("11. imported GMB data (migration 035) is reflected in evidence and confidence, never fabricated");
+{
+  const publicProfile = {
+    placeId: "x",
+    businessStatus: "OPERATIONAL",
+    weekdayHours: ["Monday: 8 AM - 5 PM"],
+    fetchedAt: new Date().toISOString()
+  };
+  const withoutProfile = computePreliminaryOpportunity({ website: "https://example.test", rating: 4.2, phone: "(404) 555-0100" });
+  const withProfile = computePreliminaryOpportunity(
+    { website: "https://example.test", rating: 4.2, phone: "(404) 555-0100" },
+    null,
+    publicProfile
+  );
+  check("evidence gains a real gmb_profile_imported item", withProfile.evidence.some((e) => e.type === "gmb_profile_imported"));
+  check("evidence gains a real gmb_hours item when weekday hours are present", withProfile.evidence.some((e) => e.type === "gmb_hours"));
+  check("confidence is raised (medium -> high) once a real fetch confirms the same signals", withoutProfile.confidence === "medium" && withProfile.confidence === "high");
+  check("opportunity level itself is unaffected by the import alone (no fabricated upgrade)", withoutProfile.level === withProfile.level);
+  check("a reason mentions the import", withProfile.reasons.some((r) => r.text.toLowerCase().includes("imported")));
+  const noProfile = computePreliminaryOpportunity({ website: "https://example.test", rating: 4.2, phone: "(404) 555-0100" }, null, null);
+  check("no public profile -> no gmb evidence items, no crash", !noProfile.evidence.some((e) => e.type.startsWith("gmb_")));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

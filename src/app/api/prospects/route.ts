@@ -4,6 +4,7 @@ import { isKnownIndustry } from "@/lib/sitegen/industry-lookup";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
 import { requireAdminApi } from "@/lib/auth/access";
 import { computePreliminaryOpportunity, type PreliminaryOpportunity } from "@/lib/prospect/preliminary-opportunity";
+import type { PublicBusinessProfile } from "@/lib/prospect/finder";
 import type { ProspectStatus } from "@/lib/prospect/types";
 
 // Was fully open — no auth check at all. Any anonymous caller could burn
@@ -24,6 +25,9 @@ export interface FinderResultRow extends Business {
   prospectStatus?: ProspectStatus;
   hasCompletedAudit: boolean;
   preliminaryOpportunity: PreliminaryOpportunity;
+  /** Set once "Import GMB Data" has persisted a real Place Details fetch (migration 035). Absent/null before the migration is applied or before an import has run — read defensively. */
+  publicProfile?: PublicBusinessProfile | null;
+  publicProfileFetchedAt?: string | null;
 }
 
 export async function POST(request: Request) {
@@ -65,12 +69,25 @@ export async function POST(request: Request) {
   const placeIds = result.all.filter((b) => b.source === "places").map((b) => b.id);
   const prospectByPlaceId = new Map<
     string,
-    { id: string; status: ProspectStatus; projectId: string | null }
+    {
+      id: string;
+      status: ProspectStatus;
+      projectId: string | null;
+      publicProfile: PublicBusinessProfile | null;
+      publicProfileFetchedAt: string | null;
+    }
   >();
   if (placeIds.length > 0) {
+    // select("*") deliberately, not named columns -- migration 035's three
+    // public_profile* columns may not exist in production yet (this PR is
+    // reviewed but not applied). A named-column select errors if a column
+    // is missing; select("*") simply omits it from the result, so this
+    // stays safe (and automatically starts returning the real data) both
+    // before and after the migration lands -- no further code change
+    // needed once it's applied.
     const { data: prospectRows } = await supabase
       .from("prospects")
-      .select("id, google_place_id, status, project_id")
+      .select("*")
       .eq("organization_id", organizationId)
       .in("google_place_id", placeIds);
     for (const row of prospectRows ?? []) {
@@ -78,7 +95,9 @@ export async function POST(request: Request) {
         prospectByPlaceId.set(row.google_place_id, {
           id: row.id as string,
           status: row.status as ProspectStatus,
-          projectId: row.project_id as string | null
+          projectId: row.project_id as string | null,
+          publicProfile: (row.public_profile as PublicBusinessProfile | null) ?? null,
+          publicProfileFetchedAt: (row.public_profile_fetched_at as string | null) ?? null
         });
       }
     }
@@ -111,7 +130,8 @@ export async function POST(request: Request) {
 
     const preliminaryOpportunity = computePreliminaryOpportunity(
       business,
-      hasCompletedAudit ? { hasCompletedAudit: true, auditOverallScore } : null
+      hasCompletedAudit ? { hasCompletedAudit: true, auditOverallScore } : null,
+      matched?.publicProfile ?? null
     );
 
     return {
@@ -119,7 +139,9 @@ export async function POST(request: Request) {
       prospectId: matched?.id,
       prospectStatus: matched?.status,
       hasCompletedAudit,
-      preliminaryOpportunity
+      preliminaryOpportunity,
+      publicProfile: matched?.publicProfile ?? null,
+      publicProfileFetchedAt: matched?.publicProfileFetchedAt ?? null
     };
   });
 

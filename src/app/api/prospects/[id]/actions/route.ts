@@ -7,6 +7,9 @@ import { rowToProspect } from "@/lib/prospect/row";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { industryLabel } from "@/lib/sitegen/industry-lookup";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
+import type { PublicBusinessProfile } from "@/lib/prospect/finder";
+import { canCreateRedesignDemo, fieldsForDemoBusiness } from "@/lib/prospect/demo-eligibility";
+import type { OpportunityLevel } from "@/lib/prospect/types";
 
 /**
  * The prospect detail page's real action buttons — Run Audit / Generate
@@ -96,19 +99,78 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     case "generate_demo": {
+      // Two contexts share this one action and the one existing site
+      // generator (lib/sitegen — untouched, no new content pipeline built
+      // here; see docs/history.md's P0.5 demo-requirement-gap entry for
+      // why a genuinely differentiated redesign-content pipeline is real,
+      // separate, larger scope, deliberately deferred rather than faked):
+      //
+      //   - no website  -> "Build New Site Demo" (unchanged from before).
+      //   - has website -> "Create Redesign Demo" -- newly unblocked here.
+      //     Gated on real evidence, not merely "has a website": a
+      //     completed audit must exist, and its own Preliminary/
+      //     Opportunity-Brief level must actually support a redesign
+      //     pitch (not "low"/"insufficient_evidence") -- section 34's
+      //     rule, enforced server-side so this can't be reached from a
+      //     crafted request either.
       if (prospect.hasWebsite) {
-        return NextResponse.json({ error: "This prospect already has a website — nothing to generate." }, { status: 400 });
+        if (!prospect.projectId) {
+          return NextResponse.json(
+            { error: "Run an audit first — a redesign demo needs real audit evidence to be worth showing." },
+            { status: 400 }
+          );
+        }
+        const { data: completedJob } = await supabase
+          .from("analysis_jobs")
+          .select("id")
+          .eq("project_id", prospect.projectId)
+          .eq("status", "completed")
+          .limit(1)
+          .maybeSingle();
+        const { data: briefRow } = await supabase
+          .from("opportunity_briefs")
+          .select("opportunity_level")
+          .eq("prospect_id", prospect.id)
+          .maybeSingle();
+        // Same predicate the prospect page's button visibility uses
+        // (lib/prospect/demo-eligibility.ts) — one canonical rule, not
+        // two that could silently disagree.
+        const eligible = canCreateRedesignDemo(
+          prospect,
+          Boolean(completedJob),
+          briefRow?.opportunity_level as OpportunityLevel | undefined
+        );
+        if (!eligible) {
+          return NextResponse.json(
+            {
+              error: completedJob
+                ? "The completed audit doesn't show enough opportunity to justify a redesign demo."
+                : "The audit hasn't completed yet."
+            },
+            { status: 400 }
+          );
+        }
       }
+
+      // Imported GMB data (migration 035, "Import GMB Data") optionally
+      // feeds the demo when present — fresher/more complete public
+      // signals than the original Finder-search snapshot, from an
+      // explicit prior user action, never silently overriding the
+      // prospect's own real address/city/state fields (those stay
+      // authoritative; only phone/rating/reviewCount are filled in when
+      // the prospect's own value is missing).
+      const publicProfile = (prospectRow.public_profile as PublicBusinessProfile | null) ?? null;
+      const demoFields = fieldsForDemoBusiness(prospect, publicProfile);
       const business: Business = {
         id: prospect.googlePlaceId ?? prospect.id,
         name: prospect.businessName,
         industry: (prospect.industry ?? "contractor") as IndustryKey,
-        phone: prospect.phone ?? "",
+        phone: demoFields.phone,
         address: prospect.address ?? "",
         city: prospect.city ?? "",
         state: prospect.state ?? "",
-        rating: prospect.rating,
-        reviewCount: prospect.reviewCount,
+        rating: demoFields.rating,
+        reviewCount: demoFields.reviewCount,
         open24Hours: prospect.open24Hours,
         website: null,
         source: prospect.source === "finder" ? "places" : prospect.source === "manual" ? "manual" : "sample"
