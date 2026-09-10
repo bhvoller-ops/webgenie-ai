@@ -10,6 +10,7 @@ import { getBlueprint, getIntelligence, getNextBestAction, getOpportunityBrief, 
 import { NEXT_BEST_ACTION_LABELS, RECOMMENDED_OFFER_LABELS } from "@/lib/prospect/types";
 import { ProspectActions } from "./prospect-actions";
 import { PitchGenerator } from "./pitch-generator";
+import { DemoRoomPanel } from "./demo-room-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -225,6 +226,9 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
               </div>
               <p className="text-[11px] text-faint">Brief v{brief.version} · generated {new Date(brief.generatedAt).toLocaleString()}</p>
             </div>
+
+            {/* DEMO ROOM (P1) */}
+            <DemoRoomPanel prospectId={prospect.id} hasDemoUrl={Boolean(prospect.demoUrl)} />
 
             {prospect.projectId ? (
               <Link
