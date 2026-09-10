@@ -2782,6 +2782,93 @@ advanced competitor SEO analysis. None of these were started.
 migration `035` all await explicit review/approval — same discipline as
 every prior hotfix and the P0 build itself.
 
+### 2ah. Finder industry taxonomy: broader label + search intent, stable key — 10 Sep 2026
+
+A follow-up to §2ag, on the same branch/PR (`feature/p0-5-finder-
+prospect-intelligence` / PR #26 — still not merged): "Roofing
+Contractor" (Finder's picker label) and "Roofing Companies" (the actual
+Google Places Text Search phrase) both read as one narrow trade
+description, not the whole roofing market. Per a dedicated spec
+(`WEBGENIE FINDER OBJECTIVE, INDUSTRY TAXONOMY + SEARCH COVERAGE
+PROMPT.txt`), the governing rule: **broader visible label + broader
+search intent + stable internal key.**
+
+**Why this needed a new, separate layer rather than editing
+`IndustryProfile.label`/`.plural` in place — found by tracing every
+call site first, not assumed:** `industryLabel()` (the existing
+narrow-label function) is not purely a UI string. It's baked into every
+generated site's own copy ("Licensed Plumber in Atlanta"), and — the
+real risk — it's **persisted as literal text into `projects.industry`**
+on every project insert (`api/audits/queue`, `api/prospects/[id]/
+actions`, `api/projects/bulk` all call it when writing that column),
+and used to **match existing rows** for `api/audits/queue`'s "don't
+re-suggest an already-queued business" dedup query
+(`.eq("industry", industryLabel(industry))`). Widening `industryLabel()`
+itself would have silently rewritten generated-site copy and broken
+that dedup match against every project created before the change —
+exactly the "no migration of historical data should be necessary"
+trap the spec's own compatibility section warns about.
+
+**Fix:** new `lib/sitegen/finder-taxonomy.ts` — `finderDisplayLabel()`
+and `finderSearchTerm()`, a small override layer used only by the
+shared industry picker (`ALL_INDUSTRY_LIST`, used by Finder/Audit/New
+Project) and by `placesSearch()`'s Text Search query. `industryLabel()`
+/`industrySearchTerm()` are completely untouched — verified directly
+(`industryLabel('roofer')` still returns `"Roofing Contractor"`).
+Reviewed all 73 selectable industries: the mismatch was concentrated in
+the 14 core trades (`IndustryProfile.label` is written in a narrow
+job-title style for generated-site copy, not market-search copy) —
+every one gets a broader display label and/or search term. The 59
+Gallery industries already used a market-level label as both their
+display and search term; two genuinely narrow ones ("Legal Services /
+Law Firm", "Property Management Services") were trimmed to match the
+spec's own style guide, the rest left unchanged.
+
+| Old label | New label | Old search term | New search term | Internal key | Key changed? |
+|---|---|---|---|---|---|
+| Licensed Plumber | Plumbing | Plumbers | plumbing | `plumber` | No |
+| Heating & Air Specialist | HVAC | HVAC Companies | HVAC | `hvac` | No |
+| Licensed Electrician | Electrical | Electricians | electrical services | `electrician` | No |
+| Roofing Contractor | Roofing | Roofing Companies | roofing | `roofer` | No |
+| Landscaping & Lawn Care | Landscaping | Landscapers | landscaping | `landscaper` | No |
+| Tree Care Specialist | Tree Services | Tree Services | tree service | `tree_care` | No |
+| Cleaning Service | Cleaning Services | Cleaning Services | cleaning services | `cleaning` | No |
+| Auto Repair Shop | Auto Repair | Auto Repair Shops | auto repair | `auto_repair` | No |
+| Dental Practice | Dentistry | Dental Practices | dentist | `dentist` | No |
+| Medical Spa | Med Spa | Med Spas | med spa | `med_spa` | No |
+| Chiropractic Clinic | Chiropractic | Chiropractors | chiropractor | `chiropractor` | No |
+| Restoration Company | Restoration | Restoration Companies | restoration company | `restoration` | No |
+| General Contractor | General Contracting | Contractors | general contractor | `contractor` | No |
+| Hair Salon | Hair Salon (kept — see below) | Salons | hair salon | `salon` | No |
+| Legal Services / Law Firm | Legal Services | (same as label) | Legal Services | `legal-services` | No |
+| Property Management Services | Property Management | (same as label) | Property Management | `property-management` | No |
+| *(all other 57 Gallery industries)* | unchanged | unchanged | unchanged | unchanged | No |
+
+**"Hair Salon" deliberately keeps its display label** (only its search
+term was broadened) — bare "Salon" would collide with the separate
+`nail-salon`/`spa-massage` Gallery categories, a real ambiguity, not an
+oversight.
+
+**Compatibility, verified both by unit test and live on a local dev
+server** (this branch isn't deployed): the full chain Finder → View
+Opportunity → Full Screen → Run Audit was re-run with "Roofing"
+selected — a real 40-result live Google search, a real prospect opened
+("KTM Roofing"), and the prospect page correctly showed the internal
+`roofer` key and Run Audit still available. New
+`scripts/verify-finder-taxonomy.ts` (19 checks): confirms
+`industryLabel()`/`industrySearchTerm()` are genuinely byte-for-byte
+unchanged, every one of the 14 core trades is broadened (with the one
+documented exception), every internal key is preserved, the picker
+shows the new labels, and every industry (all 73) still resolves to a
+non-empty search term. No new Google API calls introduced — one query
+per search, same as before; the `aliases` field on each taxonomy entry
+is documentation only, never used to multiply requests.
+
+`tsc --noEmit`, `eslint`, and a full production build all clean. All 6
+`verify-*.ts` scripts green (127 checks total). No sandbox cleanup
+issues — a temporary org/user/prospect used for the live check were
+deleted and independently re-verified gone.
+
 ---
 
 ## Verified vs. assumed

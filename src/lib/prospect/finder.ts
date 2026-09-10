@@ -1,5 +1,6 @@
 import type { Business, IndustryKey, SiteGenIndustryKey } from "@/lib/sitegen/types";
-import { industryLabel, industrySearchTerm } from "@/lib/sitegen/industry-lookup";
+import { industryLabel } from "@/lib/sitegen/industry-lookup";
+import { finderSearchTerm } from "@/lib/sitegen/finder-taxonomy";
 import { GALLERY_INDUSTRY_SUMMARY } from "@/lib/sitegen/gallery-industry-summary";
 
 /**
@@ -413,7 +414,10 @@ export async function placesSearch(q: FinderQuery): Promise<FinderResult> {
     return { ...sampleSearch(q), notice: "No GOOGLE_PLACES_API_KEY set — showing sample data." };
   }
 
-  const textQuery = `${industrySearchTerm(q.industry)} in ${q.city}, ${q.state}`;
+  // finderSearchTerm(), not industryLabel()/the old industrySearchTerm() —
+  // "roofing" (the whole market) rather than "Roofing Companies" (one
+  // narrow phrase). See lib/sitegen/finder-taxonomy.ts.
+  const textQuery = `${finderSearchTerm(q.industry)} in ${q.city}, ${q.state}`;
 
   try {
     let boundingBox: BoundingBox | undefined;

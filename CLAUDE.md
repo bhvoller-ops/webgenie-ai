@@ -71,7 +71,12 @@ deliberately just the two-motion summary.
   data" on Opportunity — same class of bug as the phone-validation
   defects above, this time on `state`. Migration `035` (additive columns
   for GMB import persistence) is written but **not applied to
-  production**. See `docs/history.md` §2ag.
+  production**. Also on this branch/PR: Finder's industry picker/search
+  now uses a broader taxonomy layer (`lib/sitegen/finder-taxonomy.ts` —
+  "Roofing" not "Roofing Contractor", broader Places search intent,
+  internal keys unchanged; `industryLabel()`/`industrySearchTerm()`,
+  used by generated-site copy and persisted project data, are
+  untouched). See `docs/history.md` §2ag/§2ah.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
