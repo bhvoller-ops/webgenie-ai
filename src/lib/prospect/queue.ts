@@ -25,6 +25,9 @@ const READINESS_TIER: Record<ProspectActionType, number> = {
   SEND_DEMO: 4,
   BOOK_MEETING: 4,
   REVIEW_REPLY: 4,
+  // A due sequence step is exactly as "ready to act on right now" as the
+  // other tier-4 actions -- it's due because the user's own plan said so.
+  SEQUENCE_STEP: 4,
   FOLLOW_UP: 3,
   RUN_AUDIT: 2,
   BUILD_NEW_SITE_DEMO: 2,
