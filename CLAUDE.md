@@ -49,13 +49,16 @@ deliberately just the two-motion summary.
   `STRIPE_VIBELABS_PRICE_ID` is only in local `.env.local`, not yet on
   Vercel, so `/join`'s real signup flow won't work in production until it
   is added.
-- **P0 (Opportunity Brief + Next Best Action)** — new `prospects` /
-  `opportunity_briefs` / `next_best_actions` tables, migration `034`
-  **applied to production and RLS-verified** (same-org allowed,
-  cross-org rejected, including a `call_log.prospect_id` tenant-guard
-  gap found and closed pre-apply) — but the application code sits on
-  branch `feature/p0-opportunity-brief-next-best-action`, **not yet
-  merged to `main`**. See `docs/history.md`'s P0 entry.
+- **P0 (Opportunity Brief + Next Best Action)** — merged and live
+  (`6cfc339`). `prospects` / `opportunity_briefs` / `next_best_actions`,
+  migration `034` applied and RLS-verified both directions; a real
+  audit-completion E2E confirmed the full cycle in production (score
+  57/100 real audit → brief refreshed, offer assigned, `NBA` advanced
+  `RUN_AUDIT → CONTACT`). One real production defect found and fixed
+  10 Sep: Finder → "Open Opportunity" rejected any real business with
+  no phone on Google Places (`phone: ""` failing a `.min(1)` check) —
+  `/api/publish-site` has the identical unfixed pattern, flagged not
+  yet fixed. See `docs/history.md`'s P0 entries (§2ad, §2ae).
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch
