@@ -5,6 +5,7 @@ import { rowToProspect } from "@/lib/prospect/row";
 import { advanceSequenceStep } from "@/lib/prospect/sequence-sync";
 import { logActivity } from "@/lib/prospect/activity";
 import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
+import { isSuppressed } from "@/lib/prospect/suppression";
 import type { SequenceStepActionMetadata } from "@/lib/prospect/types";
 
 /**
@@ -45,6 +46,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (!actionRow) return NextResponse.json({ error: "Action not found." }, { status: 404 });
+
+  // MANDATORY FIX 3: a direct request against this action must be refused
+  // outright if either (a) the prospect has since been suppressed -- a
+  // stale open tab must not be able to complete/skip/snooze an action that
+  // suppression already withdrew -- or (b) the action itself is no longer
+  // PENDING/SNOOZED (already completed/skipped/suppressed by another
+  // request), the same "operate on current state, never blind" guard
+  // advanceSequenceStep() already uses for sequence steps.
+  if (actionRow.status !== "PENDING" && actionRow.status !== "SNOOZED") {
+    return NextResponse.json({ error: "This action is no longer active." }, { status: 409 });
+  }
+  const { data: prospectForGuard } = await supabase.from("prospects").select("suppressed_at").eq("id", actionRow.prospect_id).eq("organization_id", organizationId).maybeSingle();
+  if (isSuppressed({ suppressedAt: prospectForGuard?.suppressed_at ?? null })) {
+    return NextResponse.json({ error: "This prospect is suppressed; the action can no longer be performed." }, { status: 409 });
+  }
 
   const now = new Date().toISOString();
 
@@ -87,7 +103,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           activityType: "CONTACT_ATTEMPTED",
           channel: meta.channel,
           summary: `${meta.channel} sequence step marked done from the Queue.`,
-          metadata: { sequenceId: meta.sequenceId, sequenceStepId: meta.sequenceStepId, enrollmentId: meta.enrollmentId, outcome: "sent" }
+          metadata: { sequenceId: meta.sequenceId, sequenceStepId: meta.sequenceStepId, enrollmentId: meta.enrollmentId, outcome: "sent" },
+          eventKey: `contact_attempted:${meta.enrollmentId}:${meta.sequenceStepId}`
         });
       }
       const { data: prospectRow } = await supabase.from("prospects").select("*").eq("id", actionRow.prospect_id).eq("organization_id", organizationId).maybeSingle();

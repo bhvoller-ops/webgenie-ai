@@ -98,5 +98,52 @@ console.log("8. reason vocabulary is fixed and enforced (item 8)");
   check("the DB CHECK constraint lists exactly the same 4 values", /'OPTED_OUT', 'DO_NOT_CONTACT', 'INVALID_CONTACT', 'MANUAL'/.test(migrationSrc));
 }
 
+console.log("9. suppression cancels an existing Queue action synchronously, not only on the next reconciliation pass (Phase 1.1 MANDATORY FIX 3)");
+{
+  const src = readFileSync("src/lib/prospect/suppression.ts", "utf8");
+  check("suppressProspect() itself updates prospect_actions to a terminal status", /from\("prospect_actions"\)[\s\S]*?status:\s*"SUPPRESSED"/.test(src));
+  check("it only touches rows that are still PENDING/SNOOZED (never rewrites real history)", /\.in\("status",\s*\["PENDING",\s*"SNOOZED"\]\)/.test(src));
+  check("a suppression-cancelled action gets its own distinct status, never mislabeled 'COMPLETED' (a different real-world fact)", !/prospect_actions"\)[\s\S]{0,200}status:\s*"COMPLETED"/.test(src));
+}
+
+console.log("10. suppression stops an active/paused sequence enrollment synchronously too (Phase 1.1 MANDATORY FIX 3)");
+{
+  const src = readFileSync("src/lib/prospect/suppression.ts", "utf8");
+  check("suppressProspect() itself updates prospect_sequence_enrollments to STOPPED", /from\("prospect_sequence_enrollments"\)[\s\S]*?status:\s*"STOPPED"/.test(src));
+  check("it only stops rows that are still ACTIVE/PAUSED", /\.in\("status",\s*\["ACTIVE",\s*"PAUSED"\]\)/.test(src));
+  check("the stop is logged with a stable eventKey, not a bare insert (concurrency-safe even here)", /eventKey:\s*`sequence_stopped:/.test(src));
+}
+
+console.log("11. a DB-level trigger blocks any write that would put a suppressed prospect's action back into PENDING/SNOOZED (Phase 1.1 MANDATORY FIX 3)");
+{
+  const migrationSrc = readFileSync("supabase/migrations/038_p2_remediation.sql", "utf8");
+  check("prospect_actions.status CHECK is widened to include SUPPRESSED", /check \(status in \('PENDING', 'COMPLETED', 'SKIPPED', 'SNOOZED', 'SUPPRESSED'\)\)/.test(migrationSrc));
+  check("enforce_prospect_actions_not_suppressed() exists and checks prospects.suppressed_at", /enforce_prospect_actions_not_suppressed/.test(migrationSrc) && /suppressed_at is not null/.test(migrationSrc));
+  check("the trigger fires before insert or update, on prospect_actions", /before insert or update of status, prospect_id on public\.prospect_actions/.test(migrationSrc));
+  check(
+    "it only blocks PENDING/SNOOZED, never a terminal status (suppressProspect() itself must still be able to write SUPPRESSED)",
+    /new\.status in \('PENDING', 'SNOOZED'\)/.test(migrationSrc)
+  );
+}
+
+console.log("12. direct completion of a suppressed prospect's action is refused, not silently allowed (Phase 1.1 MANDATORY FIX 3)");
+{
+  const actionRouteSrc = readFileSync("src/app/api/prospect-actions/[id]/route.ts", "utf8");
+  check("the route checks the prospect's suppressed_at before applying complete/skip/snooze", /isSuppressed\(\{ suppressedAt: prospectForGuard/.test(actionRouteSrc));
+  check("a suppressed prospect's action request is rejected with a real error status, not a 200", /status:\s*409/.test(actionRouteSrc));
+  check("the route also refuses to re-operate on an action that's already left PENDING\\/SNOOZED", /actionRow\.status !== "PENDING" && actionRow\.status !== "SNOOZED"/.test(actionRouteSrc));
+
+  const performRouteSrc = readFileSync("src/app/api/prospects/[id]/sequence-enrollments/[enrollmentId]/perform/route.ts", "utf8");
+  check("the sequence-step perform route checks isSuppressed() before logging any event", /isSuppressed\(prospect\)/.test(performRouteSrc));
+  check("it also refuses to perform against a non-ACTIVE enrollment (paused/stopped/completed)", /enrollment\.status !== "ACTIVE"/.test(performRouteSrc));
+}
+
+console.log("13. the Daily Queue query itself never returns a suppressed prospect's action (Phase 1.1 MANDATORY FIX 3, defense-in-depth)");
+{
+  const queueRouteSrc = readFileSync("src/app/api/prospects/queue/route.ts", "utf8");
+  check("the query joins the prospect's suppressed_at", /suppressed_at/.test(queueRouteSrc));
+  check("results are filtered by it before anything else touches them", /nonSuppressedRows/.test(queueRouteSrc));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

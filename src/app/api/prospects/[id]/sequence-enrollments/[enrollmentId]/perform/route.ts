@@ -4,6 +4,7 @@ import { requireAdminApi } from "@/lib/auth/access";
 import { rowToProspect } from "@/lib/prospect/row";
 import { advanceSequenceStep } from "@/lib/prospect/sequence-sync";
 import { logActivity } from "@/lib/prospect/activity";
+import { isSuppressed } from "@/lib/prospect/suppression";
 import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
 import { SEQUENCE_STEP_CHANNEL_LABELS } from "@/lib/prospect/types";
 
@@ -48,16 +49,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: enrollment } = await supabase
     .from("prospect_sequence_enrollments")
-    .select("id, sequence_id")
+    .select("id, sequence_id, status")
     .eq("id", enrollmentId)
     .eq("organization_id", organizationId)
     .eq("prospect_id", prospectId)
     .maybeSingle();
   if (!enrollment) return NextResponse.json({ error: "Enrollment not found." }, { status: 404 });
+  // MANDATORY FIX 3: a stale tab retrying against an enrollment that's
+  // since been paused/stopped/completed (by suppression, a stop-condition,
+  // or the user directly) must not still be able to perform a step from it.
+  if (enrollment.status !== "ACTIVE") {
+    return NextResponse.json({ error: "This sequence is no longer active." }, { status: 409 });
+  }
 
   const { data: prospectRow } = await supabase.from("prospects").select("*").eq("id", prospectId).eq("organization_id", organizationId).maybeSingle();
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
+  // MANDATORY FIX 3: suppression must block direct completion too, not
+  // only future recommendation/reconciliation -- a suppressed prospect can
+  // still have an ACTIVE-looking enrollment for a brief window between
+  // suppression and the next reconciliation pass (or if that pass hasn't
+  // run yet for any reason); this request must never be the one that
+  // records a real contact event for them regardless.
+  if (isSuppressed(prospect)) {
+    return NextResponse.json({ error: "This prospect is suppressed; the action can no longer be performed." }, { status: 409 });
+  }
 
   const now = new Date().toISOString();
   const status = OUTCOME_TO_STATUS[parsed.data.outcome];
@@ -93,7 +109,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     channel: parsed.data.channel,
     summary: `${SEQUENCE_STEP_CHANNEL_LABELS[parsed.data.channel]} step performed -- outcome logged: ${parsed.data.outcome.replace(/_/g, " ")}.`,
     metadata: { sequenceId: enrollment.sequence_id, sequenceStepId: parsed.data.sequenceStepId, enrollmentId, outcome: parsed.data.outcome },
-    createdBy: user.id
+    createdBy: user.id,
+    // MANDATORY FIX 2: a double-click or request retry on this exact step
+    // must produce one performed event, not two -- atomic on-conflict, not
+    // a second select-then-insert check.
+    eventKey: `contact_attempted:${enrollmentId}:${parsed.data.sequenceStepId}`
   });
   if (followUpDueAt) {
     await logActivity(supabase, {
@@ -102,7 +122,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       activityType: "FOLLOW_UP_SCHEDULED",
       summary: `Follow-up scheduled for ${new Date(followUpDueAt).toLocaleDateString()}.`,
       metadata: { sequenceId: enrollment.sequence_id, enrollmentId },
-      createdBy: user.id
+      createdBy: user.id,
+      eventKey: `follow_up_scheduled:${enrollmentId}:${parsed.data.sequenceStepId}`
     });
   }
 

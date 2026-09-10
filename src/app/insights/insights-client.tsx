@@ -59,18 +59,19 @@ export function InsightsClient() {
         <div className="mt-8 flex justify-center py-16 text-muted">
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
         </div>
+      ) : data.isTestOrganization ? (
+        <div className="mt-8 card p-8 text-center">
+          <p className="text-[13px] text-faint">
+            This is a test/sandbox organization — performance metrics are never computed for it, not just hidden. Real numbers require real production
+            activity.
+          </p>
+        </div>
       ) : totalActivity === 0 ? (
         <div className="mt-8 card p-8 text-center">
           <p className="text-[13px] text-faint">Not enough activity yet to show anything meaningful. Find and work some prospects first.</p>
         </div>
       ) : (
         <>
-          {data.isTestOrganization ? (
-            <div className="mt-6 rounded-lg border border-signal-warn/30 bg-signal-warn/10 px-4 py-2.5 text-[12px] text-signal-warn">
-              This is a test/sandbox organization — its activity is excluded from any future cross-account benchmarks.
-            </div>
-          ) : null}
-
           <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <Metric label="Prospects Found" value={data.prospectsFound} />
             <Metric label="Prospects Reviewed" value={data.prospectsReviewed} />

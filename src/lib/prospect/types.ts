@@ -190,7 +190,7 @@ export interface SequenceStepActionMetadata {
   sequenceName: string;
 }
 
-export type ProspectActionStatus = "PENDING" | "COMPLETED" | "SKIPPED" | "SNOOZED";
+export type ProspectActionStatus = "PENDING" | "COMPLETED" | "SKIPPED" | "SNOOZED" | "SUPPRESSED";
 export type ProspectActionSource = "SYSTEM" | "USER";
 
 export interface ProspectAction {

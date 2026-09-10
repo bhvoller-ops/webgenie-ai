@@ -32,6 +32,44 @@ export async function suppressProspect(
     .eq("organization_id", input.organizationId);
   if (error) return { error: error.message };
 
+  // MANDATORY FIX 3: cancel the Queue action and stop any active sequence
+  // right here, synchronously, inside suppression itself -- never dependent
+  // on the caller remembering to also call regenerateProspectIntelligence()
+  // afterward (the previous design). 'SUPPRESSED' is a distinct terminal
+  // status from 'COMPLETED' -- a suppression-cancelled action is a
+  // different real-world fact than a user-completed one, and history must
+  // say which happened (migration 038). This update targets exactly the
+  // rows that would otherwise still be sitting in the Daily Queue; the new
+  // prospect_actions_suppression_guard trigger (migration 038) is the
+  // defense-in-depth backstop if any future code path ever tries to put a
+  // row back into PENDING/SNOOZED for a still-suppressed prospect.
+  await supabase
+    .from("prospect_actions")
+    .update({ status: "SUPPRESSED", updated_at: now })
+    .eq("prospect_id", input.prospectId)
+    .eq("organization_id", input.organizationId)
+    .in("status", ["PENDING", "SNOOZED"]);
+
+  // Same immediacy for an active/paused sequence enrollment -- don't wait
+  // for resolveProspectAction() to notice on the next reconciliation pass.
+  const { data: enrollments } = await supabase
+    .from("prospect_sequence_enrollments")
+    .update({ status: "STOPPED", stopped_at: now, stopped_reason: "SUPPRESSED", updated_at: now })
+    .eq("prospect_id", input.prospectId)
+    .eq("organization_id", input.organizationId)
+    .in("status", ["ACTIVE", "PAUSED"])
+    .select("id, sequence_id");
+  for (const enrollment of enrollments ?? []) {
+    await logActivity(supabase, {
+      organizationId: input.organizationId,
+      prospectId: input.prospectId,
+      activityType: "SEQUENCE_STOPPED",
+      summary: "Sequence stopped automatically (SUPPRESSED).",
+      metadata: { sequenceId: enrollment.sequence_id, enrollmentId: enrollment.id, reason: "SUPPRESSED" },
+      eventKey: `sequence_stopped:${enrollment.id}`
+    });
+  }
+
   await logActivity(supabase, {
     organizationId: input.organizationId,
     prospectId: input.prospectId,

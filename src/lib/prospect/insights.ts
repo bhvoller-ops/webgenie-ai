@@ -28,6 +28,27 @@ export interface InsightsSummary extends InsightsCounts {
   deferredInsights: string[];
 }
 
+/**
+ * P2 remediation MANDATORY FIX 1: the one shape a test organization's
+ * counts are ever allowed to take. computeInsightsSummary()
+ * (insights-query.ts) never runs a single real count query for a test
+ * organization -- it returns this constant instead -- so "zero" here is a
+ * guarantee about what the server computed, not a display convention a
+ * future caller could bypass.
+ */
+export const ZERO_INSIGHTS_COUNTS: InsightsCounts = {
+  prospectsFound: 0,
+  prospectsReviewed: 0,
+  auditsCompleted: 0,
+  demosCreated: 0,
+  demoRoomsShared: 0,
+  outreachPerformed: 0,
+  followUpsScheduled: 0,
+  meetingsLogged: 0,
+  won: 0,
+  lost: 0
+};
+
 /** The minimum count below which a comparative claim ("channel X performs better") would be presented with false confidence. No comparative claim is currently implemented in P2 at all (deliberately deferred), but this threshold is the one any future comparative feature must use. */
 export const MIN_SAMPLE_SIZE_FOR_COMPARISON = 5;
 

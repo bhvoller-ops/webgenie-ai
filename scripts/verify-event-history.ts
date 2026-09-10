@@ -46,7 +46,7 @@ console.log("33. event metadata is genuinely structured (real ids/enums), not fr
 
 console.log("34. analytics (Insights) queries structured activity_type + counts, never parses the human-readable summary string");
 {
-  const src = readFileSync("src/app/api/insights/route.ts", "utf8");
+  const src = readFileSync("src/lib/prospect/insights-query.ts", "utf8");
   check("every count query filters on activity_type (a structured enum column)", (src.match(/\.eq\("activity_type", activityType\)/g) ?? []).length >= 1);
   check("no count is derived by matching against `summary` text", !/summary.*includes|includes.*summary|summary.*match/.test(src));
 }

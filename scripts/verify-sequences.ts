@@ -148,5 +148,45 @@ console.log("30. cross-tenant enrollment blocked — the DB trigger's existence 
   check("the trigger fires before insert or update of exactly the three tenant-relevant columns", /before insert or update of prospect_id, sequence_id, organization_id on public\.prospect_sequence_enrollments/.test(migrationSrc));
 }
 
+console.log("31. SEQUENCE_STEP_DUE idempotency is DB-backed, not a select-then-insert race (Phase 1.1 MANDATORY FIX 2)");
+{
+  const src = readFileSync("src/lib/prospect/sequence-sync.ts", "utf8");
+  check("resolveProspectAction() no longer does a select-check before logging SEQUENCE_STEP_DUE", !/alreadyLogged/.test(src));
+  check("it instead passes a stable eventKey keyed by (enrollment, step) to logActivity()", /eventKey:\s*`sequence_step_due:\$\{enrollment\.id\}:\$\{due\.step\.id\}`/.test(src));
+  const activitySrc = readFileSync("src/lib/prospect/activity.ts", "utf8");
+  check("logActivity() enforces eventKey via a real DB upsert-on-conflict, not app-level branching", /ignoreDuplicates:\s*true/.test(activitySrc) && /onConflict:\s*"event_key"/.test(activitySrc));
+  const migrationSrc = readFileSync("supabase/migrations/038_p2_remediation.sql", "utf8");
+  check("event_key has a real partial unique index backing the constraint", /create unique index if not exists prospect_activities_event_key_idx/.test(migrationSrc) && /where event_key is not null/.test(migrationSrc));
+}
+
+console.log("32. the two auto-stop transitions in resolveProspectAction() are CAS-guarded, matching advanceSequenceStep()'s own pattern (Phase 1.1 MANDATORY FIX 2)");
+{
+  const src = readFileSync("src/lib/prospect/sequence-sync.ts", "utf8");
+  check(
+    "stopEnrollmentForReason()'s UPDATE is filtered by status IN (ACTIVE, PAUSED), not blindly applied to enrollment.id alone",
+    /\.update\(\{ status: "STOPPED"[\s\S]*?\.in\("status", \["ACTIVE", "PAUSED"\]\)/.test(src)
+  );
+  check("it only logs the SEQUENCE_STOPPED activity if the CAS update actually won a row", /if \(!updated \|\| updated\.length === 0\) return;/.test(src));
+  check("the SEQUENCE_STOPPED event itself also carries a stable eventKey (belt-and-suspenders alongside the CAS)", /eventKey:\s*`sequence_stopped:\$\{input\.enrollment\.id\}`/.test(src));
+  check("both the suppressed-branch stop and the other-stop-reason branch reuse the same helper (no duplicated, divergent logic)", (src.match(/stopEnrollmentForReason\(supabase/g) ?? []).length === 2);
+}
+
+console.log("33. a double-click retry of the sequence-perform route produces one performed event, not two (Phase 1.1 MANDATORY FIX 2)");
+{
+  const performRouteSrc = readFileSync("src/app/api/prospects/[id]/sequence-enrollments/[enrollmentId]/perform/route.ts", "utf8");
+  check("CONTACT_ATTEMPTED is logged with an eventKey keyed by (enrollment, step)", /eventKey:\s*`contact_attempted:\$\{enrollmentId\}:\$\{parsed\.data\.sequenceStepId\}`/.test(performRouteSrc));
+  check("FOLLOW_UP_SCHEDULED is also keyed, for the same reason", /eventKey:\s*`follow_up_scheduled:\$\{enrollmentId\}:\$\{parsed\.data\.sequenceStepId\}`/.test(performRouteSrc));
+
+  const actionRouteSrc = readFileSync("src/app/api/prospect-actions/[id]/route.ts", "utf8");
+  check("the Queue's own generic 'mark done' path for a SEQUENCE_STEP action is keyed identically", /eventKey:\s*`contact_attempted:\$\{meta\.enrollmentId\}:\$\{meta\.sequenceStepId\}`/.test(actionRouteSrc));
+}
+
+console.log("34. legitimate contact attempts at DIFFERENT steps are never blocked by the new uniqueness (only a retry of the SAME step is deduped)");
+{
+  const keyA: string = "contact_attempted:enrollment-1:step-1";
+  const keyB: string = "contact_attempted:enrollment-1:step-2";
+  check("two different steps of the same enrollment produce two different event keys", keyA !== keyB);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

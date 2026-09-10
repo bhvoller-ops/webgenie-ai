@@ -36,6 +36,41 @@ interface EnrollmentRow {
 }
 
 /**
+ * Auto-stop an ACTIVE/PAUSED enrollment for a real stop reason (suppressed,
+ * won, lost, meeting booked, replied, interested) -- shared by both
+ * resolveProspectAction() call sites below. CAS-guarded exactly like
+ * advanceSequenceStep() and setEnrollmentStatus() (the WHERE clause's own
+ * status filter is the real guard, not the earlier `canTransitionToStopped`
+ * read the caller already did) plus a stable eventKey, so two overlapping
+ * regenerateProspectIntelligence() calls racing on the same suppression/
+ * stop event can't produce two SEQUENCE_STOPPED rows for one real stop
+ * (MANDATORY FIX 2: "concurrent reconciliation cannot produce duplicate
+ * events" applies to this event, not just SEQUENCE_STEP_DUE).
+ */
+async function stopEnrollmentForReason(
+  supabase: SupabaseClient,
+  input: { organizationId: string; prospectId: string; enrollment: Pick<EnrollmentRow, "id" | "sequence_id" | "status">; reason: string }
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { data: updated } = await supabase
+    .from("prospect_sequence_enrollments")
+    .update({ status: "STOPPED", stopped_at: now, stopped_reason: input.reason, updated_at: now })
+    .eq("id", input.enrollment.id)
+    .in("status", ["ACTIVE", "PAUSED"])
+    .select("id");
+  if (!updated || updated.length === 0) return; // already stopped by a concurrent call -- nothing more to do
+
+  await logActivity(supabase, {
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+    activityType: "SEQUENCE_STOPPED",
+    summary: `Sequence stopped automatically (${input.reason}).`,
+    metadata: { sequenceId: input.enrollment.sequence_id, enrollmentId: input.enrollment.id, reason: input.reason },
+    eventKey: `sequence_stopped:${input.enrollment.id}`
+  });
+}
+
+/**
  * The single P2 decision point regenerateProspectIntelligence() calls
  * instead of feeding computeProspectAction()'s result straight to
  * syncProspectAction(). Returns the SAME organicAction unchanged whenever
@@ -87,17 +122,11 @@ export async function resolveProspectAction(
   // human to look at the prospect directly.
   if (input.suppressed) {
     if (enrollment && canTransitionToStopped(enrollment.status)) {
-      const now = new Date().toISOString();
-      await supabase
-        .from("prospect_sequence_enrollments")
-        .update({ status: "STOPPED", stopped_at: now, stopped_reason: "SUPPRESSED", updated_at: now })
-        .eq("id", enrollment.id);
-      await logActivity(supabase, {
+      await stopEnrollmentForReason(supabase, {
         organizationId: input.organizationId,
         prospectId: input.prospectId,
-        activityType: "SEQUENCE_STOPPED",
-        summary: "Sequence stopped automatically (SUPPRESSED).",
-        metadata: { sequenceId: enrollment.sequence_id, enrollmentId: enrollment.id, reason: "SUPPRESSED" }
+        enrollment,
+        reason: "SUPPRESSED"
       });
     }
     return null;
@@ -106,17 +135,11 @@ export async function resolveProspectAction(
   if (!enrollment) return input.organicAction;
 
   if (stopReason && canTransitionToStopped(enrollment.status)) {
-    const now = new Date().toISOString();
-    await supabase
-      .from("prospect_sequence_enrollments")
-      .update({ status: "STOPPED", stopped_at: now, stopped_reason: stopReason, updated_at: now })
-      .eq("id", enrollment.id);
-    await logActivity(supabase, {
+    await stopEnrollmentForReason(supabase, {
       organizationId: input.organizationId,
       prospectId: input.prospectId,
-      activityType: "SEQUENCE_STOPPED",
-      summary: `Sequence stopped automatically (${stopReason}).`,
-      metadata: { sequenceId: enrollment.sequence_id, enrollmentId: enrollment.id, reason: stopReason }
+      enrollment,
+      reason: stopReason
     });
     return input.organicAction;
   }
@@ -141,25 +164,20 @@ export async function resolveProspectAction(
     sequenceName: sequence?.name ?? "Sequence"
   };
 
-  // Idempotent: log SEQUENCE_STEP_DUE only the first time this exact step
-  // becomes due, same pattern regenerate.ts already uses for AUDIT_COMPLETED.
-  const { data: alreadyLogged } = await supabase
-    .from("prospect_activities")
-    .select("id")
-    .eq("prospect_id", input.prospectId)
-    .eq("activity_type", "SEQUENCE_STEP_DUE")
-    .contains("metadata", { sequenceStepId: due.step.id, enrollmentId: enrollment.id })
-    .maybeSingle();
-  if (!alreadyLogged) {
-    await logActivity(supabase, {
-      organizationId: input.organizationId,
-      prospectId: input.prospectId,
-      activityType: "SEQUENCE_STEP_DUE",
-      channel: due.step.channel,
-      summary: `${sequence?.name ?? "Sequence"}: ${SEQUENCE_STEP_CHANNEL_LABELS[due.step.channel]} step is due.`,
-      metadata: { sequenceId: enrollment.sequence_id, sequenceStepId: due.step.id, enrollmentId: enrollment.id }
-    });
-  }
+  // Idempotent via a real DB constraint (MANDATORY FIX 2), not a select-
+  // then-insert race: log SEQUENCE_STEP_DUE only the first time this exact
+  // (enrollment, step) becomes due -- an atomic on-conflict-do-nothing on
+  // event_key, so two overlapping reconciliation calls for the same due
+  // step can never both win the insert.
+  await logActivity(supabase, {
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+    activityType: "SEQUENCE_STEP_DUE",
+    channel: due.step.channel,
+    summary: `${sequence?.name ?? "Sequence"}: ${SEQUENCE_STEP_CHANNEL_LABELS[due.step.channel]} step is due.`,
+    metadata: { sequenceId: enrollment.sequence_id, sequenceStepId: due.step.id, enrollmentId: enrollment.id },
+    eventKey: `sequence_step_due:${enrollment.id}:${due.step.id}`
+  });
 
   return {
     actionType: "SEQUENCE_STEP",
