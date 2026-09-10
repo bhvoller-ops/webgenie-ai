@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { regenerateProspectIntelligence } from "@/lib/prospect/regenerate";
 import { rowToProspect } from "@/lib/prospect/row";
 import { normalizePhone, normalizeState, type ValidatedBusinessInput } from "@/lib/prospect/business-schema";
+import { logActivity } from "@/lib/prospect/activity";
 import type { Prospect } from "@/lib/prospect/types";
 
 /**
@@ -37,6 +38,7 @@ export async function openProspect(
         .maybeSingle();
 
   let prospectRow = existing.data;
+  const isNewProspect = !prospectRow;
 
   if (!prospectRow) {
     const { data, error } = await supabase
@@ -67,6 +69,15 @@ export async function openProspect(
   }
 
   const prospect = rowToProspect(prospectRow);
+  if (isNewProspect) {
+    await logActivity(supabase, {
+      organizationId,
+      prospectId: prospect.id,
+      activityType: "PROSPECT_OPENED",
+      summary: `Opened from ${isGooglePlace ? "a Google Places search" : "Finder"}.`,
+      createdBy: userId
+    });
+  }
   await regenerateProspectIntelligence(supabase, prospect);
   return prospect;
 }

@@ -84,6 +84,30 @@ deliberately just the two-motion summary.
   read-back surviving a fresh reload, a real audit driving Create
   Redesign Demo, zero automatic Vercel deployments). See
   `docs/history.md` §2ag–§2ak.
+- **P1 (Daily Prospecting Queue + Pitch Generator + Demo Room)** — built
+  on branch `feature/p1-client-acquisition-workflow`, **not yet
+  merged**. New `/prospecting` Daily Queue (deterministic priority
+  ordering, real summary counts including a genuine "Meetings
+  Scheduled"), a Pitch Generator on `/prospects/[id]` (reuses the
+  existing `OPENAI_API_KEY` integration already used by
+  `api/site-chat` — no new AI vendor — grounded strictly in real
+  evidence via `lib/prospect/pitch-context.ts`, 6 channels, generate/
+  edit/copy/regenerate/mark-used with contact-outcome logging that
+  closes the loop back into the Queue), and a client-facing Demo Room
+  (`/demo/[token]`, public, client-safe findings only — no raw audit
+  JSON, no internal scores/sales-angle ever exposed). Migration `036`
+  (`prospect_actions`/`prospect_activities`/`pitches`/`demo_rooms`) is
+  **applied to production** (RLS-verified both directions, a shared
+  cross-tenant FK-association trigger added during review). A full
+  real production acceptance test passed against the live PR preview
+  (Daily Queue, all 6 pitch channels, contact-outcome→follow-up,
+  Won/Lost, Demo Room, full integration chain, two-org tenancy) —
+  three real defects found by exercising the feature (a missing
+  `DEMO_GENERATED` activity log, a `FOLLOW_UP` completion that didn't
+  clear its own due date and so resurrected itself, and a broken
+  `demo_rooms.public_token` column default that blocked Demo Room
+  creation outright) were fixed the same session. See `docs/history.md`
+  §2al–§2am.
 - Two known open items, don't assume either is fixed without re-testing:
   - `audit_logs` INSERT — re-investigated 9 Sep 2026 and no longer
     reproduces (see `docs/history.md`), but that finding lives on branch

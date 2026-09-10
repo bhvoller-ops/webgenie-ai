@@ -3166,6 +3166,222 @@ enrichment, a weekly digest, an LLM visibility audit, GBP OAuth,
 competitor SEO analysis) — none of these were started, and P1 has not
 been started either.
 
+### 2al. Product Phase P1: Daily Prospecting Queue + Pitch Generator + Demo Room — 11 Sep 2026
+
+Built on branch `feature/p1-client-acquisition-workflow`, **not
+merged**, per a detailed master prompt (`WEBGENIE P1 MASTER
+IMPLEMENTATION PROMPT`). Migration `036` written, **not applied to
+production**, same discipline as every prior migration.
+
+**Architecture inspection (done before writing anything, full reasoning
+in migration 036's own comment):** `prospects.status` already had a
+real, working lifecycle (`deriveStatus()`) — only `meeting` added,
+nothing replaced. `next_best_actions` (P0) stays exactly as-is: the
+stateless, always-recomputed "current recommendation," which never had
+— and isn't getting — a queue-item lifecycle. `call_log` (P0-era) is a
+real, working current-contact-state record already wired into
+`next-best-action.ts` — reused as-is for P1's contact-outcome logging,
+its status vocabulary widened (additively) with five outcomes P1 needs.
+No activity/event log and no pitch/demo-room persistence existed
+anywhere before this — the only genuinely new tables.
+
+**Module A — Daily Prospecting Queue.** New `prospect_actions` (the
+queue's own PENDING/COMPLETED/SKIPPED/SNOOZED lifecycle — deliberately
+separate from `next_best_actions`, which has no such lifecycle) and
+`prospect_activities` (append-only event history). New
+`lib/prospect/queue.ts` (deterministic ordering: readiness tier ×
+priority × due date × recency — readable rules, never opaque scoring)
+and `lib/prospect/action-generation.ts` (the queue's own richer action
+vocabulary — GMB import, new-site-vs-redesign-demo disambiguation via
+the existing `canCreateRedesignDemo()`, reply review — built
+deliberately as a *new* function rather than a modification to P0's
+`computeNextBestAction()`, out of scope per "do not reopen P0.5 unless
+a real blocking defect"). Both wired into the single existing
+`regenerateProspectIntelligence()` choke point, so the queue and
+activity history update themselves after any real state change with no
+second "recompute" pass added anywhere else. New `/prospecting` page:
+"Good morning, let's find your next client," five real summary counts
+(including a genuine "Meetings Scheduled" count, not omitted or
+fabricated — `meeting` is now a real status), filterable next-actions
+list, snooze/skip/complete. Each row's primary action opens the
+existing `/prospects/[id]` workspace rather than duplicating any
+action-triggering UI.
+
+**Module B — Pitch Generator.** Reuses the existing OpenAI integration
+(`OPENAI_API_KEY`, already paid/configured, already used by
+`api/site-chat`) rather than a new AI vendor. New
+`lib/prospect/pitch-context.ts` — a safe, structured `PitchContext`
+built once from already-fetched data, explicit FACTS / OPPORTUNITY
+EVIDENCE / AUDIT FINDINGS / RECOMMENDATIONS / UNKNOWN sections, a fixed
+`PITCH_PROHIBITED_CLAIMS` list covering every fabrication example in
+the master prompt (fabricated revenue/customer/ad-spend figures,
+competitor claims, owner-intent claims, unsupported "I was reviewing
+your website," unsupported "you're losing leads"/"your SEO is bad,"
+fabricated urgency, invented testimonials) rendered directly into the
+prompt as hard rules — verified directly that a no-audit prospect never
+gets audit findings even from a stale brief. New `pitches` table (one
+row per prospect+channel, versioned in place, never accumulating
+duplicates) and three new routes: generate/regenerate, edit (never
+touches evidence — verified), and a combined mark-used + contact-
+outcome + follow-up route that reuses `call_log` exactly as P0 already
+established, closing the section-37 loop (Pitch used → outcome →
+follow-up → Queue). New `PitchGenerator` UI on `/prospects/[id]` — 6
+channels, generate/regenerate/edit/copy/mark-used with a 9-outcome
+picker. **A real error-handling gap found and fixed during real-browser
+testing**: the generate route silently returned `200` with `pitch:
+null` on a failed write instead of a real error — fixed to check both
+insert/update errors and return a proper 500.
+
+**Module C — Demo Room.** New `lib/prospect/demo-room-content.ts` —
+every finding traces to real, already-generated evidence
+(`topFindings` for an audited prospect, `reasonsToContact` for a
+no-website one), capped at 3 + 3, never a revenue promise, never the
+word "audit" in the client-facing intro — 13 regression checks confirm
+internal-only fields (sales angle, suggested opener) can never leak
+into client-safe output. New `demo_rooms` table (one per prospect,
+idempotent create-or-get, a separate random `public_token` rather than
+the raw prospect id — deliberately more careful than `/pay/
+[callLogId]`'s precedent of using the row id directly, since a Demo
+Room link is handed to an external prospect). New public `/demo/[token]`
+page, admin-client-read, no login — deliberately outside the internal
+dark `DESIGN.md` theme (a client-facing presentation page, same "app
+chrome dark, client output light" principle already established for
+generated sites), excludes every internal field the master prompt
+lists (raw audit JSON, internal score/confidence, sales angle,
+suggested opener, NBA reasoning, debug/cost data). Real `org_branding`
+used when set, falling back to the organization's own name — never
+hardcoded to one agency. New `DemoRoomPanel` on `/prospects/[id]`:
+Create Demo Room, Copy Demo Link (marks the room "shared" — the real
+moment, not mere creation), Preview as Prospect.
+
+**Phase H — testing.** 222 pure-logic regression checks across 12
+scripts (up from 147 at P0.5). **Full real-browser DB-backed
+integration testing (Queue↔Pitch↔Demo Room↔follow-up, the real
+acceptance sequence in section 52) could not be completed in this
+pass** — migration `036` is deliberately not applied yet (same
+precedent as every prior migration in this project: written and
+reviewed here, applied only after an explicit, separate instruction),
+and this app has no separate local database — the dev server points at
+the same real production Supabase project. What *was* verified live,
+real browser, real sandbox admin, on a local dev server: the
+pre-existing Finder → View Opportunity → Full Screen chain is
+unaffected by the `regenerate.ts` changes; a real OpenAI pitch
+generation call succeeded end-to-end (confirming the AI provider
+integration itself works); and every new P1 code path — `/prospecting`,
+the Pitch Generator, Demo Room creation — degrades safely against the
+current (pre-migration) schema: no crashes, clear real errors on writes
+(after the fix above), graceful empty states on reads. Confirmed
+directly via the database that all four new tables genuinely don't
+exist yet in production.
+
+`tsc --noEmit` clean throughout. `eslint` 0 errors on every changed
+file. Full production build clean at every commit (`/prospecting`
+117KB, `/prospects/[id]` 115KB, `/demo/[token]` built and confirmed in
+the manifest).
+
+**What P1 does not include, deliberately** (master prompt section 44):
+automated email/SMS sending, cold-email infrastructure, Twilio/LinkedIn
+/WhatsApp automation, multi-step sequences, AI calling, Retell
+integration, appointment-scheduling integration, full CRM automation,
+client onboarding/fulfillment, billing, a learning/optimization engine,
+weekly AI prospect recommendations. None of these were started, and P2
+was not started either.
+
+**Not merged, migration not applied** — same discipline as every prior
+phase of this build.
+
+### 2am. Migration 036 applied; full P1 production acceptance test — 10 Sep 2026
+
+**Migration review (before applying).** Found and fixed three real
+issues, all proactively, before ever running the migration against
+production:
+
+- **Cross-tenant FK gap** — the same class of gap already found and
+  fixed once before for `call_log.prospect_id` (migration 034). All
+  four new P1 tables denormalize `organization_id`, and RLS alone never
+  verified a referenced `prospect_id` actually belongs to a prospect in
+  that same organization — every real app route already prevents
+  constructing a mismatched pair, but a direct authenticated PostgREST
+  call bypassing the app could not have been stopped. Fixed with a
+  shared `enforce_prospect_tenant_match()` `security definer` trigger
+  function, attached to all four new tables.
+- **Redundant index** — `demo_rooms.public_token` had both an inline
+  `unique` constraint and a separately named unique index on the
+  identical column. Removed the explicit duplicate.
+- **Missing rollback documentation** — added to the migration's header,
+  covering both the widened CHECK constraints and the four new tables.
+
+**Applying the migration — one real failure, diagnosed and fixed.**
+First attempt failed: `constraint "call_log_status_check" already
+exists`. Root cause: the dynamic constraint lookup matched
+`pg_get_constraintdef(oid) ilike '%status%'` — a substring match, and
+`call_log` has three columns whose names contain "status" (`status`,
+`payment_status`, `commission_status`), each with its own CHECK
+constraint. The lookup non-deterministically dropped the wrong one,
+then collided with the real, still-present `status` constraint on
+re-add. Confirmed the failure was fully atomic (nothing partially
+applied) before fixing. Fixed by joining `pg_attribute` on
+`attnum = any(conkey)` filtered to the exact column name — verified
+read-only against production before re-attempting. Migration applied
+successfully on the second attempt; every table, constraint, RLS
+policy, index, and trigger verified directly afterward.
+
+**Real production acceptance test**, against the live PR #27 preview
+deployment (same substitution the P0.5 acceptance test used —
+production doesn't have this code until merge), real browser, a real
+sandbox org/admin, starting from a real Finder search (Roofing,
+Atlanta) through to a real completed audit (KTM Roofing, scored
+51/100). Exercised the full chain for real: Daily Queue action
+generation and reconciliation (snooze/skip/complete, no duplicates
+across repeated regeneration — confirmed the exact reconciliation
+rules in `action-sync.ts`'s own doc comment hold in practice), all six
+Pitch Generator channels generated by the real OpenAI integration with
+real evidence and no fabricated claims, edit/regenerate/persistence,
+contact-outcome logging → follow-up → queue, Won and Lost transitions,
+Demo Room creation and its public `/demo/[token]` page (client-safe
+findings only, invalid token returns a clean 404), and a full two-org
+tenancy test (cross-tenant FK association rejected on all four tables
+by the new trigger, cross-tenant reads return empty, cross-tenant app
+routes return not-found — no leak in either direction).
+
+**Three more real defects found by exercising the feature, not by
+inspection — fixed the same session:**
+
+1. `generate_demo` never logged the `DEMO_GENERATED` activity despite
+   the enum existing for exactly this since migration 036 — a real
+   generation event was invisible in activity history.
+2. Completing a `FOLLOW_UP` queue action didn't clear the `call_log`
+   `follow_up_due_at` that generated it, so the very next
+   `regenerateProspectIntelligence()` call (triggered by almost any
+   other real action) resurrected the identical `FOLLOW_UP` action.
+   Fixed to clear it on completion.
+3. `demo_rooms.public_token`'s column default
+   (`encode(gen_random_bytes(24), 'base64url')`) uses an encoding this
+   project's Postgres doesn't recognize — `unrecognized encoding:
+   "base64url"` — so every insert relying on it failed outright,
+   completely blocking Demo Room creation. Fixed by generating the
+   token in the route with Node's own `base64url` encoding instead of
+   relying on the default; no migration/schema change needed since the
+   app never actually depended on the default being correct.
+
+**Cleanup.** Both sandbox organizations, both sandbox auth users, the
+real test prospect and every row it generated (`prospect_actions`,
+`prospect_activities`, `pitches`, `demo_rooms`, `call_log`,
+`opportunity_briefs`, `next_best_actions`, the project/website-
+reference/analysis-job it created) deleted and independently
+re-verified at zero rows across every table. No real production data
+touched.
+
+**Quality gates.** `tsc --noEmit` clean. `eslint` 0 errors (2
+pre-existing `react-hooks/exhaustive-deps` warnings, same pattern
+already used elsewhere in this codebase). All 222 checks across 12
+`verify-*.ts` scripts pass. Production build clean.
+
+**Result: migration 036 is live on production, PR #27's acceptance
+test PASSED with three real fixes applied during testing. PR #27
+still not merged** — merging is a separate, explicit instruction, same
+discipline as every prior phase.
+
 ---
 
 ## Verified vs. assumed
