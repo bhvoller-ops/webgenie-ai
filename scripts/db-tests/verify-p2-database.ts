@@ -22,14 +22,28 @@
  * PREREQUISITE (not run by this script): a disposable non-production
  * Supabase project (or local `supabase start`) with every migration
  * through 036 already applied (the same schema state production is
- * actually on), then `supabase db push` (or equivalent) to apply 037 and
- * 038 -- this script assumes that already happened and starts from "P2's
- * own migrations just landed on a P1-shaped database," which is exactly
- * the real Phase 2 sequence.
+ * actually on), then `supabase db push` (or equivalent) to apply 037
+ * through 040 -- this script assumes that already happened and starts
+ * from "P2's own migrations just landed on a P1-shaped database," which
+ * is exactly the real Phase 2 sequence.
+ *
+ * Sections 7-11 (added during P2 pre-production database validation) go
+ * beyond migrations 037/038's own guarantees: 7 exercises migration 040
+ * (the prospect_sequence_enrollments suppression guard added by this same
+ * validation pass, closing a gap parallel to 038's prospect_actions one),
+ * 8 replicates the Daily Queue route's own query+filter against a real
+ * suppression-after-the-fact race, 9 covers cross-tenant DELETE (the one
+ * CRUD verb sections 2-3 didn't already exercise), 10 proves
+ * advanceSequenceStep()'s CAS update under real concurrency the same way
+ * section 6 already did for event_key, and 11 proves computeInsightsSummary()
+ * zeroes a real is_test organization's counts despite real logged activity
+ * sitting in the same tables.
  *
  * Run with: npx tsx scripts/db-tests/verify-p2-database.ts
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { computeInsightsSummary } from "../../src/lib/prospect/insights-query";
+import { advanceSequenceStep, enrollProspect } from "../../src/lib/prospect/sequence-sync";
 
 const TEST_URL = process.env.P2_DB_TEST_URL;
 const TEST_SERVICE_ROLE_KEY = process.env.P2_DB_TEST_SERVICE_ROLE_KEY;
@@ -253,6 +267,125 @@ async function main() {
     await admin.from("prospect_activities").insert({ organization_id: orgA, prospect_id: prospectA, activity_type: "SEQUENCE_STEP_DUE", summary: "distinct", metadata: {}, event_key: eventKey2 });
     const { count: distinctCount } = await admin.from("prospect_activities").select("id", { count: "exact", head: true }).in("event_key", [eventKey, eventKey2]);
     check("a different event_key is never blocked by the first one's uniqueness (legitimate distinct events aren't collapsed)", distinctCount === 2);
+  }
+
+  console.log("\n7. suppressed-prospect enrollment is rejected at the database layer itself (migration 040), not only by enrollProspect()'s app-level isSuppressed() check");
+  {
+    const prospectC = await createProspect(orgA, `${RUN_ID} Prospect C`);
+    await admin.from("prospects").update({ suppressed_at: new Date().toISOString(), suppression_reason: "MANUAL" }).eq("id", prospectC);
+    await expectThrow(
+      "a direct insert of an ACTIVE enrollment for an already-suppressed prospect is rejected (bypassing enrollProspect() entirely, as a future/forgetful call site would)",
+      async () => admin.from("prospect_sequence_enrollments").insert({ organization_id: orgA, prospect_id: prospectC, sequence_id: sequenceA!.id, status: "ACTIVE", current_step_order: 1 })
+    );
+    const { enrollmentId, error } = await enrollProspect(admin, { organizationId: orgA, prospectId: prospectC, sequenceId: sequenceA!.id });
+    check("enrollProspect() itself also refuses (its own app-level check, still correct)", enrollmentId === null && Boolean(error));
+    await admin.from("prospects").update({ suppressed_at: null, suppression_reason: null }).eq("id", prospectC);
+  }
+
+  console.log("\n8. the Daily Queue query excludes a suppressed prospect's action even when the action row itself is still nominally PENDING (the exact race /api/prospects/queue's own 'defense-in-depth' comment describes: suppression happening AFTER the action was created, which the prospect_actions trigger -- scoped to prospect_actions writes only -- cannot retroactively catch)");
+  {
+    const prospectD = await createProspect(orgA, `${RUN_ID} Prospect D`);
+    const { error: preSuppressionActionErr } = await admin.from("prospect_actions").insert({ organization_id: orgA, prospect_id: prospectD, action_type: "CONTACT", reason: "test", status: "PENDING" });
+    check("a PENDING action is created for prospect D while NOT yet suppressed", !preSuppressionActionErr);
+    // Suppress prospect D directly (not via suppressProspect()), simulating
+    // suppression landing after the action already existed, before any
+    // reconciliation pass has run.
+    await admin.from("prospects").update({ suppressed_at: new Date().toISOString(), suppression_reason: "MANUAL" }).eq("id", prospectD);
+    const { data: rawActionRow } = await admin.from("prospect_actions").select("status").eq("prospect_id", prospectD).single();
+    check("the action row itself is still PENDING in the database (the trigger doesn't retroactively touch it -- this is the real gap the query-level filter exists for)", rawActionRow?.status === "PENDING");
+
+    // Replicate /api/prospects/queue/route.ts's own query + filter exactly.
+    const { data: actionRows } = await admin
+      .from("prospect_actions")
+      .select("id, prospect_id, prospects(suppressed_at)")
+      .eq("organization_id", orgA)
+      .in("status", ["PENDING", "SNOOZED"]);
+    const nonSuppressedRows = (actionRows ?? []).filter((r) => {
+      const prospectJoin = r.prospects as unknown as { suppressed_at: string | null } | null;
+      return !prospectJoin?.suppressed_at;
+    });
+    check(
+      "the Daily Queue's own query+filter excludes prospect D's still-PENDING action once suppressed",
+      !nonSuppressedRows.some((r) => r.prospect_id === prospectD)
+    );
+  }
+
+  console.log("\n9. cross-tenant DELETE is rejected under RLS, not only SELECT/INSERT/UPDATE");
+  {
+    const { data: enrollmentForDeleteTest } = await admin
+      .from("prospect_sequence_enrollments")
+      .select("id")
+      .eq("prospect_id", prospectA)
+      .eq("sequence_id", sequenceA!.id)
+      .maybeSingle();
+    const { data: deletedAsB, error: deleteErrB } = await userB
+      .from("prospect_sequence_enrollments")
+      .delete()
+      .eq("id", enrollmentForDeleteTest!.id)
+      .select("id");
+    check("user B cannot delete org A's enrollment by its real (guessed) id", !deleteErrB && (deletedAsB ?? []).length === 0);
+    const { data: stillThere } = await admin.from("prospect_sequence_enrollments").select("id").eq("id", enrollmentForDeleteTest!.id).maybeSingle();
+    check("the row genuinely still exists after user B's rejected delete attempt", Boolean(stillThere));
+
+    const { data: deletedProspectAsB, error: deleteProspectErrB } = await userB.from("prospects").delete().eq("id", prospectA).select("id");
+    check("user B cannot delete org A's prospect itself by its real (guessed) id", !deleteProspectErrB && (deletedProspectAsB ?? []).length === 0);
+    const { data: prospectStillThere } = await admin.from("prospects").select("id").eq("id", prospectA).maybeSingle();
+    check("org A's prospect genuinely still exists after user B's rejected delete attempt", Boolean(prospectStillThere));
+  }
+
+  console.log("\n10. sequence-completion advancement is CAS-idempotent under real concurrency, not just sequential retries (advanceSequenceStep(), matching event_key's own concurrency proof in section 6)");
+  {
+    const prospectE = await createProspect(orgA, `${RUN_ID} Prospect E`);
+    const { enrollmentId: enrollmentEId, error: enrollErrE } = await enrollProspect(admin, { organizationId: orgA, prospectId: prospectE, sequenceId: sequenceA!.id });
+    check("prospect E enrolls cleanly (fresh prospect, no prior enrollment)", Boolean(enrollmentEId) && !enrollErrE);
+
+    // sequenceA has exactly one step -- advancing past it takes the
+    // "sequence complete" branch, the same CAS-guarded update on both
+    // id + current_step_order + status. Five concurrent callers race for
+    // the same expectedCurrentStepOrder; only the real DB row state (not
+    // app-level locking) can decide the winner.
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => advanceSequenceStep(admin, { organizationId: orgA, prospectId: prospectE, enrollmentId: enrollmentEId!, expectedCurrentStepOrder: 1 }))
+    );
+    const advancedCount = results.filter((r) => r.advanced).length;
+    check("exactly one of five concurrent advanceSequenceStep() calls actually wins the CAS update", advancedCount === 1, `advanced count: ${advancedCount}`);
+    check("every call correctly reports completed:true (last step reached), win or lose", results.every((r) => r.completed));
+
+    const { data: enrollmentEAfter } = await admin.from("prospect_sequence_enrollments").select("status").eq("id", enrollmentEId!).single();
+    check("the enrollment lands in COMPLETED exactly once, not corrupted by the losing racers", enrollmentEAfter?.status === "COMPLETED");
+
+    const { count: completedActivityCount } = await admin
+      .from("prospect_activities")
+      .select("id", { count: "exact", head: true })
+      .eq("prospect_id", prospectE)
+      .eq("activity_type", "SEQUENCE_COMPLETED");
+    check("exactly one SEQUENCE_COMPLETED activity was logged, not five", completedActivityCount === 1, `found ${completedActivityCount}`);
+  }
+
+  console.log("\n11. a test organization's Insights are always the shared zero constant, even with real logged activity sitting right there in the same tables (MANDATORY FIX 1)");
+  {
+    const { data: orgARow } = await admin.from("organizations").select("is_test").eq("id", orgA).single();
+    check("org A (created by this run) is itself flagged is_test, matching every real test/sandbox organization", orgARow?.is_test === true);
+
+    const { count: realActivityCount } = await admin.from("prospect_activities").select("id", { count: "exact", head: true }).eq("organization_id", orgA);
+    check("org A genuinely has real, non-zero logged activity by this point in the run (this test would be meaningless against an empty org)", (realActivityCount ?? 0) > 0, `found ${realActivityCount}`);
+
+    const summary = await computeInsightsSummary(admin, orgA);
+    check("computeInsightsSummary() flags isTestOrganization", summary.isTestOrganization === true);
+    check(
+      "every single count is zero despite real activity existing in the same table for this exact organization_id",
+      summary.prospectsFound === 0 &&
+        summary.prospectsReviewed === 0 &&
+        summary.auditsCompleted === 0 &&
+        summary.demosCreated === 0 &&
+        summary.demoRoomsShared === 0 &&
+        summary.outreachPerformed === 0 &&
+        summary.followUpsScheduled === 0 &&
+        summary.meetingsLogged === 0 &&
+        summary.won === 0 &&
+        summary.lost === 0,
+      JSON.stringify(summary)
+    );
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
