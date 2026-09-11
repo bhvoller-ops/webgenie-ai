@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Loader2, Maximize2, Minimize2, PhoneOff, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Loader2, Maximize2, Minimize2, PhoneOff, Shield, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/format";
 import { renderTemplate, type PlaybookRenderVars } from "@/lib/playbook/render";
 import { PLAYBOOK_STAGE_LABELS, type PlaybookStageKey } from "@/lib/playbook/types";
@@ -15,6 +15,8 @@ import { OutcomePanel, OUTCOME_MAPPING, type PlaybookOutcomeKey } from "./outcom
 const LINEAR_STAGES: PlaybookStageKey[] = ["PRE_CALL_CHECK", "GATEKEEPER", "OPENING", "VERIFIED_OBSERVATION", "DISCOVERY", "BOOK_ASSESSMENT", "OUTCOME"];
 
 const CALLER_NAME_STORAGE_KEY = "webgenie.playbook.callerName";
+const CALLER_PHONE_STORAGE_KEY = "webgenie.playbook.callerPhone";
+const ORG_WEBSITE_STORAGE_KEY = "webgenie.playbook.organizationWebsite";
 
 interface GeneratedScript {
   id: string;
@@ -35,6 +37,8 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   const [dirty, setDirty] = useState(false);
 
   const [callerName, setCallerName] = useState("");
+  const [callerPhone, setCallerPhone] = useState("");
+  const [organizationWebsite, setOrganizationWebsite] = useState("");
   const [gatekeeper, setGatekeeper] = useState({ name: "", role: "", directNumber: "", email: "", callbackTime: "" });
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, string>>({});
   const [painPoints, setPainPoints] = useState<string[]>([]);
@@ -42,6 +46,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   const [bookingOptionA, setBookingOptionA] = useState("");
   const [bookingOptionB, setBookingOptionB] = useState("");
   const [bookedTime, setBookedTime] = useState("");
+  const [showNoAnswerStage, setShowNoAnswerStage] = useState(false);
 
   const [script, setScript] = useState<GeneratedScript | null>(null);
   const [preparingScript, setPreparingScript] = useState(false);
@@ -52,10 +57,44 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   const [outcomeError, setOutcomeError] = useState("");
   const [outcomeSaved, setOutcomeSaved] = useState(false);
 
+  // OWNER-REVIEW CORRECTION: caller identity is never hardcoded and never
+  // silently blank. Name/phone/website are per-viewer conveniences stored
+  // ONLY in this browser's localStorage (never sent to WebGenie, never
+  // read back by the server) -- see the exact keys below. Nothing here is
+  // sensitive (a name, a phone number the caller already has, a public
+  // website URL); clearing them is just clearing these three keys, which
+  // "Clear caller identity" in Pre-Call Check does directly.
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem(CALLER_NAME_STORAGE_KEY) : null;
-    if (saved) setCallerName(saved);
+    if (typeof window === "undefined") return;
+    const savedName = window.localStorage.getItem(CALLER_NAME_STORAGE_KEY);
+    const savedPhone = window.localStorage.getItem(CALLER_PHONE_STORAGE_KEY);
+    const savedWebsite = window.localStorage.getItem(ORG_WEBSITE_STORAGE_KEY);
+    if (savedName) setCallerName(savedName);
+    if (savedPhone) setCallerPhone(savedPhone);
+    if (savedWebsite) setOrganizationWebsite(savedWebsite);
   }, []);
+
+  // A real, org-configured support phone (org_branding.support_phone) is
+  // offered as the callback number's starting value ONLY if the caller
+  // hasn't already set their own -- never overwrites a value they typed.
+  useEffect(() => {
+    if (!context?.intelligence.organizationSupportPhone) return;
+    if (callerPhone) return;
+    const savedPhone = typeof window !== "undefined" ? window.localStorage.getItem(CALLER_PHONE_STORAGE_KEY) : null;
+    if (!savedPhone) setCallerPhone(context.intelligence.organizationSupportPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context?.intelligence.organizationSupportPhone]);
+
+  function clearCallerIdentity() {
+    setCallerName("");
+    setCallerPhone("");
+    setOrganizationWebsite("");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(CALLER_NAME_STORAGE_KEY);
+      window.localStorage.removeItem(CALLER_PHONE_STORAGE_KEY);
+      window.localStorage.removeItem(ORG_WEBSITE_STORAGE_KEY);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -120,16 +159,16 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
       evidenceTarget: context.intelligence.websiteUrl ?? `${context.intelligence.businessName}'s online presence`,
       verifiedObservation: context.intelligence.verifiedObservations[0] ?? "",
       restrainedImpact,
-      callbackNumber: "", // filled in by the caller before reading aloud — never fabricated
+      callbackNumber: callerPhone,
       contactName: gatekeeper.name,
       optionA: bookingOptionA,
       optionB: bookingOptionB,
       timeA: bookingOptionA,
       timeB: bookingOptionB,
-      callerPhone: "",
-      organizationWebsite: ""
+      callerPhone,
+      organizationWebsite
     };
-  }, [context, callerName, restrainedImpact, gatekeeper.name, bookingOptionA, bookingOptionB]);
+  }, [context, callerName, callerPhone, organizationWebsite, restrainedImpact, gatekeeper.name, bookingOptionA, bookingOptionB]);
 
   async function prepareScript() {
     if (!context || !channel) return;
@@ -194,7 +233,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || "Couldn't record the opt-out.");
       } else {
-        const mapped = OUTCOME_MAPPING[outcome];
+        const mapped = OUTCOME_MAPPING[outcome].value;
         if (!mapped) throw new Error("This outcome has no destination — that's a bug, not a valid save.");
         if (context.sequence) {
           const res = await fetch(`/api/prospects/${prospectId}/sequence-enrollments/${context.sequence.enrollmentId}/perform`, {
@@ -285,13 +324,46 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
     );
   }
 
+  // OWNER-REVIEW CORRECTION: a suppressed prospect gets its own unmistakable
+  // read-only view (per the spec's own "may display historical information
+  // in a read-only state") instead of being hidden behind a generic
+  // no-channel message. Every channel action, message preparation, outcome
+  // control, and project/contact mutation is simply absent from this view
+  // -- there is no code path here that could perform any of them, so this
+  // holds even against a direct URL open, not merely a hidden button.
+  if (context.intelligence.suppressed) {
+    return (
+      <div className="mx-auto mt-10 max-w-2xl px-4">
+        <div className="flex items-start gap-3 rounded-panel border border-signal-bad/30 bg-signal-bad/10 p-5">
+          <Shield className="mt-0.5 h-5 w-5 shrink-0 text-signal-bad" aria-hidden />
+          <div>
+            <p className="text-[14px] font-semibold text-signal-bad">This prospect is suppressed. New outreach is blocked.</p>
+            {context.intelligence.suppressionReason ? <p className="mt-1 text-[12px] text-signal-bad/90">Reason: {context.intelligence.suppressionReason}</p> : null}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <IntelligenceCard intelligence={context.intelligence} channels={context.channels} />
+        </div>
+
+        <p className="mt-4 text-[12px] leading-relaxed text-faint">
+          Every channel action, message preparation, outcome control, follow-up, sequence progression, and project/contact mutation is disabled for a suppressed prospect. This page is read-only history only.
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href={`/prospects/${prospectId}`} className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3.5 py-2 text-[12.5px] font-medium text-muted hover:text-ink">
+            Back to prospect
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!channel) {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-panel border border-hairline bg-canvas/70 p-6 text-center">
         <PhoneOff className="mx-auto h-6 w-6 text-faint" aria-hidden />
-        <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-          No verified CALL or EMAIL channel is available for this prospect{context.intelligence.suppressed ? " (it is also suppressed)" : ""}. The playbook cannot enable outreach here.
-        </p>
+        <p className="mt-3 text-[13.5px] leading-relaxed text-muted">No verified CALL or EMAIL channel is available for this prospect. The playbook cannot enable outreach here.</p>
         <Link href={`/prospects/${prospectId}`} className="focus-ring mt-4 inline-block text-[12.5px] font-medium text-iris-soft hover:underline">
           Back to prospect
         </Link>
@@ -308,6 +380,9 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   function jumpToOutcome() {
     setStageIndex(LINEAR_STAGES.indexOf("OUTCOME"));
   }
+  function jumpToNoAnswer() {
+    setShowNoAnswerStage(true);
+  }
 
   function handleExitClick() {
     if (dirty && !outcomeSaved) {
@@ -318,6 +393,24 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   }
 
   const willAdvanceSequence = Boolean(context.sequence);
+
+  if (showNoAnswerStage) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 pb-16 pt-4 sm:px-6">
+        <NoAnswerStage
+          vars={vars}
+          config={context.config}
+          channel={channel}
+          email={context.intelligence.email}
+          onBack={() => setShowNoAnswerStage(false)}
+          onContinue={() => {
+            setShowNoAnswerStage(false);
+            jumpToOutcome();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={cn("mx-auto max-w-6xl px-4 pb-28 pt-4 sm:px-6", focusMode ? "bg-canvas" : "")}>
@@ -384,6 +477,17 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
                 setCallerName(v);
                 if (typeof window !== "undefined") window.localStorage.setItem(CALLER_NAME_STORAGE_KEY, v);
               }}
+              callerPhone={callerPhone}
+              onCallerPhone={(v) => {
+                setCallerPhone(v);
+                if (typeof window !== "undefined") window.localStorage.setItem(CALLER_PHONE_STORAGE_KEY, v);
+              }}
+              organizationWebsite={organizationWebsite}
+              onOrganizationWebsite={(v) => {
+                setOrganizationWebsite(v);
+                if (typeof window !== "undefined") window.localStorage.setItem(ORG_WEBSITE_STORAGE_KEY, v);
+              }}
+              onClearIdentity={clearCallerIdentity}
               channel={channel}
               suppressed={context.intelligence.suppressed}
               hasPriorContact={context.intelligence.priorContactCount > 0}
@@ -392,7 +496,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
           ) : null}
 
           {stage === "GATEKEEPER" ? (
-            <GatekeeperStage vars={vars} gatekeeper={gatekeeper} onChange={(g) => { setGatekeeper(g); markDirty(); }} onNoAnswer={jumpToOutcome} />
+            <GatekeeperStage vars={vars} gatekeeper={gatekeeper} onChange={(g) => { setGatekeeper(g); markDirty(); }} onNoAnswer={jumpToNoAnswer} onRequestedNoContact={jumpToOutcome} />
           ) : null}
 
           {stage === "OPENING" ? <OpeningStage vars={vars} /> : null}
@@ -476,6 +580,11 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
 function PreCallCheck({
   callerName,
   onCallerName,
+  callerPhone,
+  onCallerPhone,
+  organizationWebsite,
+  onOrganizationWebsite,
+  onClearIdentity,
   channel,
   suppressed,
   hasPriorContact,
@@ -483,6 +592,11 @@ function PreCallCheck({
 }: {
   callerName: string;
   onCallerName: (v: string) => void;
+  callerPhone: string;
+  onCallerPhone: (v: string) => void;
+  organizationWebsite: string;
+  onOrganizationWebsite: (v: string) => void;
+  onClearIdentity: () => void;
   channel: "CALL" | "EMAIL";
   suppressed: boolean;
   hasPriorContact: boolean;
@@ -509,15 +623,40 @@ function PreCallCheck({
           </li>
         ))}
       </ul>
-      <div className="mt-4">
-        <label className="mb-1 block text-[11px] font-medium text-faint">Your name (used in scripts)</label>
-        <input
-          value={callerName}
-          onChange={(e) => onCallerName(e.target.value)}
-          placeholder="e.g. Alex"
-          className="focus-ring w-full max-w-xs rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
-        />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-faint">Your name (used in scripts)</label>
+          <input
+            value={callerName}
+            onChange={(e) => onCallerName(e.target.value)}
+            placeholder="e.g. Alex"
+            className="focus-ring w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-faint">Your callback number (used in voicemail/email scripts)</label>
+          <input
+            value={callerPhone}
+            onChange={(e) => onCallerPhone(e.target.value)}
+            placeholder="Required before a voicemail/email script is shown"
+            className="focus-ring w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-[11px] font-medium text-faint">Your organization&rsquo;s website (optional — omitted from scripts if left blank)</label>
+          <input
+            value={organizationWebsite}
+            onChange={(e) => onOrganizationWebsite(e.target.value)}
+            placeholder="e.g. https://vibelabsagency.com"
+            className="focus-ring w-full max-w-sm rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
+          />
+        </div>
       </div>
+      {callerName || callerPhone || organizationWebsite ? (
+        <button type="button" onClick={onClearIdentity} className="focus-ring mt-2 text-[11px] text-faint hover:text-signal-bad">
+          Clear saved caller identity (stored only in this browser)
+        </button>
+      ) : null}
       <p className="mt-4 rounded-lg border border-iris/25 bg-iris/10 px-3 py-2.5 text-[12.5px] leading-relaxed text-iris-soft">
         Your goal is not to sell the entire service on this call. Your goal is to earn permission for the next useful step.
       </p>
@@ -529,12 +668,14 @@ function GatekeeperStage({
   vars,
   gatekeeper,
   onChange,
-  onNoAnswer
+  onNoAnswer,
+  onRequestedNoContact
 }: {
   vars: PlaybookRenderVars;
   gatekeeper: { name: string; role: string; directNumber: string; email: string; callbackTime: string };
   onChange: (g: typeof gatekeeper) => void;
   onNoAnswer: () => void;
+  onRequestedNoContact: () => void;
 }) {
   return (
     <div>
@@ -549,7 +690,7 @@ function GatekeeperStage({
             ["No answer", onNoAnswer],
             ["Voicemail", onNoAnswer],
             ["Number invalid", onNoAnswer],
-            ["Prospect requested no contact", onNoAnswer]
+            ["Prospect requested no contact", onRequestedNoContact]
           ] as [string, () => void][]
         ).map(([label, action]) => (
           <button key={label} type="button" onClick={action} className="focus-ring rounded-lg border border-hairline bg-raised px-3 py-2 text-left text-[12px] text-muted hover:border-iris/35 hover:text-ink">
@@ -765,6 +906,104 @@ function BookAssessmentStage({
           className="focus-ring w-full max-w-xs rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
         />
         <p className="mt-1.5 text-[11px] text-faint">This is not marked booked until you record that outcome explicitly in the next stage.</p>
+      </div>
+    </div>
+  );
+}
+
+function NoAnswerStage({
+  vars,
+  config,
+  channel,
+  email,
+  onBack,
+  onContinue
+}: {
+  vars: PlaybookRenderVars;
+  config: import("@/lib/playbook/types").PlaybookConfig;
+  channel: "CALL" | "EMAIL";
+  email: string | null;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const [voicemailCopied, setVoicemailCopied] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+  const hasCallbackNumber = Boolean(vars.callbackNumber && vars.callbackNumber.trim().length > 0);
+  const hasEmail = Boolean(email);
+
+  const voicemailText = renderTemplate(config.voicemailScript, vars);
+  const emailSubject = renderTemplate(config.emailTemplate.subject, vars);
+  const emailBodyBase = renderTemplate(config.emailTemplate.body, vars);
+  // The website signature line is appended ONLY when a real value is
+  // present this session -- never a dangling "[organization website]"
+  // placeholder in a script meant to actually be sent.
+  const emailBody = vars.organizationWebsite && vars.organizationWebsite.trim().length > 0 ? `${emailBodyBase}\n${vars.organizationWebsite}` : emailBodyBase;
+
+  function copy(text: string, setCopied: (v: boolean) => void) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    });
+  }
+
+  return (
+    <div className="card p-6">
+      <div className="eyebrow mb-3">No-Answer / Voicemail / Email</div>
+
+      {channel === "CALL" ? (
+        <div>
+          <p className="text-[12px] font-semibold text-ink">Voicemail script</p>
+          {!hasCallbackNumber ? (
+            <p className="mt-2 rounded-lg border border-signal-warn/30 bg-signal-warn/10 px-3 py-2.5 text-[12px] text-signal-warn">
+              Enter your callback number in Pre-Call Check first — a voicemail script with no real callback number is not shown.
+            </p>
+          ) : (
+            <>
+              <ScriptBlock className="mt-2" text={voicemailText} />
+              <button
+                onClick={() => copy(voicemailText, setVoicemailCopied)}
+                className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] text-muted hover:text-ink"
+              >
+                {voicemailCopied ? <Check className="h-3 w-3 text-signal-good" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
+                Copy
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <div className={channel === "CALL" ? "mt-6 border-t border-hairline pt-5" : ""}>
+        <p className="text-[12px] font-semibold text-ink">Email (only when appropriate and permitted)</p>
+        {!hasEmail ? (
+          <p className="mt-2 rounded-lg border border-hairline bg-raised/40 px-3 py-2.5 text-[12px] text-faint">No verified email is on file for this prospect — email preparation is disabled.</p>
+        ) : (
+          <>
+            <div className="mt-2 rounded-lg border border-hairline bg-raised/40 p-4">
+              <p className="text-[12.5px] font-semibold text-ink">{emailSubject}</p>
+              <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">{emailBody}</p>
+            </div>
+            <button
+              onClick={() => copy(`${emailSubject}\n\n${emailBody}`, setEmailCopied)}
+              className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] text-muted hover:text-ink"
+            >
+              {emailCopied ? <Check className="h-3 w-3 text-signal-good" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
+              Copy
+            </button>
+          </>
+        )}
+      </div>
+
+      <p className="mt-4 text-[11px] leading-relaxed text-faint">
+        Copying a script is not outreach. The next stage requires you to explicitly confirm whether a voicemail was actually left or an email was actually sent — nothing here marks either as done.
+      </p>
+
+      <div className="mt-5 flex items-center justify-between border-t border-hairline pt-4">
+        <button type="button" onClick={onBack} className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3.5 py-2 text-[12.5px] font-medium text-muted">
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back
+        </button>
+        <button type="button" onClick={onContinue} className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[12.5px] font-semibold text-white">
+          Continue to Outcome <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        </button>
       </div>
     </div>
   );

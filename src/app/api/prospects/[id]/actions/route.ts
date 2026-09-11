@@ -248,7 +248,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           .single();
         if (projectError || !project) throw new Error(projectError?.message ?? "Unable to create project.");
         await recordUsage(supabase, organizationId, "projects", user.id, project.id);
-        await supabase.from("prospects").update({ project_id: project.id, updated_at: new Date().toISOString() }).eq("id", prospect.id);
+
+        // Owner-review correction: a concurrent double-click could otherwise
+        // let two requests both pass the earlier `!prospect.projectId`
+        // check before either commits, each inserting its own project and
+        // racing to "win" the prospect's single project_id slot -- leaving
+        // an orphaned, partially-created project row from whichever
+        // request lost. Claim the slot with a CONDITIONAL update (only
+        // succeeds if project_id is still genuinely null, re-checked at
+        // write time, not merely at the read moment above) and roll back
+        // this request's own project insert if it loses the race, so no
+        // partially-created state survives either way.
+        const { data: claimed, error: claimError } = await supabase
+          .from("prospects")
+          .update({ project_id: project.id, updated_at: new Date().toISOString() })
+          .eq("id", prospect.id)
+          .eq("organization_id", organizationId)
+          .is("project_id", null)
+          .select("id");
+        if (claimError) throw new Error(claimError.message);
+        if (!claimed || claimed.length === 0) {
+          // Lost the race (or a project appeared between the initial read
+          // and now for any other reason) -- clean up this request's own
+          // orphan project rather than leave it dangling and unlinked.
+          await supabase.from("projects").delete().eq("id", project.id).eq("organization_id", organizationId);
+          return NextResponse.json({ error: "A fulfillment project was already created for this prospect (possibly by a concurrent request)." }, { status: 409 });
+        }
       } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create project." }, { status: 500 });
       }

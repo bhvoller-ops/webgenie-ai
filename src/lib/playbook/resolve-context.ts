@@ -68,6 +68,19 @@ export interface PlaybookIntelligence {
   priorContactCount: number;
   lastContactOutcome: string | null;
   organizationName: string;
+  /**
+   * Owner-review correction: resolved from org_branding.support_phone
+   * (migration 029) when set -- a real, org-configured number, never a
+   * fabricated default. null when the org hasn't set one; the UI then
+   * requires the caller to type their own callback number rather than
+   * ever rendering a blank/undefined placeholder in a script meant to be
+   * read aloud or sent. There is no website column anywhere on
+   * organizations/org_branding (checked against the real schema) -- no
+   * migration is added to create one here, so an "organization website"
+   * value is always session-entered or the sentence referencing it is
+   * omitted, never fabricated.
+   */
+  organizationSupportPhone: string | null;
 }
 
 export interface PlaybookContext {
@@ -210,9 +223,10 @@ export async function resolvePlaybookContext(
 
   const { data: lastCallLog } = await supabase.from("call_log").select("status").eq("prospect_id", prospectId).maybeSingle();
 
-  const { data: orgBranding } = await supabase.from("org_branding").select("brand_name").eq("organization_id", organizationId).maybeSingle();
+  const { data: orgBranding } = await supabase.from("org_branding").select("brand_name, support_phone").eq("organization_id", organizationId).maybeSingle();
   const { data: org } = await supabase.from("organizations").select("name").eq("id", organizationId).single();
   const organizationName = orgBranding?.brand_name || org?.name || "our team";
+  const organizationSupportPhone = orgBranding?.support_phone || null;
 
   const config = resolvePlaybookConfig(prospect.industry);
 
@@ -229,7 +243,8 @@ export async function resolvePlaybookContext(
       opportunitySummary: briefRow?.summary ?? null,
       priorContactCount: priorContactCount ?? 0,
       lastContactOutcome: (lastCallLog?.status as string | undefined) ?? null,
-      organizationName
+      organizationName,
+      organizationSupportPhone
     }),
     config
   };
@@ -244,6 +259,7 @@ function intelligenceFromProspect(
     priorContactCount: number;
     lastContactOutcome: string | null;
     organizationName: string;
+    organizationSupportPhone: string | null;
   }
 ): PlaybookIntelligence {
   return {
@@ -261,6 +277,7 @@ function intelligenceFromProspect(
     opportunitySummary: extra.opportunitySummary,
     priorContactCount: extra.priorContactCount,
     lastContactOutcome: extra.lastContactOutcome,
-    organizationName: extra.organizationName
+    organizationName: extra.organizationName,
+    organizationSupportPhone: extra.organizationSupportPhone
   };
 }

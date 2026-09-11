@@ -301,6 +301,22 @@ async function run() {
     const result = await resolvePlaybookContext(supabase, ORG_A, { prospectId: PROSPECT_A1 });
     check("config.industryKey is 'roofer'", result.ok && result.config.industryKey === "roofer");
   }
+
+  console.log("\nA14. Owner-review correction: caller identity -- organizationSupportPhone is resolved from real org_branding data, or null, never a fabricated default");
+  {
+    const supabaseWithPhone = fakeSupabase(baseTables({ org_branding: () => ({ data: { brand_name: "VibeLabs", support_phone: "(404) 555-0100" }, error: null }) }));
+    const withPhone = await resolvePlaybookContext(supabaseWithPhone, ORG_A, { prospectId: PROSPECT_A1 });
+    check("a real org_branding.support_phone value resolves through verbatim", withPhone.ok && withPhone.intelligence.organizationSupportPhone === "(404) 555-0100");
+
+    const supabaseNoPhone = fakeSupabase(baseTables({ org_branding: () => ({ data: { brand_name: "VibeLabs", support_phone: null }, error: null }) }));
+    const noPhone = await resolvePlaybookContext(supabaseNoPhone, ORG_A, { prospectId: PROSPECT_A1 });
+    check("no org_branding row / no support_phone resolves to null, never a fabricated number", noPhone.ok && noPhone.intelligence.organizationSupportPhone === null);
+
+    const supabaseNoBrandingRow = fakeSupabase(baseTables({ org_branding: () => ({ data: null, error: null }) }));
+    const noBrandingRow = await resolvePlaybookContext(supabaseNoBrandingRow, ORG_A, { prospectId: PROSPECT_A1 });
+    check("a missing org_branding row entirely still resolves cleanly, organizationSupportPhone null", noBrandingRow.ok && noBrandingRow.intelligence.organizationSupportPhone === null);
+    check("organizationName still falls back to the real organizations.name when org_branding has no row", noBrandingRow.ok && noBrandingRow.intelligence.organizationName === "VibeLabs Agency");
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -422,6 +438,103 @@ function runSourceChecks() {
       const tableBlockMatch = ctxSrc.match(new RegExp(`\\.from\\("${table}"\\)[\\s\\S]{0,260}`));
       check(`.from("${table}") query includes .eq("organization_id", organizationId)`, Boolean(tableBlockMatch && /\.eq\("organization_id", organizationId\)/.test(tableBlockMatch[0])));
     }
+  }
+
+  console.log("\nB12. Owner-review correction: a suppressed prospect's playbook renders a real read-only view -- and this holds against a direct URL open, not merely a hidden button");
+  {
+    const wsSrc = src("src/app/prospects/[id]/playbook/playbook-workspace.tsx");
+    check('the exact required banner text is present, verbatim', /This prospect is suppressed\. New outreach is blocked\./.test(wsSrc));
+    // Structural proof this branch is unconditional and runs BEFORE any
+    // stage/channel logic -- it must appear in source before the "!channel"
+    // early-return and before the LINEAR_STAGES render block, so no code
+    // path can reach a mutating control for a suppressed prospect no
+    // matter what URL/query-string got them here.
+    const suppressedBranchIdx = wsSrc.indexOf("if (context.intelligence.suppressed)");
+    const noChannelBranchIdx = wsSrc.indexOf('if (!channel) {');
+    const stageRenderIdx = wsSrc.indexOf('stage === "PRE_CALL_CHECK"');
+    check("the suppressed branch exists", suppressedBranchIdx > -1);
+    check("the suppressed branch is checked BEFORE the no-channel branch", suppressedBranchIdx > -1 && noChannelBranchIdx > -1 && suppressedBranchIdx < noChannelBranchIdx);
+    check("the suppressed branch is checked BEFORE any stage is rendered", suppressedBranchIdx > -1 && stageRenderIdx > -1 && suppressedBranchIdx < stageRenderIdx);
+    // The suppressed branch's own JSX slice must contain none of the
+    // mutating entry points -- OutcomePanel, ObjectionAssistant's active
+    // response state, or a "Prepare script" trigger -- confirming it is
+    // genuinely inert, not merely styled to look read-only.
+    const afterSuppressed = wsSrc.slice(suppressedBranchIdx, noChannelBranchIdx);
+    check("the suppressed view renders no <OutcomePanel", !/<OutcomePanel/.test(afterSuppressed));
+    check("the suppressed view renders no <ObjectionAssistant", !/<ObjectionAssistant/.test(afterSuppressed));
+    check("the suppressed view contains no fetch( call of its own", !/fetch\(/.test(afterSuppressed));
+    check(
+      "the underlying data layer independently guards channel activation behind '!suppressed' (defense in depth, not just this UI branch -- live-proven in test A9)",
+      /if \(!suppressed\) \{/.test(src("src/lib/playbook/resolve-context.ts"))
+    );
+  }
+
+  console.log("\nB13. Owner-review correction: caller identity is never permanently hardcoded, never shown as a raw 'undefined', and localStorage usage is disclosed and clearable");
+  {
+    const wsSrc = src("src/app/prospects/[id]/playbook/playbook-workspace.tsx");
+    const configFiles = [
+      src("src/lib/playbook/home-services-config.ts"),
+      src("src/lib/playbook/roofing-config.ts"),
+      src("src/lib/playbook/resolve-context.ts"),
+      wsSrc
+    ];
+    for (const fileSrc of configFiles) {
+      check("no literal 'Cassian' fallback anywhere in playbook code", !/Cassian/.test(fileSrc));
+    }
+    check(
+      "'VibeLabs' appears only inside comments explaining the rule, never as a literal fallback assignment (e.g. || \"VibeLabs\")",
+      !/\|\|\s*"VibeLabs/.test(wsSrc) && !/\|\|\s*"VibeLabs/.test(src("src/lib/playbook/resolve-context.ts"))
+    );
+    check("exactly 3 localStorage keys are used, all namespaced under webgenie.playbook.", (wsSrc.match(/webgenie\.playbook\.\w+/g) ?? []).filter((v, i, arr) => arr.indexOf(v) === i).length === 3);
+    check("a clearCallerIdentity function exists and removes all 3 keys", /function clearCallerIdentity\(\)[\s\S]{0,400}removeItem\(CALLER_NAME_STORAGE_KEY\)[\s\S]{0,100}removeItem\(CALLER_PHONE_STORAGE_KEY\)[\s\S]{0,100}removeItem\(ORG_WEBSITE_STORAGE_KEY\)/.test(wsSrc));
+    check('a visible "Clear saved caller identity" control exists in the UI', /Clear saved caller identity/.test(wsSrc));
+    check(
+      "the static email template's body no longer ends with a bare {{organizationWebsite}} token -- that line is appended only when a real value exists",
+      !/\{\{organizationWebsite\}\}/.test(src("src/lib/playbook/home-services-config.ts"))
+    );
+    check(
+      "the voicemail script is gated behind a real callback number before being shown at all (never renders with a bracket placeholder read aloud)",
+      /hasCallbackNumber \? [\s\S]{0,50}: \(/.test(wsSrc) || /!hasCallbackNumber \?/.test(wsSrc)
+    );
+    check("organizationSupportPhone is offered as a starting value only when the caller hasn't already typed their own (never overwrites)", /if \(callerPhone\) return;/.test(wsSrc));
+  }
+
+  console.log("\nB14. Owner-review correction: create_fulfillment_project security, idempotency, and confirmation");
+  {
+    const actionsSrc = src("src/app/api/prospects/[id]/actions/route.ts");
+    const caseBlock = actionsSrc.slice(actionsSrc.indexOf('case "create_fulfillment_project"'), actionsSrc.indexOf("break;\n    }\n  }\n"));
+    check("gated on prospect.status === 'won'", /if \(prospect\.status !== "won"\)/.test(caseBlock));
+    check("gated on no existing project", /if \(prospect\.projectId\)/.test(caseBlock));
+    check("organization_id on the new project comes from the session's own organizationId, never from the request body", /organization_id: organizationId/.test(caseBlock) && !/organizationId:\s*parsed\.data/.test(caseBlock));
+    check(
+      "the initial prospect fetch (shared by every action in this route) is itself organization-scoped",
+      /\.eq\("organization_id", organizationId\)/.test(actionsSrc.slice(0, actionsSrc.indexOf("switch (parsed.data.action)")))
+    );
+    check(
+      "retry/concurrency cannot create a duplicate: the project_id slot is claimed with a CONDITIONAL update (.is(\"project_id\", null)), re-checked at write time, not just read time",
+      /\.is\("project_id", null\)/.test(caseBlock)
+    );
+    check(
+      "a lost race cleans up its own orphan project row rather than leaving partially-created state",
+      /claimed\.length === 0\) \{[\s\S]{0,300}\.from\("projects"\)\.delete\(\)/.test(actionsSrc)
+    );
+    check("a lost race returns 409, not a silent success", /status: 409/.test(caseBlock));
+
+    const handoffPanelSrc = src("src/app/prospects/[id]/handoff-panel.tsx");
+    check("the UI requires an explicit second confirmation step before calling create_fulfillment_project (not a single click)", /confirmingProject/.test(handoffPanelSrc) && /Create a real fulfillment project now\?/.test(handoffPanelSrc));
+
+    check(
+      "project creation never happens from opening or completing the playbook -- the playbook workspace never references create_fulfillment_project at all",
+      !/create_fulfillment_project/.test(src("src/app/prospects/[id]/playbook/playbook-workspace.tsx"))
+    );
+    check(
+      "the handoff GET/PATCH route stays tenant-scoped",
+      (() => {
+        const handoffRouteSrc = src("src/app/api/prospects/[id]/handoff/route.ts");
+        const matches = handoffRouteSrc.match(/\.eq\("organization_id", organizationId\)/g);
+        return Boolean(matches && matches.length >= 2); // once for GET, once for PATCH
+      })()
+    );
   }
 }
 

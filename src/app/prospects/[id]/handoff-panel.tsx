@@ -27,6 +27,7 @@ export function HandoffPanel({ prospectId, hasProject, recommendedOffer, recomme
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [confirmingProject, setConfirmingProject] = useState(false);
   const [error, setError] = useState("");
   const [scope, setScope] = useState("");
   const [price, setPrice] = useState("");
@@ -88,6 +89,7 @@ export function HandoffPanel({ prospectId, hasProject, recommendedOffer, recomme
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Couldn't create the project.");
+      setConfirmingProject(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't create the project.");
@@ -183,14 +185,33 @@ export function HandoffPanel({ prospectId, hasProject, recommendedOffer, recomme
       {!hasProject ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <p className="text-[11.5px] text-faint">No project exists yet for this prospect — nothing is created automatically.</p>
-          <button
-            onClick={createFulfillmentProject}
-            disabled={creatingProject}
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-2.5 py-1.5 text-[11.5px] font-medium text-iris-soft disabled:opacity-60"
-          >
-            {creatingProject ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <FolderPlus className="h-3 w-3" aria-hidden />}
-            Create Fulfillment Project
-          </button>
+          {!confirmingProject ? (
+            <button
+              onClick={() => setConfirmingProject(true)}
+              disabled={creatingProject}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-2.5 py-1.5 text-[11.5px] font-medium text-iris-soft disabled:opacity-60"
+            >
+              <FolderPlus className="h-3 w-3" aria-hidden />
+              Create Fulfillment Project
+            </button>
+          ) : (
+            // Owner-review correction: this creates real, billable project
+            // data -- an explicit second step, not a single click.
+            <div className="flex items-center gap-2 rounded-lg border border-iris/30 bg-iris/10 px-2.5 py-1.5">
+              <span className="text-[11.5px] text-iris-soft">Create a real fulfillment project now?</span>
+              <button
+                onClick={createFulfillmentProject}
+                disabled={creatingProject}
+                className="focus-ring inline-flex items-center gap-1 rounded-md bg-iris px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60"
+              >
+                {creatingProject ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
+                Yes, create it
+              </button>
+              <button onClick={() => setConfirmingProject(false)} disabled={creatingProject} className="focus-ring text-[11px] text-faint hover:text-muted">
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       ) : null}
 

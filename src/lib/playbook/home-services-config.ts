@@ -122,8 +122,15 @@ export const HOME_SERVICES_BASE_CONFIG: PlaybookConfig = {
     "Hi, this is {{callerName}} with {{organizationName}}. I was reviewing {{businessName}}'s online presence and noticed one specific item that may affect how local customers perceive the company. Nothing urgent, but I have a practical recommendation. You can reach me at {{callbackNumber}}. Again, this is {{callerName}} with {{organizationName}} at {{callbackNumber}}.",
   emailTemplate: {
     subject: "Quick observation about {{businessName}}",
+    // Deliberately ends after the caller's name/org/phone -- a website
+    // signature line is appended by the caller (see NoAnswerStage in
+    // playbook-workspace.tsx) ONLY when one is actually provided this
+    // session; there is no organizations/org_branding website column to
+    // resolve one from, and a template that always prints
+    // "[organization website]" would fail the "no blank template tokens"
+    // requirement every single time.
     body:
-      "Hi {{contactName}},\n\nI tried reaching you because I noticed something specific while reviewing {{businessName}}'s online presence:\n\n{{verifiedObservation}}\n\nThis may create confusion or make it harder for customers to take the next step.\n\nI have a few practical recommendations and would be happy to walk you through them in 15 minutes. Would {{timeA}} or {{timeB}} work?\n\n{{callerName}}\n{{organizationName}}\n{{callerPhone}}\n{{organizationWebsite}}"
+      "Hi {{contactName}},\n\nI tried reaching you because I noticed something specific while reviewing {{businessName}}'s online presence:\n\n{{verifiedObservation}}\n\nThis may create confusion or make it harder for customers to take the next step.\n\nI have a few practical recommendations and would be happy to walk you through them in 15 minutes. Would {{timeA}} or {{timeB}} work?\n\n{{callerName}}\n{{organizationName}}\n{{callerPhone}}"
   },
   offer: {
     name: "Lead-Ready Home Services Website + Client Acquisition Foundation",
