@@ -8,15 +8,21 @@ import type { ProspectActivityType } from "@/lib/prospect/types";
  * its own insert. Never throws: activity logging is best-effort history,
  * not something that should fail the real action it's recording.
  *
- * P2 remediation (MANDATORY FIX 2, migration 038): an optional `eventKey`
- * makes a specific event happen at most once, enforced by a real DB
- * partial unique index (prospect_activities_event_key_idx) via an atomic
+ * P2 remediation (MANDATORY FIX 2, migration 038; conflict-target fix in
+ * migration 039): an optional `eventKey` makes a specific event happen at
+ * most once, enforced by a real DB unique index
+ * (prospect_activities_event_key_idx) via an atomic
  * `insert ... on conflict (event_key) do nothing` -- not a select-then-
- * insert race. Every existing call site that doesn't pass eventKey keeps
- * inserting exactly as before (event_key stays null, the partial index
- * ignores it, zero behavior change). Returns whether a row was actually
- * inserted so a caller that only wants to act "the first time this fires"
- * (e.g. logging a second, dependent event only once) can check it.
+ * insert race. That index is deliberately NOT partial (migration 039
+ * corrected 038's original `where event_key is not null` version, which
+ * Postgres cannot use as an ON CONFLICT (event_key) arbiter without the
+ * conflict target repeating that same predicate) -- a plain unique index
+ * already treats every null event_key as distinct from every other, so
+ * every existing call site that doesn't pass eventKey keeps inserting
+ * exactly as before (event_key stays null, unlimited null rows allowed,
+ * zero behavior change). Returns whether a row was actually inserted so a
+ * caller that only wants to act "the first time this fires" (e.g. logging
+ * a second, dependent event only once) can check it.
  */
 export async function logActivity(
   supabase: SupabaseClient,

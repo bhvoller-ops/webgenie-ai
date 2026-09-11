@@ -155,8 +155,18 @@ console.log("31. SEQUENCE_STEP_DUE idempotency is DB-backed, not a select-then-i
   check("it instead passes a stable eventKey keyed by (enrollment, step) to logActivity()", /eventKey:\s*`sequence_step_due:\$\{enrollment\.id\}:\$\{due\.step\.id\}`/.test(src));
   const activitySrc = readFileSync("src/lib/prospect/activity.ts", "utf8");
   check("logActivity() enforces eventKey via a real DB upsert-on-conflict, not app-level branching", /ignoreDuplicates:\s*true/.test(activitySrc) && /onConflict:\s*"event_key"/.test(activitySrc));
-  const migrationSrc = readFileSync("supabase/migrations/038_p2_remediation.sql", "utf8");
-  check("event_key has a real partial unique index backing the constraint", /create unique index if not exists prospect_activities_event_key_idx/.test(migrationSrc) && /where event_key is not null/.test(migrationSrc));
+  const migrationSrc038 = readFileSync("supabase/migrations/038_p2_remediation.sql", "utf8");
+  check("038 adds the event_key column", /add column if not exists event_key text/.test(migrationSrc038));
+  const migrationSrc039 = readFileSync("supabase/migrations/039_p2_event_key_conflict_target_fix.sql", "utf8");
+  // Strip `--` comment lines first -- 039's own rollback comment quotes the
+  // OLD partial-index text on purpose (as the thing to restore, only if
+  // reverting to a build that never uses eventKey), which would otherwise
+  // false-fail the "no predicate" half of this check.
+  const migrationSrc039Code = migrationSrc039.replace(/--.*$/gm, "");
+  check(
+    "039 corrects 038's index to a NON-partial unique index on event_key -- a bare `on conflict (event_key)` (no predicate, as logActivity() actually issues) cannot use a partial index as its arbiter, so 038's original `where event_key is not null` version made every eventKey-bearing insert fail, not just concurrent ones (caught by scripts/db-tests/verify-p2-database.ts against a real disposable database)",
+    /create unique index if not exists prospect_activities_event_key_idx\s+on public\.prospect_activities\(event_key\);/.test(migrationSrc039Code) && !/where event_key is not null/.test(migrationSrc039Code)
+  );
 }
 
 console.log("32. the two auto-stop transitions in resolveProspectAction() are CAS-guarded, matching advanceSequenceStep()'s own pattern (Phase 1.1 MANDATORY FIX 2)");
