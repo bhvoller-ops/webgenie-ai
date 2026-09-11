@@ -30,6 +30,9 @@ export function rowToProspect(row: Record<string, unknown>): Prospect {
     publicProfile: (row.public_profile as Record<string, unknown> | null) ?? null,
     publicProfileSource: (row.public_profile_source as string | null) ?? null,
     publicProfileFetchedAt: (row.public_profile_fetched_at as string | null) ?? null,
+    // migration 037 columns -- same defensive-absence handling as public_profile above.
+    suppressedAt: (row.suppressed_at as string | null) ?? null,
+    suppressionReason: (row.suppression_reason as Prospect["suppressionReason"]) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   };

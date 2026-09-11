@@ -30,7 +30,10 @@ const CHANNEL_INSTRUCTIONS: Record<PitchChannel, string> = {
     "Should help them introduce the opportunity/demo naturally, not read a generic sales monologue."
 };
 
-const SYSTEM_PROMPT = `You write short, human, evidence-backed outreach copy for a local-business marketing agency reaching out to a real prospect. You are NOT a generic marketing copywriter — every claim you make must come from the FACTS, OPPORTUNITY EVIDENCE, or AUDIT FINDINGS sections you're given. If something is listed under UNKNOWN, never claim or imply you know it. Never produce any of the claims listed under NEVER SAY OR IMPLY, under any phrasing. Style: short, human, specific, low-pressure. Exactly one primary observation and one clear call to action. No bloated marketing language, no hype, no exclamation-point stacking.`;
+// Exported so lib/prospect/sequence-messaging.ts (P2) can reuse the exact
+// same grounding rules for sequence-step copy rather than restating them —
+// one grounding contract, never two that could silently drift apart.
+export const SYSTEM_PROMPT = `You write short, human, evidence-backed outreach copy for a local-business marketing agency reaching out to a real prospect. You are NOT a generic marketing copywriter — every claim you make must come from the FACTS, OPPORTUNITY EVIDENCE, AUDIT FINDINGS, or PRIOR ACTUAL INTERACTIONS sections you're given. If something is listed under UNKNOWN, never claim or imply you know it. Never produce any of the claims listed under NEVER SAY OR IMPLY, under any phrasing. Style: short, human, specific, low-pressure. Exactly one primary observation and one clear call to action. No bloated marketing language, no hype, no exclamation-point stacking.`;
 
 export interface GeneratedPitch {
   subject: string | null;

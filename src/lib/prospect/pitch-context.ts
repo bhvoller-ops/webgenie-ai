@@ -35,6 +35,16 @@ export interface PitchContext {
   /** Things genuinely not known yet — mirrors the Opportunity Preview drawer's own "what we don't know yet" honesty pattern. */
   unknowns: string[];
   agencyName: string;
+  /**
+   * P2 addition (migration 037) — real, already-recorded interaction
+   * summaries (prospect_activities.CONTACT_ATTEMPTED entries), never
+   * fabricated. Empty for the original P1 ad-hoc Pitch Generator call
+   * site, which never passes this. Exists so a sequence follow-up step
+   * can honestly say "following up on my call" ONLY when a call was
+   * actually recorded as performed — never because WebGenie merely
+   * generated an earlier step's copy.
+   */
+  priorInteractions: string[];
 }
 
 /** Fixed, non-negotiable list (master prompt section 18) — rendered directly into the prompt as hard rules, never left to the model's judgment. */
@@ -50,7 +60,9 @@ export const PITCH_PROHIBITED_CLAIMS = [
   "\"Your SEO is bad\" or similar unless real audit evidence supports it",
   "Any specific technical defect not present in real audit findings",
   "Urgency not grounded in a real fact (no fabricated scarcity or deadlines)",
-  "Testimonials, results, or case studies that were not actually provided"
+  "Testimonials, results, or case studies that were not actually provided",
+  "Referring to a previous email/call/message as having been sent unless it appears in PRIOR ACTUAL INTERACTIONS below — generating copy is not the same as sending or performing it",
+  "Manipulative urgency or fabricated familiarity in a follow-up"
 ] as const;
 
 function unknownsFor(hasWebsite: boolean, hasAudit: boolean): string[] {
@@ -69,7 +81,8 @@ export function buildPitchContext(
   prospect: Prospect,
   brief: OpportunityBrief | null,
   hasCompletedAudit: boolean,
-  agencyName: string
+  agencyName: string,
+  priorInteractions: string[] = []
 ): PitchContext {
   return {
     businessFacts: {
@@ -90,7 +103,8 @@ export function buildPitchContext(
     demoAvailable: Boolean(prospect.demoUrl),
     demoUrl: prospect.demoUrl ?? null,
     unknowns: unknownsFor(prospect.hasWebsite, hasCompletedAudit),
-    agencyName
+    agencyName,
+    priorInteractions
   };
 }
 
@@ -124,6 +138,13 @@ export function renderPitchContextForPrompt(ctx: PitchContext): string {
 
   lines.push("\nRECOMMENDATIONS:");
   lines.push(`- Recommended offer: ${ctx.recommendedOffer ?? "not yet determined"}${ctx.recommendedOfferReason ? ` — ${ctx.recommendedOfferReason}` : ""}`);
+
+  lines.push("\nPRIOR ACTUAL INTERACTIONS (only reference a previous contact — e.g. \"following up on my call\" — if it appears here; if this list is empty, no real contact has been recorded yet, so never imply one happened):");
+  if (ctx.priorInteractions.length > 0) {
+    for (const i of ctx.priorInteractions) lines.push(`- ${i}`);
+  } else {
+    lines.push("- (none — no contact with this prospect has been recorded as performed yet)");
+  }
 
   lines.push("\nUNKNOWN (do not claim to know these; do not imply otherwise):");
   for (const u of ctx.unknowns) lines.push(`- ${u}`);

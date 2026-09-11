@@ -42,11 +42,22 @@ export async function GET() {
 
   const { data: actionRows } = await supabase
     .from("prospect_actions")
-    .select("id, prospect_id, action_type, priority, reason, due_at, status, prospects(business_name, industry, city, state)")
+    .select("id, prospect_id, action_type, priority, reason, due_at, status, prospects(business_name, industry, city, state, suppressed_at)")
     .eq("organization_id", organizationId)
     .in("status", ["PENDING", "SNOOZED"]);
 
-  const prospectIds = (actionRows ?? []).map((r) => r.prospect_id);
+  // MANDATORY FIX 3, defense-in-depth: suppression already transitions any
+  // existing action to status='SUPPRESSED' (lib/prospect/suppression.ts),
+  // so this filter should never actually remove anything in practice --
+  // it exists so "a suppressed prospect never appears in the Daily Queue"
+  // is a guarantee of this query itself, not solely a consequence of every
+  // write path remembering to update the row correctly.
+  const nonSuppressedRows = (actionRows ?? []).filter((r) => {
+    const prospectJoin = r.prospects as unknown as { suppressed_at: string | null } | null;
+    return !prospectJoin?.suppressed_at;
+  });
+
+  const prospectIds = nonSuppressedRows.map((r) => r.prospect_id);
   const briefByProspectId = new Map<string, { opportunity_level: OpportunityLevel; summary: string }>();
   if (prospectIds.length > 0) {
     const { data: briefs } = await supabase
@@ -59,7 +70,7 @@ export async function GET() {
   }
 
   const now = new Date();
-  const allItems: QueueItem[] = (actionRows ?? []).map((r) => {
+  const allItems: QueueItem[] = nonSuppressedRows.map((r) => {
     const prospectJoin = r.prospects as unknown as { business_name: string; industry: string | null; city: string | null; state: string | null } | null;
     const brief = briefByProspectId.get(r.prospect_id as string);
     return {

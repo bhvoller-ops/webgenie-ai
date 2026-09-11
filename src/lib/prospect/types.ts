@@ -7,6 +7,9 @@
  * supabase/migrations/034_opportunity_brief_and_next_best_action.sql.
  */
 
+/** P2 hard suppression reason vocabulary (migration 037) -- fixed, not user-extensible. */
+export type SuppressionReason = "OPTED_OUT" | "DO_NOT_CONTACT" | "INVALID_CONTACT" | "MANUAL";
+
 export type ProspectStatus =
   | "new"
   | "audited"
@@ -46,6 +49,9 @@ export interface Prospect {
   publicProfile?: Record<string, unknown> | null;
   publicProfileSource?: string | null;
   publicProfileFetchedAt?: string | null;
+  /** P2 hard suppression (migration 037) -- see lib/prospect/suppression.ts. Undefined/null before that migration applies, same defensive-read convention as publicProfile above. */
+  suppressedAt?: string | null;
+  suppressionReason?: SuppressionReason | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,7 +158,13 @@ export type ProspectActionType =
   | "FOLLOW_UP"
   | "BOOK_MEETING"
   | "REVIEW_REPLY"
-  | "DEPRIORITIZE";
+  | "DEPRIORITIZE"
+  // P2 (migration 037, Architecture Decision 2/3): a due Assisted Outreach
+  // Sequence step reconciled into the SAME Queue every other action lives
+  // in -- never a second queue. Which sequence/step/channel it is lives in
+  // this row's own `metadata` jsonb (already existed since migration 036),
+  // not a new column or a per-channel action type.
+  | "SEQUENCE_STEP";
 
 export const PROSPECT_ACTION_LABELS: Record<ProspectActionType, string> = {
   REVIEW_PROSPECT: "Review prospect",
@@ -165,10 +177,20 @@ export const PROSPECT_ACTION_LABELS: Record<ProspectActionType, string> = {
   FOLLOW_UP: "Follow up",
   BOOK_MEETING: "Book meeting",
   REVIEW_REPLY: "Review reply",
-  DEPRIORITIZE: "Deprioritize"
+  DEPRIORITIZE: "Deprioritize",
+  SEQUENCE_STEP: "Sequence step due"
 };
 
-export type ProspectActionStatus = "PENDING" | "COMPLETED" | "SKIPPED" | "SNOOZED";
+/** The shape written into a SEQUENCE_STEP prospect_action's existing `metadata` jsonb column -- not a new column, see migration 037. */
+export interface SequenceStepActionMetadata {
+  sequenceId: string;
+  sequenceStepId: string;
+  enrollmentId: string;
+  channel: SequenceStepChannel;
+  sequenceName: string;
+}
+
+export type ProspectActionStatus = "PENDING" | "COMPLETED" | "SKIPPED" | "SNOOZED" | "SUPPRESSED";
 export type ProspectActionSource = "SYSTEM" | "USER";
 
 export interface ProspectAction {
@@ -198,7 +220,22 @@ export type ProspectActivityType =
   | "MEETING_LOGGED"
   | "DEMO_ROOM_SHARED"
   | "PROSPECT_WON"
-  | "PROSPECT_LOST";
+  | "PROSPECT_LOST"
+  // P2 (migration 037). Each means exactly what it says -- SEQUENCE_ENROLLED
+  // never implies contact occurred; SEQUENCE_STEP_DUE never implies the user
+  // performed it. Performing a step reuses CONTACT_ATTEMPTED (tagged with
+  // sequenceId/sequenceStepId in metadata) rather than a new "OUTREACH_
+  // PERFORMED" type competing with it -- see the master prompt's own
+  // "EVENT SEMANTICS" section, which names both as acceptable and CONTACT_
+  // ATTEMPTED already exists with the exact right meaning.
+  | "PROSPECT_SUPPRESSED"
+  | "PROSPECT_UNSUPPRESSED"
+  | "SEQUENCE_ENROLLED"
+  | "SEQUENCE_STEP_DUE"
+  | "SEQUENCE_PAUSED"
+  | "SEQUENCE_RESUMED"
+  | "SEQUENCE_STOPPED"
+  | "SEQUENCE_COMPLETED";
 
 export interface ProspectActivity {
   id: string;
@@ -257,5 +294,118 @@ export interface DemoRoom {
   ctaLabel: string;
   ctaUrl: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * P2: Assisted Outreach Sequences -- human-executed (migration 037,
+ * Architecture Decisions 1/3/7). WebGenie never sends any of these itself;
+ * a step's channel means "WebGenie can prepare/orchestrate this," never
+ * "WebGenie can transmit it." See lib/prospect/sequence-engine.ts.
+ */
+export type SequenceStatus = "draft" | "active" | "archived";
+
+export interface OutreachSequence {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  status: SequenceStatus;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SequenceStepChannel =
+  | "CALL"
+  | "EMAIL"
+  | "SMS"
+  | "LINKEDIN"
+  | "VOICEMAIL"
+  | "LOOM"
+  | "SEND_DEMO"
+  | "FOLLOW_UP"
+  | "CUSTOM_TASK";
+
+export const SEQUENCE_STEP_CHANNEL_LABELS: Record<SequenceStepChannel, string> = {
+  CALL: "Call",
+  EMAIL: "Email",
+  SMS: "SMS",
+  LINKEDIN: "LinkedIn",
+  VOICEMAIL: "Voicemail",
+  LOOM: "Loom",
+  SEND_DEMO: "Send demo",
+  FOLLOW_UP: "Follow up",
+  CUSTOM_TASK: "Custom task"
+};
+
+export interface OutreachSequenceStep {
+  id: string;
+  sequenceId: string;
+  stepOrder: number;
+  channel: SequenceStepChannel;
+  delayDays: number;
+  instructions: string | null;
+  createdAt: string;
+}
+
+/** UPPERCASE, matching prospect_actions.status's operational-lifecycle convention -- this is a live state machine, not a content/definition row. */
+export type SequenceEnrollmentStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "STOPPED";
+
+export interface ProspectSequenceEnrollment {
+  id: string;
+  organizationId: string;
+  prospectId: string;
+  sequenceId: string;
+  status: SequenceEnrollmentStatus;
+  currentStepOrder: number;
+  nextStepDueAt: string | null;
+  startedAt: string;
+  pausedAt: string | null;
+  stoppedAt: string | null;
+  completedAt: string | null;
+  stoppedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * P2: Won Client Handoff (migration 037, Architecture Decision 12). One
+ * row per prospect -- created lazily the first time a handoff is touched,
+ * not automatically on WON. `agreedScope`/`agreedPrice` are ONLY ever set
+ * by an explicit human confirmation; nothing in this codebase may write
+ * them from an AI recommendation (see opportunity_briefs.recommendedOffer,
+ * which stays a completely separate field on a separate table).
+ */
+export type HandoffStatus = "not_started" | "in_progress" | "ready";
+
+export interface ProspectHandoff {
+  prospectId: string;
+  agreedScope: string | null;
+  agreedPrice: number | null;
+  approvedDemoReference: string | null;
+  implementationNotes: string | null;
+  status: HandoffStatus;
+  confirmedAt: string | null;
+  confirmedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * P2: Agency Launch Mode settings (migration 037, Architecture Decision
+ * 11) -- one row per organization, same shape as org_branding. Purely
+ * orchestration input; Launch Mode's actual progress is always derived
+ * from real prospects/prospect_actions state, never stored here.
+ */
+export interface LaunchSettings {
+  organizationId: string;
+  targetIndustry: string | null;
+  targetLocation: string | null;
+  agencyOffer: string | null;
+  preferredChannels: string[];
+  dailyProspectingTarget: number | null;
+  startedAt: string | null;
+  completedAt: string | null;
   updatedAt: string;
 }

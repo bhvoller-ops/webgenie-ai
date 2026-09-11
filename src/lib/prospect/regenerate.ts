@@ -4,7 +4,8 @@ import { generateOpportunityBrief } from "@/lib/prospect/opportunity-brief";
 import { computeNextBestAction, type CallLogSnapshot } from "@/lib/prospect/next-best-action";
 import { computeOpportunityLevel } from "@/lib/prospect/opportunity-level";
 import { syncProspectAction } from "@/lib/prospect/action-sync";
-import type { CallLogSnapshot as P1CallLogSnapshot } from "@/lib/prospect/action-generation";
+import { computeProspectAction, type CallLogSnapshot as P1CallLogSnapshot } from "@/lib/prospect/action-generation";
+import { resolveProspectAction } from "@/lib/prospect/sequence-sync";
 import { logActivity } from "@/lib/prospect/activity";
 import type { Prospect } from "@/lib/prospect/types";
 
@@ -146,15 +147,15 @@ export async function regenerateProspectIntelligence(
     }
   }
 
-  // P1: reconcile the Daily Queue's own persisted action item. Uses the
+  // P1: compute the Daily Queue's own organic recommendation. Uses the
   // freshly-derived `status` (not the stale `prospect.status` param) so a
   // won/lost/meeting transition that just happened this same call
   // correctly suppresses the queue item immediately, not one page load
-  // later.
+  // later. computeProspectAction() itself is completely unchanged by P2.
   const p1CallLog: P1CallLogSnapshot = callLog
     ? { status: callLog.status, followUpDueAt: callLog.followUpDueAt }
     : null;
-  await syncProspectAction(supabase, prospect.organizationId, prospect.id, {
+  const organicAction = computeProspectAction({
     prospect: { hasWebsite: prospect.hasWebsite, demoUrl: prospect.demoUrl, status, projectId: prospect.projectId },
     hasCompletedAudit,
     opportunityLevel,
@@ -162,6 +163,22 @@ export async function regenerateProspectIntelligence(
     isSparseData: !prospect.rating && !prospect.reviewCount && !prospect.publicProfile,
     callLog: p1CallLog
   });
+
+  // P2: suppression + Assisted Outreach Sequences may override the organic
+  // action -- null it out entirely if suppressed, or replace it with a due
+  // SEQUENCE_STEP while an active enrollment has one. A prospect with no
+  // active enrollment and not suppressed gets the organic action back
+  // unchanged (see lib/prospect/sequence-sync.ts's short-circuit).
+  const finalAction = await resolveProspectAction(supabase, {
+    organizationId: prospect.organizationId,
+    prospectId: prospect.id,
+    suppressed: Boolean(prospect.suppressedAt),
+    prospectStatus: status,
+    callLogStatus: callLog?.status ?? null,
+    organicAction
+  });
+
+  await syncProspectAction(supabase, prospect.organizationId, prospect.id, finalAction);
 }
 
 function deriveStatus(input: {

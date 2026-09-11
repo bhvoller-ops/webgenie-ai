@@ -39,6 +39,8 @@ export interface ProspectActionResult {
   reason: string;
   priority: ActionPriority;
   dueAt: string | null;
+  /** P2 addition (migration 037) -- always undefined from computeProspectAction() itself, which never sets it; populated only by the P2 sequence resolver (lib/prospect/sequence-sync.ts) when it overrides this result with a due SEQUENCE_STEP. Kept on this shared interface so syncProspectAction() has one input shape regardless of source. */
+  metadata?: Record<string, unknown>;
 }
 
 const LEVEL_PRIORITY: Record<OpportunityLevel, ActionPriority> = {
