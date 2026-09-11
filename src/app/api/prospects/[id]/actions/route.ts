@@ -23,7 +23,7 @@ import type { OpportunityLevel } from "@/lib/prospect/types";
  * implementation of either.
  */
 const schema = z.object({
-  action: z.enum(["run_audit", "generate_demo", "contact", "refresh"])
+  action: z.enum(["run_audit", "generate_demo", "contact", "refresh", "create_fulfillment_project"])
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -214,6 +214,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case "refresh":
       // Nothing to change here — just forces the regenerate call below.
       break;
+
+    case "create_fulfillment_project": {
+      // Home Services Live Outreach Playbook, Stage 13: WON never creates a
+      // project automatically (Won Client Handoff's own rule) — this is
+      // the one explicit, deliberate action that does, reusing the exact
+      // same `projects` insert shape "run_audit" already uses above,
+      // minus the audit-specific website_reference/analysis_job rows this
+      // isn't running an audit. Only ever callable for an actually-WON
+      // prospect that doesn't already have one.
+      if (prospect.status !== "won") {
+        return NextResponse.json({ error: "Only a WON prospect can have a fulfillment project created." }, { status: 400 });
+      }
+      if (prospect.projectId) {
+        return NextResponse.json({ error: "A project already exists for this prospect." }, { status: 400 });
+      }
+      const { data: organization } = await supabase.from("organizations").select("plan_key").eq("id", organizationId).single();
+      const planKey = organization?.plan_key ?? "starter";
+      try {
+        await assertWithinLimit(supabase, organizationId, planKey, "projects");
+        const { data: project, error: projectError } = await supabase
+          .from("projects")
+          .insert({
+            organization_id: organizationId,
+            name: prospect.businessName,
+            industry: prospect.industry ? industryLabel(prospect.industry as IndustryKey) : "General",
+            primary_goal: "Fulfill agreed scope",
+            primary_cta: "Call now",
+            created_by: user.id,
+            status: "active"
+          })
+          .select("id")
+          .single();
+        if (projectError || !project) throw new Error(projectError?.message ?? "Unable to create project.");
+        await recordUsage(supabase, organizationId, "projects", user.id, project.id);
+        await supabase.from("prospects").update({ project_id: project.id, updated_at: new Date().toISOString() }).eq("id", prospect.id);
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create project." }, { status: 500 });
+      }
+      break;
+    }
   }
 
   const { data: refreshedRow } = await supabase.from("prospects").select("*").eq("id", prospect.id).single();

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/access";
 import { sortQueueActions, isActionDueNow } from "@/lib/prospect/queue";
-import { PROSPECT_ACTION_LABELS, type OpportunityLevel, type ProspectActionType, type ActionPriority } from "@/lib/prospect/types";
+import { PROSPECT_ACTION_LABELS, type OpportunityLevel, type ProspectActionType, type ActionPriority, type SequenceStepActionMetadata } from "@/lib/prospect/types";
 
 /**
  * The P1 Daily Prospecting Queue's data source — GET only, read-only.
@@ -25,6 +25,17 @@ export interface QueueItem {
   dueAt: string | null;
   status: "PENDING" | "SNOOZED";
   evidenceSummary: string | null;
+  /**
+   * Home Services Live Outreach Playbook: the channel a CONTACT (unset) or
+   * SEQUENCE_STEP (from its own metadata) action is for, plus the
+   * enrollmentId a SEQUENCE_STEP action needs to open its live session
+   * against the right enrollment. Null for action types the playbook
+   * doesn't apply to (RUN_AUDIT, SEND_DEMO, ...). Nothing here is an
+   * internal id meant to be *displayed* -- only used programmatically by
+   * the "Open Playbook" link.
+   */
+  playbookChannel: "CALL" | "EMAIL" | null;
+  enrollmentId: string | null;
 }
 
 export interface QueueSummary {
@@ -42,7 +53,7 @@ export async function GET() {
 
   const { data: actionRows } = await supabase
     .from("prospect_actions")
-    .select("id, prospect_id, action_type, priority, reason, due_at, status, prospects(business_name, industry, city, state, suppressed_at)")
+    .select("id, prospect_id, action_type, priority, reason, due_at, status, metadata, prospects(business_name, industry, city, state, suppressed_at)")
     .eq("organization_id", organizationId)
     .in("status", ["PENDING", "SNOOZED"]);
 
@@ -73,6 +84,18 @@ export async function GET() {
   const allItems: QueueItem[] = nonSuppressedRows.map((r) => {
     const prospectJoin = r.prospects as unknown as { business_name: string; industry: string | null; city: string | null; state: string | null } | null;
     const brief = briefByProspectId.get(r.prospect_id as string);
+    const actionType = r.action_type as ProspectActionType;
+    let playbookChannel: "CALL" | "EMAIL" | null = null;
+    let enrollmentId: string | null = null;
+    if (actionType === "SEQUENCE_STEP" && r.metadata) {
+      const meta = r.metadata as unknown as SequenceStepActionMetadata;
+      if (meta.channel === "CALL" || meta.channel === "EMAIL") playbookChannel = meta.channel;
+      enrollmentId = meta.enrollmentId ?? null;
+    } else if (actionType === "CONTACT") {
+      // Actual channel resolved server-side by the playbook itself (real
+      // verified-contact evaluation, not guessed here) once opened.
+      playbookChannel = "CALL";
+    }
     return {
       actionId: r.id as string,
       prospectId: r.prospect_id as string,
@@ -81,13 +104,15 @@ export async function GET() {
       city: prospectJoin?.city ?? null,
       state: prospectJoin?.state ?? null,
       opportunityLevel: brief?.opportunity_level ?? null,
-      actionType: r.action_type as ProspectActionType,
-      actionLabel: PROSPECT_ACTION_LABELS[r.action_type as ProspectActionType],
+      actionType,
+      actionLabel: PROSPECT_ACTION_LABELS[actionType],
       priority: r.priority as ActionPriority,
       reason: r.reason as string,
       dueAt: r.due_at as string | null,
       status: r.status as "PENDING" | "SNOOZED",
-      evidenceSummary: brief?.summary ?? null
+      evidenceSummary: brief?.summary ?? null,
+      playbookChannel,
+      enrollmentId
     };
   });
 
