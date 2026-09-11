@@ -50,6 +50,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
 
+  // Hotfix (2026-09-11, docs/history.md): same guard as /sequence-message --
+  // never generate email copy implying a channel with no verified address
+  // behind it. Google Places doesn't return email, and nothing upstream
+  // populates prospects.email today, so this fires for every place-sourced
+  // prospect until email verification is added.
+  if (channel === "cold_email" && !prospect.email) {
+    return NextResponse.json(
+      { error: "No verified email on file for this prospect -- a cold email pitch cannot be generated until one is confirmed. Use call_opener instead." },
+      { status: 400 }
+    );
+  }
+
   const { data: briefRow } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
   const brief: OpportunityBrief | null = briefRow
     ? {

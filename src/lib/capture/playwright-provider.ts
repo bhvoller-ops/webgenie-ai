@@ -3,6 +3,30 @@ import { JSDOM } from "jsdom";
 import type { CaptureProvider, CaptureRequest, CaptureResult } from "./types";
 import { validatePublicUrl } from "@/lib/security/url-validation";
 
+// Hotfix (2026-09-11, docs/history.md): literal title/text signatures for
+// the bot-detection interstitials real captures have actually returned in
+// production -- not a general "looks suspicious" heuristic, just the known
+// shapes. A real capture of georgiaroofadvisors.com returned exactly the
+// first of these (title "Robot Challenge Screen", status 202, 12 KB).
+const BOT_CHALLENGE_TITLE_PATTERNS = [
+  /robot challenge/i,
+  /just a moment/i,
+  /checking your browser/i,
+  /attention required/i,
+  /verify you are human/i,
+  /are you a human/i,
+  /access denied/i
+];
+
+export function looksLikeBotChallenge(title: string | null, wordCount: number, statusCode: number): boolean {
+  if (title && BOT_CHALLENGE_TITLE_PATTERNS.some((pattern) => pattern.test(title))) return true;
+  // A near-empty page (under 40 words of readable text) combined with a
+  // non-2xx-success or unusual 2xx (202 Accepted is not how a real page
+  // normally responds) is the same shape without a recognizable title.
+  if (wordCount < 40 && (statusCode === 202 || statusCode === 403 || statusCode === 429 || statusCode === 503)) return true;
+  return false;
+}
+
 function extractReadableText(document: Document): string {
   const clone = document.cloneNode(true) as Document;
   clone
@@ -70,10 +94,12 @@ export class PlaywrightCaptureProvider implements CaptureProvider {
       const screenshotBuffer = request.screenshot
         ? await page.screenshot({ fullPage: true, type: "png" })
         : undefined;
+      const statusCode = response?.status() ?? 0;
+      const wordCount = readableText.split(/\s+/).filter(Boolean).length;
 
       return {
         finalUrl,
-        statusCode: response?.status() ?? 0,
+        statusCode,
         contentType: response?.headers()["content-type"] ?? null,
         html,
         text: readableText,
@@ -82,7 +108,8 @@ export class PlaywrightCaptureProvider implements CaptureProvider {
         canonicalUrl,
         language,
         screenshotBuffer,
-        capturedAt: new Date().toISOString()
+        capturedAt: new Date().toISOString(),
+        likelyBlocked: looksLikeBotChallenge(title, wordCount, statusCode)
       };
     } finally {
       await browser.close();

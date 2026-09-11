@@ -35,6 +35,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
 
+  // Hotfix (2026-09-11, docs/history.md): a real production batch generated
+  // five EMAIL-channel drafts with no verified email on any of the five
+  // prospects -- Google Places doesn't return email, and nothing upstream
+  // ever populates prospects.email, so an EMAIL request was silently
+  // accepted and produced a draft implying a channel that was never
+  // actually available. Refuse outright rather than generate copy for a
+  // channel with no real address behind it.
+  if (parsed.data.channel === "EMAIL" && !prospect.email) {
+    return NextResponse.json(
+      { error: "No verified email on file for this prospect -- EMAIL copy cannot be generated until one is confirmed. Use CALL instead." },
+      { status: 400 }
+    );
+  }
+
   const { data: briefRow } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
   const brief: OpportunityBrief | null = briefRow
     ? {

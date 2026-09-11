@@ -107,6 +107,20 @@ export async function processAnalysisJob(jobId: string): Promise<void> {
         screenshot: true
       });
 
+      // Hotfix (2026-09-11, docs/history.md): a real production capture of
+      // georgiaroofadvisors.com returned a bot-detection interstitial
+      // ("Robot Challenge Screen", HTTP 202, 12 KB) and the pipeline scored
+      // trust/CTA/reviews as "none" from it -- confident absence claims
+      // written from a page that was never the target site at all. Route
+      // this into the same capture_errors path as any other capture
+      // failure instead of silently treating an interstitial as real
+      // content with nothing worth showing.
+      if (capture.likelyBlocked) {
+        throw new Error(
+          `CAPTURE_LIKELY_BLOCKED: response looked like a bot-detection interstitial, not the real page (title: ${capture.title ?? "none"}, status: ${capture.statusCode})`
+        );
+      }
+
       let screenshotPath: string | null = null;
 
       if (capture.screenshotBuffer) {
