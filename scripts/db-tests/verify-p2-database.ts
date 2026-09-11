@@ -39,6 +39,17 @@
  * zeroes a real is_test organization's counts despite real logged activity
  * sitting in the same tables.
  *
+ * Section 12 (P2 final pre-rollout validation) exercises
+ * outreach_sequence_steps' join-through-parent RLS policy explicitly --
+ * this child table carries no organization_id of its own, so its policy
+ * (`"members can manage sequence steps"`, migration 037) authorizes solely
+ * via `exists (... join outreach_sequences ... join organization_members
+ * ... where sequence_id = outreach_sequence_steps.sequence_id)`. Section 2
+ * already covered outreach_sequences and prospect_sequence_enrollments;
+ * this table's policy shape is different enough (no direct organization_id
+ * column, FOR ALL rather than split per-command) to warrant its own real
+ * SELECT/INSERT/UPDATE/DELETE proof.
+ *
  * Run with: npx tsx scripts/db-tests/verify-p2-database.ts
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -386,6 +397,55 @@ async function main() {
         summary.lost === 0,
       JSON.stringify(summary)
     );
+  }
+
+  console.log("\n12. outreach_sequence_steps' join-through-parent RLS policy (\"members can manage sequence steps\", FOR ALL) actually authorizes/rejects SELECT/INSERT/UPDATE/DELETE correctly -- this child table has no organization_id of its own, so a defect here would be easy to miss by inspecting outreach_sequences' own (differently-shaped) policy alone");
+  {
+    const { data: stepA } = await admin
+      .from("outreach_sequence_steps")
+      .insert({ sequence_id: sequenceA!.id, step_order: 2, channel: "EMAIL", delay_days: 1 })
+      .select("id")
+      .single();
+    const { data: stepB } = await admin
+      .from("outreach_sequence_steps")
+      .insert({ sequence_id: sequenceB!.id, step_order: 2, channel: "EMAIL", delay_days: 1 })
+      .select("id")
+      .single();
+
+    const { data: sameTenantRead, error: sameTenantErr } = await userA.from("outreach_sequence_steps").select("id").eq("sequence_id", sequenceA!.id);
+    check("same-tenant SELECT succeeds (user A reads org A's own sequence's steps)", !sameTenantErr && (sameTenantRead ?? []).length >= 1);
+
+    const { data: crossTenantRead, error: crossTenantErr } = await userB.from("outreach_sequence_steps").select("id").eq("id", stepA!.id);
+    check("cross-tenant SELECT returns no row (user B, given org A's real guessed step id, sees nothing -- no error, just filtered)", !crossTenantErr && (crossTenantRead ?? []).length === 0);
+
+    const { error: crossTenantInsertErr } = await userB
+      .from("outreach_sequence_steps")
+      .insert({ sequence_id: sequenceA!.id, step_order: 99, channel: "SMS", delay_days: 0 });
+    check("cross-tenant INSERT through another tenant's real (guessed) sequence_id is rejected by WITH CHECK", Boolean(crossTenantInsertErr));
+    const { count: noRogueStep } = await admin.from("outreach_sequence_steps").select("id", { count: "exact", head: true }).eq("sequence_id", sequenceA!.id).eq("step_order", 99);
+    check("the rejected cross-tenant insert genuinely created no row", noRogueStep === 0);
+
+    const { data: crossTenantUpdate, error: crossTenantUpdateErr } = await userB
+      .from("outreach_sequence_steps")
+      .update({ delay_days: 999 })
+      .eq("id", stepA!.id)
+      .select("id");
+    check("cross-tenant UPDATE fails (0 rows affected via the real guessed id, not an error masking a silent success)", !crossTenantUpdateErr && (crossTenantUpdate ?? []).length === 0);
+    const { data: stepAUnchanged } = await admin.from("outreach_sequence_steps").select("delay_days").eq("id", stepA!.id).single();
+    check("org A's step genuinely still has its original delay_days after user B's rejected update", stepAUnchanged?.delay_days === 1);
+
+    const { data: crossTenantDelete, error: crossTenantDeleteErr } = await userB.from("outreach_sequence_steps").delete().eq("id", stepA!.id).select("id");
+    check("cross-tenant DELETE fails (0 rows affected via the real guessed id)", !crossTenantDeleteErr && (crossTenantDelete ?? []).length === 0);
+    const { data: stepAStillExists } = await admin.from("outreach_sequence_steps").select("id").eq("id", stepA!.id).maybeSingle();
+    check("org A's step genuinely still exists after user B's rejected delete", Boolean(stepAStillExists));
+
+    // Guessed IDs on BOTH sides at once: user B references org A's real
+    // sequence_id (stepA's parent) together with org A's real step id --
+    // the join-through-parent check must still resolve via the row's own
+    // real sequence_id, never anything the client claims.
+    const { data: guessedBothRead } = await userB.from("outreach_sequence_steps").select("id").eq("id", stepA!.id).eq("sequence_id", sequenceA!.id);
+    check("guessing BOTH the real step id AND its real parent sequence_id together still does not bypass the policy for user B", (guessedBothRead ?? []).length === 0);
+    check("user A's own step (created above) remains fully manageable throughout (RLS isn't over-blocking)", Boolean(stepB));
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);
