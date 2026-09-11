@@ -6,6 +6,9 @@ import { buildPitchContext } from "@/lib/prospect/pitch-context";
 import { generateSequenceStepMessage } from "@/lib/prospect/sequence-messaging";
 import { hasOpenAiKey } from "@/lib/ai/openai";
 import type { OpportunityBrief } from "@/lib/prospect/types";
+import { getVerifiedManualObservations } from "@/lib/prospect/manual-evidence";
+import { evaluateChannelActivation, type ContactVerificationRecord } from "@/lib/prospect/contact-verification";
+import { isSuppressed } from "@/lib/prospect/suppression";
 
 /**
  * Generates fresh sequence-step copy on demand -- deliberately not
@@ -35,18 +38,53 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
 
+  // Hotfix (2026-09-11, docs/history.md): suppression must override every
+  // generation path, not only the action-performance ones -- this route
+  // had no suppression check at all before this hotfix.
+  if (isSuppressed(prospect)) {
+    return NextResponse.json({ error: "This prospect is suppressed; message generation is not available." }, { status: 409 });
+  }
+
   // Hotfix (2026-09-11, docs/history.md): a real production batch generated
   // five EMAIL-channel drafts with no verified email on any of the five
-  // prospects -- Google Places doesn't return email, and nothing upstream
-  // ever populates prospects.email, so an EMAIL request was silently
-  // accepted and produced a draft implying a channel that was never
-  // actually available. Refuse outright rather than generate copy for a
-  // channel with no real address behind it.
-  if (parsed.data.channel === "EMAIL" && !prospect.email) {
-    return NextResponse.json(
-      { error: "No verified email on file for this prospect -- EMAIL copy cannot be generated until one is confirmed. Use CALL instead." },
-      { status: 400 }
-    );
+  // prospects, and separately used a single-source Google Places phone
+  // number for Georgia Roof Advisors that conflicted with the number the
+  // business actually publishes. Two layers: prefer the structured
+  // prospect_contact_verifications records (migration 041, conflict-aware)
+  // when any exist; fall back to the simple prospects.email check
+  // (already live-safe today) when the table has no rows for this
+  // prospect yet -- e.g. before the migration is applied, or before
+  // anyone has recorded a verification for it.
+  if (parsed.data.channel === "EMAIL" || parsed.data.channel === "CALL") {
+    // Supabase resolves a "relation does not exist" query as { data: null,
+    // error: {...} } rather than rejecting -- checking `error` (not
+    // catching a throw) is what actually makes this safe to call before
+    // migration 041 is applied.
+    const { data: verificationRows, error: verificationError } = await supabase
+      .from("prospect_contact_verifications")
+      .select("channel, contact_value, is_single_source")
+      .eq("organization_id", organizationId)
+      .eq("prospect_id", prospectId);
+    const records: ContactVerificationRecord[] = verificationError ? [] : (verificationRows ?? []).map((r) => ({
+      channel: r.channel,
+      contactValue: r.contact_value,
+      isSingleSource: r.is_single_source
+    }));
+
+    if (records.length > 0) {
+      const result = evaluateChannelActivation(records, parsed.data.channel);
+      if (!result.activatable) {
+        const reasonText = result.reason === "conflicting_sources"
+          ? "Conflicting verified sources for this channel -- resolve before generating copy."
+          : `No verified ${parsed.data.channel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
+        return NextResponse.json({ error: reasonText }, { status: 400 });
+      }
+    } else if (parsed.data.channel === "EMAIL" && !prospect.email) {
+      return NextResponse.json(
+        { error: "No verified email on file for this prospect -- EMAIL copy cannot be generated until one is confirmed. Use CALL instead." },
+        { status: 400 }
+      );
+    }
   }
 
   const { data: briefRow } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
@@ -86,7 +124,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: org } = await supabase.from("organizations").select("name").eq("id", organizationId).single();
   const agencyName = orgBranding?.brand_name || org?.name || "our team";
 
-  const context = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName, priorInteractions);
+  const manualObservations = await getVerifiedManualObservations(supabase, organizationId, prospectId);
+  const context = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName, priorInteractions, manualObservations);
   const generated = await generateSequenceStepMessage(parsed.data.channel, context, agencyName);
   if (!generated) return NextResponse.json({ error: "Message generation failed -- try again in a moment." }, { status: 502 });
 

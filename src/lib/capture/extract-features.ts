@@ -12,6 +12,43 @@ export interface ExtractedFeatures {
   hasChatWidget: boolean;
   hasBookingWidget: boolean;
   hasMobileViewport: boolean;
+  /**
+   * Hotfix (2026-09-11, docs/history.md): false when this extraction hit
+   * the exact anomaly confirmed twice in real production data -- a large,
+   * genuine capture (Findlay Roofing: 200, 290 KB, 1516 words; Superior
+   * Roofing: 200, 450 KB, 2457 words) whose raw stored HTML was directly
+   * verified (regex on the actual stored string) to contain 17+ real
+   * heading tags and the literal words "guarantee"/"insured"/"reviews" --
+   * yet this same JSDOM-based extraction returned 0 headings, 0 forms, 0
+   * internal links, and 0 trust signals for both. A genuinely thin/simple
+   * real page can legitimately have few of these; the anomaly signature is
+   * ALL of headings/forms/internalLinks/trustSignals coming back exactly
+   * zero at once on a document large enough that "nothing at all" is
+   * implausible. Downstream code must never treat trustSignals/ctas/forms
+   * as evidence of absence when this is false -- see
+   * lib/intelligence/evidence-state.ts.
+   */
+  extractionReliable: boolean;
+}
+
+/** The anomaly signature confirmed twice in real production captures --
+ * see ExtractedFeatures.extractionReliable's own comment. Exported for
+ * direct testing (scripts/verify-outreach-evidence-quality.ts) without
+ * needing to construct a full JSDOM document. */
+export function isExtractionAnomalous(html: string, extracted: {
+  headings: unknown[];
+  forms: unknown[];
+  internalLinks: unknown[];
+  trustSignals: unknown[];
+}): boolean {
+  const SUBSTANTIAL_HTML_BYTES = 5000;
+  return (
+    html.length > SUBSTANTIAL_HTML_BYTES &&
+    extracted.headings.length === 0 &&
+    extracted.forms.length === 0 &&
+    extracted.internalLinks.length === 0 &&
+    extracted.trustSignals.length === 0
+  );
 }
 
 // Literal script/embed signatures for widgets that are either present in the
@@ -148,17 +185,20 @@ export function extractFeatures(html: string, pageUrl: string): ExtractedFeature
     document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("width=device-width")
   );
 
+  const internalLinksArray = [...internalLinks].slice(0, 500);
+
   return {
     headings,
     ctas,
     forms,
-    internalLinks: [...internalLinks].slice(0, 500),
+    internalLinks: internalLinksArray,
     externalLinks: [...externalLinks].slice(0, 500),
     images,
     schemaTypes: [...schemaTypes],
     trustSignals,
     hasChatWidget,
     hasBookingWidget,
-    hasMobileViewport
+    hasMobileViewport,
+    extractionReliable: !isExtractionAnomalous(html, { headings, forms, internalLinks: internalLinksArray, trustSignals })
   };
 }

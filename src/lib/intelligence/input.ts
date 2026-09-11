@@ -24,5 +24,11 @@ export interface IntelligenceCaptureInput {
     hasChatWidget?: boolean;
     hasBookingWidget?: boolean;
     hasMobileViewport?: boolean;
+    /** See lib/capture/extract-features.ts's ExtractedFeatures.extractionReliable.
+     * Absent (older stored rows, pre-hotfix) is treated as reliable=true by
+     * every reader below via `?? true` -- deliberately: retroactively
+     * flagging every historical capture as unreliable would be a much
+     * larger, unreviewed behavior change than this hotfix's scope. */
+    extractionReliable?: boolean;
   };
 }
