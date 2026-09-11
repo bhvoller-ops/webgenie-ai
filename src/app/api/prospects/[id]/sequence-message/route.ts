@@ -6,6 +6,9 @@ import { buildPitchContext } from "@/lib/prospect/pitch-context";
 import { generateSequenceStepMessage } from "@/lib/prospect/sequence-messaging";
 import { hasOpenAiKey } from "@/lib/ai/openai";
 import type { OpportunityBrief } from "@/lib/prospect/types";
+import { getVerifiedManualObservations } from "@/lib/prospect/manual-evidence";
+import { evaluateChannelActivation, type ContactVerificationRecord } from "@/lib/prospect/contact-verification";
+import { isSuppressed } from "@/lib/prospect/suppression";
 
 /**
  * Generates fresh sequence-step copy on demand -- deliberately not
@@ -34,6 +37,58 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: prospectRow } = await supabase.from("prospects").select("*").eq("id", prospectId).eq("organization_id", organizationId).maybeSingle();
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
+
+  // Hotfix (2026-09-11, docs/history.md): suppression must override every
+  // generation path, not only the action-performance ones -- this route
+  // had no suppression check at all before this hotfix.
+  if (isSuppressed(prospect)) {
+    return NextResponse.json({ error: "This prospect is suppressed; message generation is not available." }, { status: 409 });
+  }
+
+  // Hotfix (2026-09-11, docs/history.md): FAIL CLOSED, not fail open.
+  // The prior version of this guard fell back to the legacy
+  // prospects.email check whenever prospect_contact_verifications had no
+  // rows -- but "the table has no rows for this prospect" and "the table
+  // doesn't exist yet" both hit that same code path, silently letting
+  // unverified legacy data authorize a channel exactly once the
+  // structured verification system existed to prevent that. Two
+  // genuinely distinct cases, handled distinctly:
+  //   - table missing (pre-migration transition window): a controlled
+  //     compatibility block, explicit about why, never a legacy fallback.
+  //   - table exists, zero/conflicting rows for this prospect+channel:
+  //     the normal "not verified" block -- evaluateChannelActivation()
+  //     alone decides, prospects.email/phone is never consulted here again.
+  if (parsed.data.channel === "EMAIL" || parsed.data.channel === "CALL") {
+    const { data: verificationRows, error: verificationError } = await supabase
+      .from("prospect_contact_verifications")
+      .select("channel, contact_value, is_single_source")
+      .eq("organization_id", organizationId)
+      .eq("prospect_id", prospectId);
+
+    if (verificationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Contact-verification system unavailable (migration 041 not yet applied) -- channel activation is fail-closed during this transition, not falling back to unverified legacy contact data.",
+          code: "VERIFICATION_SYSTEM_UNAVAILABLE"
+        },
+        { status: 503 }
+      );
+    }
+
+    const records: ContactVerificationRecord[] = (verificationRows ?? []).map((r) => ({
+      channel: r.channel,
+      contactValue: r.contact_value,
+      isSingleSource: r.is_single_source
+    }));
+    const result = evaluateChannelActivation(records, parsed.data.channel);
+    if (!result.activatable) {
+      const reasonText = result.reason === "conflicting_sources"
+        ? "Conflicting verified sources for this channel -- resolve before generating copy."
+        : `No verified ${parsed.data.channel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
+      return NextResponse.json({ error: reasonText }, { status: 400 });
+    }
+  }
 
   const { data: briefRow } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
   const brief: OpportunityBrief | null = briefRow
@@ -72,7 +127,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: org } = await supabase.from("organizations").select("name").eq("id", organizationId).single();
   const agencyName = orgBranding?.brand_name || org?.name || "our team";
 
-  const context = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName, priorInteractions);
+  const manualObservations = await getVerifiedManualObservations(supabase, organizationId, prospectId);
+  const context = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName, priorInteractions, manualObservations);
   const generated = await generateSequenceStepMessage(parsed.data.channel, context, agencyName);
   if (!generated) return NextResponse.json({ error: "Message generation failed -- try again in a moment." }, { status: 502 });
 

@@ -82,7 +82,18 @@ export function buildPitchContext(
   brief: OpportunityBrief | null,
   hasCompletedAudit: boolean,
   agencyName: string,
-  priorInteractions: string[] = []
+  priorInteractions: string[] = [],
+  /**
+   * Hotfix (2026-09-11, docs/history.md): structured, human-verified
+   * observations (prospect_evidence_observations, migration 041, not yet
+   * applied) — the "manually verified observations need a structured,
+   * auditable path into message generation" requirement. Caller is
+   * responsible for filtering to VERIFIED_PRESENT/VERIFIED_ABSENT rows
+   * only (see getVerifiedManualObservations below) — this function trusts
+   * whatever strings it's handed, same as opportunityEvidence already
+   * does for brief content.
+   */
+  manualObservations: string[] = []
 ): PitchContext {
   return {
     businessFacts: {
@@ -96,7 +107,10 @@ export function buildPitchContext(
       rating: prospect.rating ?? null,
       reviewCount: prospect.reviewCount ?? null
     },
-    opportunityEvidence: brief ? [...brief.reasonsToContact, ...brief.evidenceReferences.map((e) => e.detail)] : [],
+    opportunityEvidence: [
+      ...(brief ? [...brief.reasonsToContact, ...brief.evidenceReferences.map((e) => e.detail)] : []),
+      ...manualObservations
+    ],
     auditFindings: hasCompletedAudit ? brief?.topFindings ?? [] : [],
     recommendedOffer: brief?.recommendedOffer ?? null,
     recommendedOfferReason: brief?.recommendedOfferReason ?? null,

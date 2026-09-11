@@ -8,6 +8,9 @@ import { hasOpenAiKey } from "@/lib/ai/openai";
 import { logActivity } from "@/lib/prospect/activity";
 import { PITCH_CHANNEL_LABELS } from "@/lib/prospect/types";
 import type { OpportunityBrief, PitchChannel } from "@/lib/prospect/types";
+import { getVerifiedManualObservations } from "@/lib/prospect/manual-evidence";
+import { evaluateChannelActivation, type ContactVerificationRecord } from "@/lib/prospect/contact-verification";
+import { isSuppressed } from "@/lib/prospect/suppression";
 
 /**
  * The Pitch Generator's persistence (master prompt sections 14-24). One
@@ -50,6 +53,51 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!prospectRow) return NextResponse.json({ error: "Prospect not found." }, { status: 404 });
   const prospect = rowToProspect(prospectRow);
 
+  // Hotfix (2026-09-11, docs/history.md): suppression must override every
+  // generation path -- this route had no suppression check before this
+  // hotfix, same gap as /sequence-message.
+  if (isSuppressed(prospect)) {
+    return NextResponse.json({ error: "This prospect is suppressed; pitch generation is not available." }, { status: 409 });
+  }
+
+  // Hotfix (2026-09-11, docs/history.md): FAIL CLOSED -- see the identical,
+  // more fully commented guard in /sequence-message/route.ts. A missing
+  // verification table (pre-migration) is a distinct, explicit
+  // compatibility block; it must never fall back to unverified
+  // prospects.email/phone.
+  if (channel === "cold_email" || channel === "call_opener") {
+    const mappedChannel = channel === "cold_email" ? "EMAIL" : "CALL";
+    const { data: verificationRows, error: verificationError } = await supabase
+      .from("prospect_contact_verifications")
+      .select("channel, contact_value, is_single_source")
+      .eq("organization_id", organizationId)
+      .eq("prospect_id", prospectId);
+
+    if (verificationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Contact-verification system unavailable (migration 041 not yet applied) -- channel activation is fail-closed during this transition, not falling back to unverified legacy contact data.",
+          code: "VERIFICATION_SYSTEM_UNAVAILABLE"
+        },
+        { status: 503 }
+      );
+    }
+
+    const records: ContactVerificationRecord[] = (verificationRows ?? []).map((r) => ({
+      channel: r.channel,
+      contactValue: r.contact_value,
+      isSingleSource: r.is_single_source
+    }));
+    const result = evaluateChannelActivation(records, mappedChannel);
+    if (!result.activatable) {
+      const reasonText = result.reason === "conflicting_sources"
+        ? "Conflicting verified sources for this channel -- resolve before generating copy."
+        : `No verified ${mappedChannel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
+      return NextResponse.json({ error: reasonText }, { status: 400 });
+    }
+  }
+
   const { data: briefRow } = await supabase.from("opportunity_briefs").select("*").eq("prospect_id", prospectId).maybeSingle();
   const brief: OpportunityBrief | null = briefRow
     ? {
@@ -76,7 +124,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: org } = await supabase.from("organizations").select("name").eq("id", organizationId).single();
   const agencyName = orgBranding?.brand_name || org?.name || "our team";
 
-  const pitchContext = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName);
+  const manualObservations = await getVerifiedManualObservations(supabase, organizationId, prospectId);
+  const pitchContext = buildPitchContext(prospect, brief, Boolean(prospect.projectId && briefRow), agencyName, [], manualObservations);
   const fingerprint = computePitchSourceFingerprint(pitchContext);
 
   const generated = await generatePitch(channel, pitchContext, agencyName);

@@ -35,8 +35,21 @@ console.log("1. suppression persists / is read correctly (item 1)");
 
 console.log("2. the gate enrollProspect() checks before inserting (item 2)");
 {
+  // Hotfix (2026-09-11, docs/history.md): the original assertion hardcoded
+  // a literal "\n    " between the table name and .insert(, which only
+  // matches on an LF checkout -- this repo is Windows/CRLF, so the exact
+  // substring never matched even though the real gating code (verified by
+  // direct read: isSuppressed() at sequence-sync.ts line 257, well before
+  // .insert( at line 272) has always been correct. Fixed to compare
+  // token positions via a regex tolerant of either line-ending style,
+  // rather than a brittle exact multi-line string match -- the test's own
+  // assertion mechanism was wrong, not the production code it was testing.
   const src = readFileSync("src/lib/prospect/sequence-sync.ts", "utf8");
-  check("enrollProspect() calls isSuppressed() before its insert", /isSuppressed\(/.test(src) && src.indexOf("isSuppressed(") < src.indexOf("prospect_sequence_enrollments\")\n    .insert"));
+  const insertMatch = /prospect_sequence_enrollments"\)\s*\.insert\(/.exec(src);
+  check(
+    "enrollProspect() calls isSuppressed() before its insert",
+    /isSuppressed\(/.test(src) && insertMatch !== null && src.indexOf("isSuppressed(") < insertMatch.index
+  );
 }
 
 console.log("3. a real stop-condition + suppressed both correctly mark an ACTIVE/PAUSED enrollment as transition-eligible (item 3)");
