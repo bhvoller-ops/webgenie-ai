@@ -329,5 +329,31 @@ console.log("11. tenant isolation and test-organization exclusion (test category
   );
 }
 
+console.log("12. fail-closed correction: no legacy-data fallback remains, missing table is a distinct compatibility block");
+{
+  // This turn's correction: the prior version of both routes fell back
+  // to checking prospects.email whenever prospect_contact_verifications
+  // had zero rows -- which fired identically whether the table simply
+  // had no rows for this prospect OR didn't exist at all yet. That let
+  // unverified legacy data silently authorize a channel. Fixed to
+  // distinguish the two and never fall back to legacy data either way.
+  const sequenceMessageSrc = readFileSync("src/app/api/prospects/[id]/sequence-message/route.ts", "utf8");
+  const pitchSrc = readFileSync("src/app/api/prospects/[id]/pitch/route.ts", "utf8");
+  for (const [name, src] of [["sequence-message", sequenceMessageSrc], ["pitch", pitchSrc]] as const) {
+    check(
+      `${name}/route.ts's channel guard never references prospect.email or prospect.phone as a fallback authorization`,
+      !/!prospect\.email/.test(src) && !/!prospect\.phone/.test(src)
+    );
+    check(
+      `${name}/route.ts returns a distinct VERIFICATION_SYSTEM_UNAVAILABLE compatibility block (503) when the verification query errors`,
+      /VERIFICATION_SYSTEM_UNAVAILABLE/.test(src) && /status:\s*503/.test(src)
+    );
+    check(
+      `${name}/route.ts calls evaluateChannelActivation() unconditionally on whatever records exist (including zero), not only when records.length > 0`,
+      !/if\s*\(\s*records\.length\s*>\s*0\s*\)/.test(src)
+    );
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

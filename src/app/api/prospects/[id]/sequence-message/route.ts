@@ -45,45 +45,48 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This prospect is suppressed; message generation is not available." }, { status: 409 });
   }
 
-  // Hotfix (2026-09-11, docs/history.md): a real production batch generated
-  // five EMAIL-channel drafts with no verified email on any of the five
-  // prospects, and separately used a single-source Google Places phone
-  // number for Georgia Roof Advisors that conflicted with the number the
-  // business actually publishes. Two layers: prefer the structured
-  // prospect_contact_verifications records (migration 041, conflict-aware)
-  // when any exist; fall back to the simple prospects.email check
-  // (already live-safe today) when the table has no rows for this
-  // prospect yet -- e.g. before the migration is applied, or before
-  // anyone has recorded a verification for it.
+  // Hotfix (2026-09-11, docs/history.md): FAIL CLOSED, not fail open.
+  // The prior version of this guard fell back to the legacy
+  // prospects.email check whenever prospect_contact_verifications had no
+  // rows -- but "the table has no rows for this prospect" and "the table
+  // doesn't exist yet" both hit that same code path, silently letting
+  // unverified legacy data authorize a channel exactly once the
+  // structured verification system existed to prevent that. Two
+  // genuinely distinct cases, handled distinctly:
+  //   - table missing (pre-migration transition window): a controlled
+  //     compatibility block, explicit about why, never a legacy fallback.
+  //   - table exists, zero/conflicting rows for this prospect+channel:
+  //     the normal "not verified" block -- evaluateChannelActivation()
+  //     alone decides, prospects.email/phone is never consulted here again.
   if (parsed.data.channel === "EMAIL" || parsed.data.channel === "CALL") {
-    // Supabase resolves a "relation does not exist" query as { data: null,
-    // error: {...} } rather than rejecting -- checking `error` (not
-    // catching a throw) is what actually makes this safe to call before
-    // migration 041 is applied.
     const { data: verificationRows, error: verificationError } = await supabase
       .from("prospect_contact_verifications")
       .select("channel, contact_value, is_single_source")
       .eq("organization_id", organizationId)
       .eq("prospect_id", prospectId);
-    const records: ContactVerificationRecord[] = verificationError ? [] : (verificationRows ?? []).map((r) => ({
+
+    if (verificationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Contact-verification system unavailable (migration 041 not yet applied) -- channel activation is fail-closed during this transition, not falling back to unverified legacy contact data.",
+          code: "VERIFICATION_SYSTEM_UNAVAILABLE"
+        },
+        { status: 503 }
+      );
+    }
+
+    const records: ContactVerificationRecord[] = (verificationRows ?? []).map((r) => ({
       channel: r.channel,
       contactValue: r.contact_value,
       isSingleSource: r.is_single_source
     }));
-
-    if (records.length > 0) {
-      const result = evaluateChannelActivation(records, parsed.data.channel);
-      if (!result.activatable) {
-        const reasonText = result.reason === "conflicting_sources"
-          ? "Conflicting verified sources for this channel -- resolve before generating copy."
-          : `No verified ${parsed.data.channel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
-        return NextResponse.json({ error: reasonText }, { status: 400 });
-      }
-    } else if (parsed.data.channel === "EMAIL" && !prospect.email) {
-      return NextResponse.json(
-        { error: "No verified email on file for this prospect -- EMAIL copy cannot be generated until one is confirmed. Use CALL instead." },
-        { status: 400 }
-      );
+    const result = evaluateChannelActivation(records, parsed.data.channel);
+    if (!result.activatable) {
+      const reasonText = result.reason === "conflicting_sources"
+        ? "Conflicting verified sources for this channel -- resolve before generating copy."
+        : `No verified ${parsed.data.channel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
+      return NextResponse.json({ error: reasonText }, { status: 400 });
     }
   }
 

@@ -60,10 +60,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This prospect is suppressed; pitch generation is not available." }, { status: 409 });
   }
 
-  // Hotfix (2026-09-11, docs/history.md): same guard as /sequence-message --
-  // prefer structured prospect_contact_verifications (migration 041,
-  // conflict-aware) when any exist for this prospect; fall back to the
-  // simple prospects.email check otherwise.
+  // Hotfix (2026-09-11, docs/history.md): FAIL CLOSED -- see the identical,
+  // more fully commented guard in /sequence-message/route.ts. A missing
+  // verification table (pre-migration) is a distinct, explicit
+  // compatibility block; it must never fall back to unverified
+  // prospects.email/phone.
   if (channel === "cold_email" || channel === "call_opener") {
     const mappedChannel = channel === "cold_email" ? "EMAIL" : "CALL";
     const { data: verificationRows, error: verificationError } = await supabase
@@ -71,25 +72,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select("channel, contact_value, is_single_source")
       .eq("organization_id", organizationId)
       .eq("prospect_id", prospectId);
-    const records: ContactVerificationRecord[] = verificationError ? [] : (verificationRows ?? []).map((r) => ({
+
+    if (verificationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Contact-verification system unavailable (migration 041 not yet applied) -- channel activation is fail-closed during this transition, not falling back to unverified legacy contact data.",
+          code: "VERIFICATION_SYSTEM_UNAVAILABLE"
+        },
+        { status: 503 }
+      );
+    }
+
+    const records: ContactVerificationRecord[] = (verificationRows ?? []).map((r) => ({
       channel: r.channel,
       contactValue: r.contact_value,
       isSingleSource: r.is_single_source
     }));
-
-    if (records.length > 0) {
-      const result = evaluateChannelActivation(records, mappedChannel);
-      if (!result.activatable) {
-        const reasonText = result.reason === "conflicting_sources"
-          ? "Conflicting verified sources for this channel -- resolve before generating copy."
-          : `No verified ${mappedChannel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
-        return NextResponse.json({ error: reasonText }, { status: 400 });
-      }
-    } else if (channel === "cold_email" && !prospect.email) {
-      return NextResponse.json(
-        { error: "No verified email on file for this prospect -- a cold email pitch cannot be generated until one is confirmed. Use call_opener instead." },
-        { status: 400 }
-      );
+    const result = evaluateChannelActivation(records, mappedChannel);
+    if (!result.activatable) {
+      const reasonText = result.reason === "conflicting_sources"
+        ? "Conflicting verified sources for this channel -- resolve before generating copy."
+        : `No verified ${mappedChannel === "EMAIL" ? "email" : "phone"} on file for this prospect.`;
+      return NextResponse.json({ error: reasonText }, { status: 400 });
     }
   }
 
