@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -77,6 +77,18 @@ export function NewProjectClient({
   const [industryOverrides, setIndustryOverrides] = useState<Record<string, IndustryKey>>({});
   const [showManual, setShowManual] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((project) => {
+      const haystack = [project.name, project.primaryUrl ? hostOf(project.primaryUrl) : "", project.industry, analysisStateLabel(project)]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [projects, search]);
 
   const lineCount = lines.split("\n").map((l) => l.trim()).filter(Boolean).length;
   const tooMany = lineCount > MAX_LINES;
@@ -461,31 +473,73 @@ export function NewProjectClient({
         />
 
         <div className="mt-8">
-          <h2 className="text-section-title font-semibold text-ink">Every project</h2>
-          <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-muted">
-            Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package.
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-section-title font-semibold text-ink">Every project</h2>
+              <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-muted">
+                Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package.
+              </p>
+            </div>
+            {projects.length ? (
+              <label className="relative block w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search this page's projects…"
+                  aria-label="Search projects on this page"
+                  className="focus-ring w-full rounded-lg border border-hairline bg-raised py-2 pl-9 pr-3 text-[13px] text-ink placeholder:text-faint"
+                />
+              </label>
+            ) : null}
+          </div>
 
           {projects.length ? (
             <>
-              <div className="mt-5 overflow-x-auto rounded-panel border border-hairline">
-                <table className="w-full min-w-[720px] text-left">
-                  <thead className="bg-raised">
-                    <tr>
-                      {["Business", "Website", "Industry", "Analysis", "Assets", "Updated"].map((h) => (
-                        <th key={h} className="label px-4 py-3">
-                          {h}
-                        </th>
+              {/* OWNER-REVIEW CORRECTION: a non-destructive client-side
+                  search/filter over the currently-loaded page of projects --
+                  never a new server endpoint, never a change to project
+                  records. Pagination and every existing project behavior
+                  (row link, badges) are untouched; searching narrows which
+                  of THIS page's rows are shown, it doesn't fetch other
+                  pages. */}
+              {filteredProjects.length ? (
+                <div className="mt-5 overflow-x-auto rounded-panel border border-hairline">
+                  <table className="w-full min-w-[720px] text-left">
+                    <thead className="bg-raised">
+                      <tr>
+                        {["Business", "Website", "Industry", "Analysis", "Assets", "Updated"].map((h) => (
+                          <th key={h} className="label px-4 py-3">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProjects.map((project) => (
+                        <ProjectRow key={project.id} project={project} />
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.map((project) => (
-                      <ProjectRow key={project.id} project={project} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="mt-5">
+                  <EmptyState
+                    icon={<Search className="h-8 w-8" aria-hidden />}
+                    title="No matches on this page"
+                    description={`Nothing on this page matches "${search}". Try a different term, or clear the search and use pagination to browse the rest.`}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setSearch("")}
+                        className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-muted hover:text-ink"
+                      >
+                        Clear search
+                      </button>
+                    }
+                  />
+                </div>
+              )}
               <Pagination page={page} totalPages={totalPages} basePath="/projects/new" />
             </>
           ) : (
@@ -552,6 +606,14 @@ export function NewProjectClient({
  * The whole row is one link (a stretched-link overlay on the business
  * name cell) — no separate repeated "Open" control.
  */
+/** Shared with the search filter above, so "what you can search for" matches "what the Analysis column shows." */
+function analysisStateLabel(project: ProjectSummary): string {
+  const job = project.latestJob;
+  if (typeof job?.overallScore === "number") return String(job.overallScore);
+  if (job && job.status !== "completed" && job.status !== "failed") return JOB_STAGE_LABELS[job.status];
+  return "Not analyzed";
+}
+
 function ProjectRow({ project }: { project: ProjectSummary }) {
   const job = project.latestJob;
   const score = job?.overallScore;
@@ -564,7 +626,15 @@ function ProjectRow({ project }: { project: ProjectSummary }) {
         <Link href={`/projects/${project.id}`} className="focus-ring after:absolute after:inset-0">
           <span className="block truncate text-[14px] font-medium text-ink group-hover:text-iris-soft">{project.name}</span>
         </Link>
-        <span className="mt-0.5 block text-[12px] text-faint">{project.primaryGoal}</span>
+        {/* OWNER-REVIEW CORRECTION: project.primaryGoal was "Generate leads"
+            on nearly every row (the bulk-import route's hardcoded default,
+            src/app/api/projects/bulk/route.ts) -- identical, non-row-specific
+            noise. Reference count is real, row-specific record context. */}
+        {project.referenceCount > 0 ? (
+          <span className="mt-0.5 block text-[12px] text-faint">
+            {project.referenceCount} reference{project.referenceCount === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </td>
       <td className="px-4 py-3.5">
         <span className="font-mono text-[12px] text-faint">{project.primaryUrl ? hostOf(project.primaryUrl) : "No reference yet"}</span>

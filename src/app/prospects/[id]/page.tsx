@@ -10,7 +10,8 @@ import { requireAdminPage } from "@/lib/auth/access";
 import { getBlueprint, getIntelligence, getNextBestAction, getOpportunityBrief, getProspect } from "@/lib/data/provider";
 import { NEXT_BEST_ACTION_LABELS, RECOMMENDED_OFFER_LABELS } from "@/lib/prospect/types";
 import { getVerifiedManualObservations } from "@/lib/prospect/manual-evidence";
-import { computeEvidenceReadiness, EVIDENCE_READINESS_DETAIL, EVIDENCE_READINESS_LABEL, EVIDENCE_READINESS_TONE } from "@/lib/prospect/evidence-readiness";
+import { evaluateChannelActivation, type ContactVerificationRecord } from "@/lib/prospect/contact-verification";
+import { describeBriefSummary, describeRecommendedOfferReason, getOverallReadinessBadge, OUTREACH_READY_NOTE } from "@/lib/prospect/evidence-readiness";
 import { ProspectActions } from "./prospect-actions";
 import { PitchGenerator } from "./pitch-generator";
 import { DemoRoomPanel } from "./demo-room-panel";
@@ -20,24 +21,7 @@ import { HandoffPanel } from "./handoff-panel";
 
 export const dynamic = "force-dynamic";
 
-const LEVEL_TONE = {
-  high: "good",
-  medium: "info",
-  low: "neutral",
-  insufficient_evidence: "warn"
-} as const;
-
-const LEVEL_LABEL = {
-  high: "High opportunity",
-  medium: "Medium opportunity",
-  low: "Low opportunity",
-  insufficient_evidence: "Insufficient evidence"
-} as const;
-
 const PRIORITY_TONE = { high: "bad", medium: "warn", low: "neutral" } as const;
-
-/** The exact stored sentence hasWebsiteNoAuditBrief() always produces -- see evidence-readiness.ts. */
-const NO_AUDIT_SUMMARY_SUFFIX = "there isn't enough evidence yet to say what the opportunity is.";
 
 export default async function ProspectPage({ params }: { params: Promise<{ id: string }> }) {
   const { supabase, organizationId } = await requireAdminPage();
@@ -46,28 +30,37 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
   const prospect = await getProspect(id);
   if (!prospect) notFound();
 
-  const [brief, nextBestAction, intelligence, blueprint, verifiedObservations] = await Promise.all([
+  const [brief, nextBestAction, intelligence, blueprint, verifiedObservations, verificationRows] = await Promise.all([
     getOpportunityBrief(id),
     getNextBestAction(id),
     prospect.projectId ? getIntelligence(prospect.projectId) : Promise.resolve(null),
     prospect.projectId ? getBlueprint(prospect.projectId) : Promise.resolve(null),
-    getVerifiedManualObservations(supabase, organizationId, id)
+    getVerifiedManualObservations(supabase, organizationId, id),
+    supabase
+      .from("prospect_contact_verifications")
+      .select("channel, contact_value, is_single_source")
+      .eq("organization_id", organizationId)
+      .eq("prospect_id", id)
+      .then((r) => (r.data ?? []) as Array<{ channel: "CALL" | "EMAIL"; contact_value: string; is_single_source: boolean }>)
   ]);
 
-  // Evidence-display consistency fix (see evidence-readiness.ts): a
-  // read-time-only override of the one known stale sentence, never a
-  // rewrite of the persisted brief and never a change to opportunityLevel/
-  // recommendedOffer/confidence.
+  // OWNER-REVIEW CORRECTION (evidence contradiction, P0 blocker): a
+  // read-time-only override of the persisted brief's summary/offer-reason
+  // and, critically, the OVERALL READINESS BADGE itself -- never a rewrite
+  // of the persisted brief, never a change to opportunityLevel/
+  // recommendedOffer/confidence. See evidence-readiness.ts's file header.
   const hasVerifiedObservation = verifiedObservations.length > 0;
-  const readiness = computeEvidenceReadiness({
-    hasWebsite: prospect.hasWebsite,
-    hasAudit: Boolean(intelligence),
-    hasVerifiedObservation
-  });
-  const briefSummary =
-    brief && brief.summary.endsWith(NO_AUDIT_SUMMARY_SUFFIX) && hasVerifiedObservation
-      ? EVIDENCE_READINESS_DETAIL.verified_observation
-      : (brief?.summary ?? null);
+  const verificationRecords: ContactVerificationRecord[] = verificationRows.map((r) => ({
+    channel: r.channel,
+    contactValue: r.contact_value,
+    isSingleSource: r.is_single_source
+  }));
+  const hasPermittedChannel =
+    evaluateChannelActivation(verificationRecords, "CALL").activatable || evaluateChannelActivation(verificationRecords, "EMAIL").activatable;
+  const briefSummary = brief ? describeBriefSummary(brief.summary, hasVerifiedObservation) : null;
+  const recommendedOfferReason = brief ? describeRecommendedOfferReason(brief.recommendedOfferReason, hasVerifiedObservation) : null;
+  const overallBadge = brief ? getOverallReadinessBadge(brief.opportunityLevel, hasVerifiedObservation) : null;
+  const showOutreachReady = hasVerifiedObservation && hasPermittedChannel;
 
   const primaryHref = `/prospects/${prospect.id}/playbook`;
 
@@ -78,9 +71,17 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
         title={prospect.businessName}
         context={
           <>
-            {brief ? <Pill tone={LEVEL_TONE[brief.opportunityLevel]}>{LEVEL_LABEL[brief.opportunityLevel]}</Pill> : null}
+            {/* OWNER-REVIEW CORRECTION: exactly ONE overall readiness badge --
+                never "Insufficient evidence" alongside "Verified observation
+                available" at the same time. getOverallReadinessBadge()
+                replaces the raw opportunityLevel label with the verified-
+                observation label whenever a verified observation exists for
+                an otherwise-insufficient-evidence prospect; the genuine
+                insufficient-evidence case (no audit, no observation) is
+                untouched -- fail-closed. */}
+            {overallBadge ? <Pill tone={overallBadge.tone}>{overallBadge.label}</Pill> : null}
+            {showOutreachReady ? <Pill tone="good">{OUTREACH_READY_NOTE}</Pill> : null}
             <Pill tone="neutral">{prospect.hasWebsite ? "Has a website" : "No website"}</Pill>
-            {prospect.hasWebsite ? <Pill tone={EVIDENCE_READINESS_TONE[readiness]}>{EVIDENCE_READINESS_LABEL[readiness]}</Pill> : null}
             {prospect.industry ? <Pill tone="neutral">{prospect.industry}</Pill> : null}
             {prospect.city ? (
               <span className="inline-flex items-center gap-1.5 text-[13px] text-muted">
@@ -171,7 +172,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
             <div className="card p-6">
               <div className="label mb-3">Why this business</div>
               <p className="text-[15px] leading-relaxed text-ink/85">{briefSummary}</p>
-              {readiness === "verified_observation" && verifiedObservations[0] ? (
+              {hasVerifiedObservation && verifiedObservations[0] ? (
                 <p className="mt-3 rounded-lg border border-signal-warn/25 bg-signal-warn/[0.06] px-3 py-2.5 text-[13px] leading-relaxed text-ink/80">
                   <span className="font-medium text-signal-warn">Verified observation: </span>
                   {verifiedObservations[0]}
@@ -258,10 +259,10 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
               {brief.recommendedOffer ? (
                 <>
                   <div className="mt-1 text-[14px] font-semibold text-ink">{RECOMMENDED_OFFER_LABELS[brief.recommendedOffer]}</div>
-                  {brief.recommendedOfferReason ? <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{brief.recommendedOfferReason}</p> : null}
+                  {recommendedOfferReason ? <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{recommendedOfferReason}</p> : null}
                 </>
               ) : (
-                <p className="mt-1 text-[12.5px] leading-relaxed text-faint">{brief.recommendedOfferReason ?? "Not enough evidence yet."}</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-faint">{recommendedOfferReason ?? "Not enough evidence yet."}</p>
               )}
             </div>
 

@@ -65,13 +65,22 @@ const WORK_ITEMS: NavGroupItem[] = [
   {
     href: "/finder",
     label: "Find Clients",
-    description: "Scan Google Maps for businesses with no website — build each one a demo site instantly.",
+    // OWNER-REVIEW CORRECTION: Finder (P0.5) shows every result a search
+    // returns, not only businesses with no website -- this previously
+    // undersold current Finder behavior and read as identical to Find
+    // Audits below. Rewritten to name the real distinguishing behavior:
+    // a scored, mixed result set, with an instant demo only for the
+    // no-website subset.
+    description: "Search local businesses of any kind — every result scored, with a demo site ready instantly for anyone with no website yet.",
     icon: <Search className="h-4 w-4" aria-hidden />,
   },
   {
     href: "/audit",
     label: "Find Audits",
-    description: "Find businesses with a bad website and queue a real 11-module intelligence scan.",
+    // Distinct from Find Clients above: this search is scoped to
+    // businesses that already have a website, and queues each match
+    // straight for the real 11-module audit -- no separate review step.
+    description: "Search businesses that already have a website — each match is queued straight for a real 11-module audit.",
     icon: <Radar className="h-4 w-4" aria-hidden />,
   },
 ];

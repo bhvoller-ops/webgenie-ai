@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Building2, ChevronDown, ChevronUp, MapPin, Phone, Shield, Sparkles } from "lucide-react";
 import { cn } from "@/lib/format";
+import { Pill, type PillTone } from "@/components/ui";
+import { getOverallReadinessBadge, OUTREACH_READY_NOTE } from "@/lib/prospect/evidence-readiness";
 import type { PlaybookIntelligence, PlaybookChannelStatus } from "@/lib/playbook/resolve-context";
 
 const CHANNEL_STATUS_LABEL: Record<string, string> = {
@@ -29,6 +31,17 @@ export function IntelligenceCard({
 }) {
   const [open, setOpen] = useState(!collapsible);
 
+  // OWNER-REVIEW CORRECTION (evidence contradiction): the SAME shared
+  // getOverallReadinessBadge() Prospect Detail and the Daily Queue use --
+  // this card must never say "Insufficient evidence" alongside a verified
+  // observation, and "Ready for verified-observation outreach" only
+  // appears when a channel is REALLY activatable (channels.call/email,
+  // the exact same evaluateChannelActivation() result this card's own
+  // ChannelRow rows already render below).
+  const hasVerifiedObservation = intelligence.verifiedObservations.length > 0;
+  const overallBadge = intelligence.opportunityLevel ? getOverallReadinessBadge(intelligence.opportunityLevel, hasVerifiedObservation) : null;
+  const showOutreachReady = hasVerifiedObservation && (channels.call.activatable || channels.email.activatable);
+
   return (
     <div className="card p-5">
       <button
@@ -45,6 +58,12 @@ export function IntelligenceCard({
           <div>
             <div className="text-sm font-semibold text-ink">{intelligence.businessName}</div>
             {intelligence.contactName ? <p className="text-[12px] text-muted">{intelligence.contactName}</p> : null}
+            {overallBadge || showOutreachReady ? (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {overallBadge ? <Pill tone={overallBadge.tone as PillTone} className="text-[10.5px]">{overallBadge.label}</Pill> : null}
+                {showOutreachReady ? <Pill tone="good" className="text-[10.5px]">{OUTREACH_READY_NOTE}</Pill> : null}
+              </div>
+            ) : null}
             <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-faint">
               {intelligence.industry ? (
                 <span className="inline-flex items-center gap-1">

@@ -9,14 +9,13 @@ import {
   Clock,
   Compass,
   MapPin,
-  Rocket,
   Search,
   SkipForward,
-  Target,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { PageHeader, SummaryStrip, SummaryStripSkeleton, ActionToolbar, EmptyState, ErrorState, LoadingSkeleton, DisclosurePanel, InlineSpinner, type SummaryStripItem } from "@/components/workspace";
 import { Pill, type PillTone } from "@/components/ui";
+import { getOverallReadinessBadge, OUTREACH_READY_NOTE } from "@/lib/prospect/evidence-readiness";
 import type { QueueItem, QueueSummary } from "@/app/api/prospects/queue/route";
 import { cn } from "@/lib/format";
 
@@ -31,7 +30,6 @@ const FILTERS: { key: QueueFilter; label: string }[] = [
   { key: "overdue", label: "Overdue" },
 ];
 
-const LEVEL_TONE: Record<string, PillTone> = { high: "good", medium: "warn", low: "neutral", insufficient_evidence: "info" };
 const PRIORITY_TONE: Record<string, PillTone> = { high: "bad", medium: "warn", low: "neutral" };
 
 const DEFAULT_VISIBLE = 8;
@@ -130,15 +128,32 @@ export function ProspectingClient({ organizationId }: { organizationId: string }
     }
   }
 
-  const summaryItems: SummaryStripItem[] = summary
-    ? [
-        { label: "New to Review", value: summary.newToReview, icon: <Compass className="h-4 w-4" aria-hidden /> },
-        { label: "Ready to Contact", value: summary.readyToContact, tone: "good", icon: <Target className="h-4 w-4" aria-hidden /> },
-        { label: "Follow-ups Due", value: summary.followUpsDue, tone: "warn", icon: <Clock className="h-4 w-4" aria-hidden /> },
-        { label: "Demos Ready", value: summary.demosReady, tone: "neon", icon: <Rocket className="h-4 w-4" aria-hidden /> },
-        { label: "Meetings Scheduled", value: summary.meetingsScheduled, tone: "iris", icon: <CalendarClock className="h-4 w-4" aria-hidden /> },
-      ]
-    : [];
+  // OWNER-REVIEW CORRECTION: the previous strip's 5 fixed categories
+  // (New to Review / Ready to Contact / Follow-ups Due / Demos Ready /
+  // Meetings Scheduled) don't count SEQUENCE_STEP or RUN_AUDIT actions at
+  // all -- exactly the two action types that make up nearly every real
+  // queue item today, so the strip showed 5 large zeros beside a header
+  // saying "28 actions." This derives its categories directly from what's
+  // actually visible in "Your Next Actions" below, so the numbers always
+  // reconcile with the real queue -- never a fixed bucket set that happens
+  // to miss whatever action types are actually present.
+  const summaryItems: SummaryStripItem[] = useMemo(() => {
+    if (!items || items.length === 0) return [];
+    const counts = new Map<string, number>();
+    for (const item of items) counts.set(item.actionLabel, (counts.get(item.actionLabel) ?? 0) + 1);
+    const byType = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([label, value]) => ({ label, value }));
+    // Meetings Scheduled is real pipeline context that isn't derivable from
+    // today's queue rows (a scheduled meeting has no queue action of its
+    // own) -- included only when it's actually non-zero, never as a
+    // guaranteed-empty 5th tile.
+    const meetingsScheduled = summary?.meetingsScheduled ?? 0;
+    return meetingsScheduled > 0
+      ? [...byType, { label: "Meetings Scheduled", value: meetingsScheduled, tone: "iris" as const, icon: <CalendarClock className="h-4 w-4" aria-hidden /> }]
+      : byType;
+  }, [items, summary]);
 
   const totalDue = items?.length ?? 0;
   const description =
@@ -191,9 +206,11 @@ export function ProspectingClient({ organizationId }: { organizationId: string }
         </div>
       ) : summary && items ? (
         <>
-          <div className="mt-6">
-            <SummaryStrip items={summaryItems} />
-          </div>
+          {summaryItems.length > 0 ? (
+            <div className="mt-6">
+              <SummaryStrip items={summaryItems} />
+            </div>
+          ) : null}
 
           <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-section-title font-semibold text-ink">Your Next Actions</h2>
@@ -289,13 +306,43 @@ function QueueRow({
     ? `/prospects/${item.prospectId}/playbook?actionId=${item.actionId}${item.enrollmentId ? `&enrollmentId=${item.enrollmentId}` : ""}`
     : `/prospects/${item.prospectId}`;
 
+  // OWNER-REVIEW CORRECTION (evidence contradiction): exactly ONE overall
+  // readiness badge, via the same shared helper Prospect Detail and the
+  // Playbook use -- never "Insufficient evidence" alongside "Verified
+  // observation available." "Ready for verified-observation outreach" only
+  // appears when a channel is REALLY activatable (item.verifiedChannel,
+  // derived from real prospect_contact_verifications rows), never from the
+  // looser playbookChannel routing hint.
+  const overallBadge = item.opportunityLevel ? getOverallReadinessBadge(item.opportunityLevel, item.hasVerifiedObservation) : null;
+  const showOutreachReady = item.hasVerifiedObservation && Boolean(item.verifiedChannel);
+
+  // OWNER-REVIEW CORRECTION: the dominant sentence used to be the raw
+  // stored sequence-step reason ("Sequence step due: VibeLabs Roofing —
+  // Assessment to 15-Minute Call (v2, verified-channel): Call — Day 0 —
+  // Personalized introduction (call opener). Objective: ..."). A concise,
+  // human action reason replaces it for SEQUENCE_STEP rows specifically;
+  // the complete original text always stays available, unabridged, inside
+  // "Why this action?" below. Other action types (RUN_AUDIT, FOLLOW_UP,
+  // REVIEW_REPLY, ...) already store a concise reason and are shown as-is.
+  const conciseReason =
+    item.actionType === "SEQUENCE_STEP" && item.playbookChannel
+      ? item.playbookChannel === "CALL"
+        ? item.hasVerifiedObservation
+          ? "Call using the verified observation and ask permission to send the assessment."
+          : "Call, introduce yourself, and ask permission to send a concise assessment."
+        : item.hasVerifiedObservation
+          ? "Email using the verified observation and ask permission to send the assessment."
+          : "Email to introduce yourself and ask permission to send a concise assessment."
+      : item.reason;
+
   return (
     <div className="rounded-panel border border-hairline bg-canvas/70 p-4 transition-colors hover:border-iris/30 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px] font-semibold text-ink">{item.businessName}</span>
-            {item.opportunityLevel ? <Pill tone={LEVEL_TONE[item.opportunityLevel]} className="text-[11px]">{item.opportunityLevel.replace(/_/g, " ")}</Pill> : null}
+            {overallBadge ? <Pill tone={overallBadge.tone} className="text-[11px]">{overallBadge.label}</Pill> : null}
+            {showOutreachReady ? <Pill tone="good" className="text-[11px]">{OUTREACH_READY_NOTE}</Pill> : null}
             {overdue ? <Pill tone="bad" className="text-[11px]">Overdue</Pill> : null}
             <Pill tone={PRIORITY_TONE[item.priority]} className="text-[11px]">{item.priority} priority</Pill>
           </div>
@@ -313,29 +360,27 @@ function QueueRow({
                 {item.state ? `, ${item.state}` : ""}
               </span>
             ) : null}
-            {item.playbookChannel ? (
+            {item.verifiedChannel ? (
               <span className="inline-flex items-center gap-1 text-signal-good">
                 <CheckCircle2 className="h-3 w-3" aria-hidden />
-                Verified {item.playbookChannel === "CALL" ? "call" : "email"} channel
+                Verified {item.verifiedChannel === "CALL" ? "call" : "email"} channel
               </span>
             ) : null}
             {item.dueAt ? <span>Due {new Date(item.dueAt).toLocaleDateString()}</span> : null}
           </div>
 
-          {/* One concise sentence dominates the row -- the action label plus
-              a truncated reason. The full technical/sequence-step text (if
-              any) moves into "Why this action?" instead of being the
-              dominant paragraph. */}
-          <p className="mt-2 line-clamp-1 text-[14px] leading-relaxed text-ink/85">
+          {/* One concise, human sentence dominates the row. The complete
+              original reason (and any evidence summary) always lives inside
+              "Why this action?" -- never trimmed out of existence, just no
+              longer the dominant paragraph. */}
+          <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-ink/85">
             <span className="font-semibold text-iris-soft">{item.actionLabel}: </span>
-            {item.reason}
+            {conciseReason}
           </p>
-          {item.reason.length > 90 || item.evidenceSummary ? (
-            <DisclosurePanel summary="Why this action?" className="mt-1.5">
-              <p>{item.reason}</p>
-              {item.evidenceSummary ? <p className="mt-1.5">{item.evidenceSummary}</p> : null}
-            </DisclosurePanel>
-          ) : null}
+          <DisclosurePanel summary="Why this action?" className="mt-1.5">
+            <p>{item.reason}</p>
+            {item.evidenceSummary ? <p className="mt-1.5">{item.evidenceSummary}</p> : null}
+          </DisclosurePanel>
         </div>
 
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">

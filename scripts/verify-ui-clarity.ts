@@ -17,7 +17,19 @@
  */
 import * as fs from "fs";
 import * as path from "path";
-import { computeEvidenceReadiness, EVIDENCE_READINESS_DETAIL, EVIDENCE_READINESS_LABEL } from "../src/lib/prospect/evidence-readiness";
+import {
+  computeEvidenceReadiness,
+  EVIDENCE_READINESS_DETAIL,
+  EVIDENCE_READINESS_LABEL,
+  getOverallReadinessBadge,
+  describeBriefSummary,
+  describeRecommendedOfferReason,
+  NO_AUDIT_SUMMARY_SUFFIX,
+  NO_OFFER_SUFFIX,
+  RECOMMENDED_OFFER_VERIFIED_OBSERVATION_NOTE,
+  OUTREACH_READY_NOTE
+} from "../src/lib/prospect/evidence-readiness";
+import { evaluateChannelActivation } from "../src/lib/prospect/contact-verification";
 
 let passed = 0;
 let failed = 0;
@@ -119,17 +131,23 @@ console.log("\n5. Evidence-readiness wording -- Gold Stars-shape verified-observ
   check("hasWebsiteNoAuditBrief() (the persisted brief generator) is untouched -- the fix never rewrites what's stored", /confidence: 0/.test(briefSrc) && !/evidence-readiness|verifiedObservation/.test(briefSrc));
 }
 
-console.log("\n6. Evidence readiness is consistently derived on both Prospect Detail and Daily Queue (same read-time override, same source)");
+console.log("\n6. Evidence readiness is consistently derived on Prospect Detail, Daily Queue AND the Playbook (same shared helpers, same source)");
 {
   const prospectPageSrc = src("src/app/prospects/[id]/page.tsx");
   check("Prospect Detail imports getVerifiedManualObservations() -- the exact function the Playbook itself already uses for its own Verified Observation stage", /getVerifiedManualObservations/.test(prospectPageSrc));
-  check("Prospect Detail imports computeEvidenceReadiness() / EVIDENCE_READINESS_* from the one shared evidence-readiness module", /from "@\/lib\/prospect\/evidence-readiness"/.test(prospectPageSrc));
-  check("Prospect Detail never rewrites the persisted brief -- only overrides the rendered `briefSummary` variable, never calls an update/write to opportunity_briefs", !/\.from\("opportunity_briefs"\)\.update|\.from\("opportunity_briefs"\)\.upsert/.test(prospectPageSrc));
+  check("Prospect Detail imports the shared describeBriefSummary/describeRecommendedOfferReason/getOverallReadinessBadge from evidence-readiness.ts", /from "@\/lib\/prospect\/evidence-readiness"/.test(prospectPageSrc) && /getOverallReadinessBadge/.test(prospectPageSrc) && /describeBriefSummary/.test(prospectPageSrc) && /describeRecommendedOfferReason/.test(prospectPageSrc));
+  check("Prospect Detail never rewrites the persisted brief -- only overrides rendered variables, never calls an update/write to opportunity_briefs", !/\.from\("opportunity_briefs"\)\.update|\.from\("opportunity_briefs"\)\.upsert/.test(prospectPageSrc));
 
   const queueRouteSrc = src("src/app/api/prospects/queue/route.ts");
-  check("the Daily Queue API applies the identical known-sentence override using the same EVIDENCE_READINESS_DETAIL constant", /from "@\/lib\/prospect\/evidence-readiness"/.test(queueRouteSrc) && /EVIDENCE_READINESS_DETAIL\.verified_observation/.test(queueRouteSrc));
-  check("the Daily Queue override is read-only (SELECT from prospect_evidence_observations, never a write)", /\.from\("prospect_evidence_observations"\)\s*\n?\s*\.select/.test(queueRouteSrc));
+  check("the Daily Queue API applies the identical describeBriefSummary() override from the same shared module", /from "@\/lib\/prospect\/evidence-readiness"/.test(queueRouteSrc) && /describeBriefSummary\(/.test(queueRouteSrc));
+  check("the Daily Queue derives a REAL verifiedChannel via evaluateChannelActivation() against actual verification rows, not the loose playbookChannel hint", /evaluateChannelActivation\(records, "CALL"\)/.test(queueRouteSrc) && /verifiedChannel/.test(queueRouteSrc));
+  check("the Daily Queue's evidence fetches are read-only (SELECT from prospect_evidence_observations / prospect_contact_verifications, never a write)", /\.from\("prospect_evidence_observations"\)\s*\n?\s*\.select/.test(queueRouteSrc) && /\.from\("prospect_contact_verifications"\)\s*\n?\s*\.select/.test(queueRouteSrc));
   check("opportunity_level itself is passed through unchanged in the queue response (never recomputed/overridden)", /opportunityLevel: brief\?\.opportunity_level \?\? null/.test(queueRouteSrc));
+
+  const resolveContextSrc = src("src/lib/playbook/resolve-context.ts");
+  check("the Playbook's resolve-context.ts also imports and applies describeBriefSummary() to its own opportunitySummary -- the third screen, same shared helper", /from "@\/lib\/prospect\/evidence-readiness"/.test(resolveContextSrc) && /describeBriefSummary\(/.test(resolveContextSrc));
+  check("resolve-context.ts fetches opportunity_level and exposes it on PlaybookIntelligence for the badge", /select\("summary, opportunity_level"\)/.test(resolveContextSrc) && /opportunityLevel: OpportunityLevel \| null;/.test(resolveContextSrc));
+  check("the Playbook never writes to opportunity_briefs either", !/\.from\("opportunity_briefs"\)\.update|\.from\("opportunity_briefs"\)\.upsert/.test(resolveContextSrc));
 }
 
 console.log("\n7. Daily Queue action priority -- Open Playbook dominates CALL/EMAIL, Run Audit dominates an unaudited prospect");
@@ -143,10 +161,131 @@ console.log("\n7. Daily Queue action priority -- Open Playbook dominates CALL/EM
   check("Mark Done / Snooze / Skip controls have readable text labels, not icon-only", /Mark done/.test(s) && />\s*Snooze/.test(s) && /Skip/.test(s));
 }
 
-console.log("\n8. Disabled/unverified channel explanation is preserved (Playbook, untouched by this rebuild)");
+console.log("\n8. Disabled/unverified channel explanation is preserved and unchanged in meaning (Playbook)");
 {
   const s = src("src/app/prospects/[id]/playbook/intelligence-card.tsx");
-  check("intelligence-card.tsx (channel verification display) was not touched beyond the font-size pass -- still renders a real disabled-channel reason", fs.existsSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/intelligence-card.tsx")));
+  check("ChannelRow still renders the real disabled-channel reasons (no_verification / conflicting_sources), unchanged", /no_verification: "Not verified — channel disabled"/.test(s) && /conflicting_sources: "Conflicting sources — channel disabled"/.test(s));
+  check("ChannelRow's activation logic itself is untouched -- still driven by the real evaluateChannelActivation() result passed in via the `channels` prop (PlaybookChannelStatus), never re-derived inside this component", /result\.activatable/.test(s) && /channels: PlaybookChannelStatus/.test(s));
+}
+
+console.log("\n9. OWNER-REVIEW CORRECTION #1: verified observation + no audit never renders overall 'Insufficient evidence' (P0 blocker)");
+{
+  check(
+    "getOverallReadinessBadge() replaces the label entirely when insufficient_evidence + a verified observation coincide -- 'Insufficient evidence' is not the label in that case",
+    getOverallReadinessBadge("insufficient_evidence", true).label !== "Insufficient evidence" && getOverallReadinessBadge("insufficient_evidence", true).label === "Verified observation available"
+  );
+  check(
+    "the genuine insufficient-evidence case (no audit, no verified observation) is untouched -- still says 'Insufficient evidence', fail-closed",
+    getOverallReadinessBadge("insufficient_evidence", false).label === "Insufficient evidence"
+  );
+  check("high/medium/low opportunity levels are never touched by the verified-observation override (it only ever applies to insufficient_evidence)", getOverallReadinessBadge("high", true).label === "High opportunity" && getOverallReadinessBadge("medium", true).label === "Medium opportunity" && getOverallReadinessBadge("low", true).label === "Low opportunity");
+
+  for (const [name, file] of [
+    ["Prospect Detail", "src/app/prospects/[id]/page.tsx"],
+    ["Daily Queue", "src/app/prospecting/prospecting-client.tsx"],
+    ["Playbook intelligence card", "src/app/prospects/[id]/playbook/intelligence-card.tsx"]
+  ] as const) {
+    const s = src(file);
+    check(`${name} renders its overall badge via the shared getOverallReadinessBadge(), never a raw opportunityLevel-only label map`, /getOverallReadinessBadge\(/.test(s));
+    check(`${name} contains no separate hardcoded "Insufficient evidence" label map (LEVEL_LABEL) that could show alongside the readiness badge`, !/insufficient_evidence:\s*"Insufficient evidence"/.test(s));
+  }
+}
+
+console.log("\n10. OWNER-REVIEW CORRECTION #2: Gold Stars-shape display -- verified observation available, full audit not completed, outreach-ready when permitted");
+{
+  check("the verified_observation detail sentence says 'Verified outreach observation available'", /^Verified outreach observation available\./.test(EVIDENCE_READINESS_DETAIL.verified_observation));
+  check("the verified_observation detail sentence says a full audit is 'not yet completed'", /Full website audit not yet completed/.test(EVIDENCE_READINESS_DETAIL.verified_observation));
+  check("OUTREACH_READY_NOTE is the exact 'Ready for verified-observation outreach' language the owner-review requires", OUTREACH_READY_NOTE === "Ready for verified-observation outreach");
+
+  for (const [name, file] of [
+    ["Prospect Detail", "src/app/prospects/[id]/page.tsx"],
+    ["Daily Queue", "src/app/prospecting/prospecting-client.tsx"],
+    ["Playbook intelligence card", "src/app/prospects/[id]/playbook/intelligence-card.tsx"]
+  ] as const) {
+    const s = src(file);
+    check(`${name} shows OUTREACH_READY_NOTE only when a verified observation exists AND a channel is genuinely permitted`, /showOutreachReady/.test(s) && /hasVerifiedObservation/.test(s));
+  }
+  // Prospect Detail and the Daily Queue derive "channel permitted" from a
+  // REAL evaluateChannelActivation() result -- never a loose hint.
+  check("Prospect Detail's hasPermittedChannel is a real evaluateChannelActivation() result against fetched prospect_contact_verifications rows", /evaluateChannelActivation\(verificationRecords, "CALL"\)\.activatable \|\| evaluateChannelActivation\(verificationRecords, "EMAIL"\)\.activatable/.test(src("src/app/prospects/[id]/page.tsx")));
+  check("the Playbook's outreach-ready note reuses the SAME channels.call/email.activatable this card's own ChannelRow rows already render -- no second, separate check", /showOutreachReady = hasVerifiedObservation && \(channels\.call\.activatable \|\| channels\.email\.activatable\)/.test(src("src/app/prospects/[id]/playbook/intelligence-card.tsx")));
+}
+
+console.log("\n11. OWNER-REVIEW CORRECTION #3: 'nothing to base an offer on' is corrected to name the real, narrower distinction");
+{
+  check("NO_OFFER_SUFFIX matches the real computeRecommendedOffer() sentence", /nothing to base an offer on\.$/.test(`No audit has been run yet — ${NO_OFFER_SUFFIX}`));
+  check(
+    "describeRecommendedOfferReason() replaces it with the exact required sentence when a verified observation exists",
+    describeRecommendedOfferReason("No audit has been run yet — nothing to base an offer on.", true) === RECOMMENDED_OFFER_VERIFIED_OBSERVATION_NOTE
+  );
+  check("RECOMMENDED_OFFER_VERIFIED_OBSERVATION_NOTE is the exact required sentence", RECOMMENDED_OFFER_VERIFIED_OBSERVATION_NOTE === "Full recommended offer unavailable until the website audit is completed.");
+  check(
+    "the override never fires without a verified observation -- fail-closed preserved for the genuinely-insufficient case",
+    describeRecommendedOfferReason("No audit has been run yet — nothing to base an offer on.", false) === "No audit has been run yet — nothing to base an offer on."
+  );
+  check("Prospect Detail's Recommended Offer card renders the corrected `recommendedOfferReason`, not the raw brief.recommendedOfferReason", /\{recommendedOfferReason\}/.test(src("src/app/prospects/[id]/page.tsx")));
+}
+
+console.log("\n12. OWNER-REVIEW CORRECTION #4: no audit score is ever fabricated by any of this");
+{
+  const readinessSrc = src("src/lib/prospect/evidence-readiness.ts");
+  check("evidence-readiness.ts contains no numeric score literal or scoring computation of its own", !/overallScore\s*[:=]\s*\d/.test(readinessSrc) && !/score\s*=\s*\d/.test(readinessSrc));
+  check("the opportunity-brief generator's own confidence:0 for the no-audit case is untouched", /confidence: 0/.test(src("src/lib/prospect/opportunity-brief.ts")));
+  const prospectPageSrc = src("src/app/prospects/[id]/page.tsx");
+  check("Prospect Detail still renders the REAL brief.confidence value verbatim (never a fabricated replacement)", /Math\.round\(brief\.confidence \* 100\)/.test(prospectPageSrc));
+}
+
+console.log("\n13. OWNER-REVIEW CORRECTION #5: unaudited prospects WITHOUT a verified observation still fail closed");
+{
+  check("computeEvidenceReadiness() with no audit and no observation is 'insufficient', never 'verified_observation'", computeEvidenceReadiness({ hasWebsite: true, hasAudit: false, hasVerifiedObservation: false }) === "insufficient");
+  check("getOverallReadinessBadge() keeps showing 'Insufficient evidence' for that exact case on every screen (already re-checked in section 9)", getOverallReadinessBadge("insufficient_evidence", false).label === "Insufficient evidence");
+  check(
+    "describeBriefSummary() never overrides the stale sentence without hasVerifiedObservation:true",
+    describeBriefSummary(`X has an existing website, but no audit has been run yet — ${NO_AUDIT_SUMMARY_SUFFIX}`, false)?.endsWith(NO_AUDIT_SUMMARY_SUFFIX) ?? false
+  );
+  check(
+    "describeRecommendedOfferReason() never overrides without hasVerifiedObservation:true",
+    describeRecommendedOfferReason(`No audit has been run yet — ${NO_OFFER_SUFFIX}`, false)?.endsWith(NO_OFFER_SUFFIX) ?? false
+  );
+  check(
+    "evaluateChannelActivation() itself (the underlying fail-closed contact-verification logic) is completely untouched by this correction",
+    evaluateChannelActivation([], "CALL").activatable === false && (evaluateChannelActivation([], "CALL") as { reason?: string }).reason === "no_verification"
+  );
+}
+
+console.log("\n14. OWNER-REVIEW CORRECTION #6: Daily Queue hides/de-emphasizes an unhelpful all-zero summary strip");
+{
+  const s = src("src/app/prospecting/prospecting-client.tsx");
+  check("the summary strip's categories are now derived from the real, currently-visible queue items (actionLabel counts), not a fixed bucket set that can miss every real action type", /counts\.set\(item\.actionLabel, \(counts\.get\(item\.actionLabel\) \?\? 0\) \+ 1\)/.test(s));
+  check("Meetings Scheduled is only added when it's genuinely non-zero, never a guaranteed-empty tile", /meetingsScheduled > 0/.test(s));
+  check("the strip is not rendered at all when there is nothing meaningful to show", /summaryItems\.length > 0 \? \(/.test(s));
+}
+
+console.log("\n15. OWNER-REVIEW CORRECTION #7: technical sequence instructions live inside the disclosure, a concise human sentence is dominant");
+{
+  const s = src("src/app/prospecting/prospecting-client.tsx");
+  check("SEQUENCE_STEP rows get a concise, human conciseReason instead of the raw stored reason", /const conciseReason =/.test(s) && /item\.actionType === "SEQUENCE_STEP"/.test(s));
+  check("the example language the owner-review specified is present for the verified-observation case", /Call using the verified observation and ask permission to send the assessment\./.test(s));
+  check("the dominant paragraph renders conciseReason, not the raw item.reason, for every row", /\{conciseReason\}/.test(s));
+  check("the FULL original reason is unconditionally available inside 'Why this action?' -- never trimmed away, always present regardless of length", /<DisclosurePanel summary="Why this action\?" className="mt-1\.5">\s*\n\s*<p>\{item\.reason\}<\/p>/.test(s));
+}
+
+console.log("\n16. OWNER-REVIEW CORRECTION #8: Projects search works without changing project records");
+{
+  const s = src("src/app/projects/new/new-project-client.tsx");
+  check("a client-side search input filters the current page's projects by name/website/industry/analysis state", /const filteredProjects = useMemo/.test(s) && /analysisStateLabel\(project\)/.test(s));
+  check("the search never calls a mutating endpoint -- it's pure client-side Array.filter over already-loaded `projects`", /projects\.filter\(\(project\) =>/.test(s));
+  check("pagination is preserved unchanged -- the existing <Pagination> component and its page/totalPages props are untouched", /<Pagination page=\{page\} totalPages=\{totalPages\} basePath="\/projects\/new" \/>/.test(s));
+  check("a no-matches state offers a clear next step (clear search) rather than a dead end", /No matches on this page/.test(s) && /Clear search/.test(s));
+  check("the repeated non-row-specific 'Generate leads' subline is gone -- replaced with real, row-specific reference-count context", !/\{project\.primaryGoal\}/.test(s) && /project\.referenceCount > 0/.test(s));
+}
+
+console.log("\n17. OWNER-REVIEW CORRECTION: navigation copy distinguishes Find Clients from Find Audits accurately, without adding/removing capability");
+{
+  const s = src("src/components/shell.tsx");
+  check("Find Clients' description no longer claims Finder only surfaces no-website businesses (P0.5 already broadened Finder to every result)", !/Scan Google Maps for businesses with no website/.test(s));
+  check("Find Audits' description names its real distinguishing behavior: businesses that already have a website, queued straight for an audit", /businesses that already have a website/.test(s) && /queued straight for a real 11-module audit/.test(s));
+  check("Find Clients' new description still accurately reflects real Finder behavior (scored results, instant demo for the no-website subset) -- not a capability that was added for this fix", /every result scored/.test(s) && /demo site ready instantly/.test(s));
 }
 
 console.log("\n9. Suppression presentation -- a clearly separated danger area, never equal prominence with the primary action");

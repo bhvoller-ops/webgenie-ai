@@ -5,7 +5,8 @@ import { evaluateChannelActivation, type ContactVerificationRecord, type Channel
 import { getVerifiedManualObservations } from "@/lib/prospect/manual-evidence";
 import { resolvePlaybookConfig } from "./get-config";
 import type { PlaybookConfig } from "./types";
-import type { Prospect, SequenceStepActionMetadata, SequenceStepChannel } from "@/lib/prospect/types";
+import type { OpportunityLevel, Prospect, SequenceStepActionMetadata, SequenceStepChannel } from "@/lib/prospect/types";
+import { describeBriefSummary } from "@/lib/prospect/evidence-readiness";
 
 /**
  * The ONE place that decides "is this prospect/action/enrollment/channel
@@ -65,6 +66,15 @@ export interface PlaybookIntelligence {
   suppressionReason: string | null;
   verifiedObservations: string[];
   opportunitySummary: string | null;
+  /**
+   * OWNER-REVIEW CORRECTION (evidence contradiction): the real
+   * opportunity_briefs.opportunity_level, exposed so intelligence-card.tsx
+   * can render the SAME single, non-contradictory readiness badge Prospect
+   * Detail and the Daily Queue use (getOverallReadinessBadge() in
+   * lib/prospect/evidence-readiness.ts) -- never its own separate
+   * "Insufficient evidence" claim alongside a verified-observation note.
+   */
+  opportunityLevel: OpportunityLevel | null;
   priorContactCount: number;
   lastContactOutcome: string | null;
   organizationName: string;
@@ -212,7 +222,16 @@ export async function resolvePlaybookContext(
   const recommendedChannel: "CALL" | "EMAIL" | null = channels.call.activatable ? "CALL" : channels.email.activatable ? "EMAIL" : null;
 
   const verifiedObservations = await getVerifiedManualObservations(supabase, organizationId, prospectId);
-  const { data: briefRow } = await supabase.from("opportunity_briefs").select("summary").eq("prospect_id", prospectId).maybeSingle();
+  const hasVerifiedObservation = verifiedObservations.length > 0;
+  const { data: briefRow } = await supabase
+    .from("opportunity_briefs")
+    .select("summary, opportunity_level")
+    .eq("prospect_id", prospectId)
+    .maybeSingle();
+  // OWNER-REVIEW CORRECTION: the same read-time-only override Prospect
+  // Detail and the Daily Queue apply -- never a rewrite of the persisted
+  // brief. See evidence-readiness.ts's file header for the full reasoning.
+  const opportunitySummary = describeBriefSummary(briefRow?.summary ?? null, hasVerifiedObservation);
 
   const { count: priorContactCount } = await supabase
     .from("prospect_activities")
@@ -240,7 +259,8 @@ export async function resolvePlaybookContext(
     intelligence: intelligenceFromProspect(prospect, {
       suppressed,
       verifiedObservations,
-      opportunitySummary: briefRow?.summary ?? null,
+      opportunitySummary,
+      opportunityLevel: (briefRow?.opportunity_level as OpportunityLevel | undefined) ?? null,
       priorContactCount: priorContactCount ?? 0,
       lastContactOutcome: (lastCallLog?.status as string | undefined) ?? null,
       organizationName,
@@ -256,6 +276,7 @@ function intelligenceFromProspect(
     suppressed: boolean;
     verifiedObservations: string[];
     opportunitySummary: string | null;
+    opportunityLevel: OpportunityLevel | null;
     priorContactCount: number;
     lastContactOutcome: string | null;
     organizationName: string;
@@ -275,6 +296,7 @@ function intelligenceFromProspect(
     suppressionReason: prospect.suppressionReason ?? null,
     verifiedObservations: extra.verifiedObservations,
     opportunitySummary: extra.opportunitySummary,
+    opportunityLevel: extra.opportunityLevel,
     priorContactCount: extra.priorContactCount,
     lastContactOutcome: extra.lastContactOutcome,
     organizationName: extra.organizationName,
