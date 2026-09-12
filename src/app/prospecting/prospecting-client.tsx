@@ -267,12 +267,21 @@ function QueueRow({
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <Link
-            href={`/prospects/${item.prospectId}`}
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
-          >
-            Open Prospect
-          </Link>
+          {item.playbookChannel ? (
+            <Link
+              href={`/prospects/${item.prospectId}/playbook?actionId=${item.actionId}${item.enrollmentId ? `&enrollmentId=${item.enrollmentId}` : ""}`}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+            >
+              Open Playbook
+            </Link>
+          ) : (
+            <Link
+              href={`/prospects/${item.prospectId}`}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+            >
+              Open Prospect
+            </Link>
+          )}
           <div className="relative flex items-center gap-1">
             <button
               onClick={() => onAct(item.actionId, { op: "complete" })}

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight, Layers, MapPin, Phone, Star } from "lucide-react";
+import { ArrowUpRight, History, Layers, MapPin, Phone, PhoneCall, Star } from "lucide-react";
 import { Breadcrumbs, PageShell } from "@/components/shell";
 import { Pill } from "@/components/ui";
 import { ScoreRing } from "@/components/score-ring";
@@ -85,6 +85,23 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                 </span>
               ) : null}
             </div>
+            {/* OWNER-REVIEW CORRECTION: a suppressed prospect keeps a real
+                entry point into the playbook, renamed and re-styled to make
+                the read-only nature obvious rather than hidden -- see
+                playbook-workspace.tsx's own suppressed branch, which is
+                what actually enforces read-only (this label change is
+                honesty, not the security boundary itself). */}
+            <Link
+              href={`/prospects/${prospect.id}/playbook`}
+              className={
+                prospect.suppressedAt
+                  ? "focus-ring mt-4 inline-flex items-center gap-2 rounded-xl border border-signal-bad/35 bg-signal-bad/10 px-4 py-2.5 text-sm font-semibold text-signal-bad transition-all hover:bg-signal-bad/15"
+                  : "focus-ring mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+              }
+            >
+              {prospect.suppressedAt ? <History className="h-4 w-4" aria-hidden /> : <PhoneCall className="h-4 w-4" aria-hidden />}
+              {prospect.suppressedAt ? "View Outreach History" : "Open Playbook"}
+            </Link>
           </div>
 
           {intelligence ? (

@@ -6,7 +6,7 @@
  *
  * Run with: npx tsx scripts/verify-insights.ts
  */
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { buildInsightsSummary, hasSufficientSampleSize, excludeTestOrganizations, MIN_SAMPLE_SIZE_FOR_COMPARISON, ZERO_INSIGHTS_COUNTS, type InsightsCounts } from "../src/lib/prospect/insights";
 
 let passed = 0;
@@ -67,7 +67,10 @@ console.log("56a. Phase 1.1 MANDATORY FIX 1 -- a test organization's metrics are
 console.log("57. a generated pitch is never counted as outreach");
 {
   const src = readFileSync("src/lib/prospect/insights-query.ts", "utf8");
-  check("outreachPerformed counts CONTACT_ATTEMPTED, not PITCH_GENERATED", /countActivity\(supabase, organizationId, "CONTACT_ATTEMPTED"\)/.test(src));
+  check(
+    "outreachPerformed counts genuine CONTACT_ATTEMPTED activity, not PITCH_GENERATED (OPERATIONAL FOLLOW-THROUGH CORRECTION: routed through countGenuineOutreachAttempts(), which also excludes contact-quality-issue events flagged via metadata.kind -- see section 66 below)",
+    /countGenuineOutreachAttempts\(supabase, organizationId\)/.test(src) && /eq\("activity_type", "CONTACT_ATTEMPTED"\)/.test(src)
+  );
   check("PITCH_GENERATED is never queried by the insights route at all", !/PITCH_GENERATED/.test(src));
 }
 
@@ -115,6 +118,19 @@ console.log("65. test/simulated outcomes are excluded via the same organization-
 {
   const summary = buildInsightsSummary(sampleCounts, true);
   check("a test organization's own summary is clearly marked, so its numbers are never mistaken for real production performance", summary.isTestOrganization);
+}
+
+console.log("66. OPERATIONAL FOLLOW-THROUGH CORRECTION: a contact-quality issue (wrong contact / invalid number / disputed info) is excluded from outreachPerformed, even though it is logged under the same CONTACT_ATTEMPTED activity_type as a genuine attempt");
+{
+  const src = readFileSync("src/lib/prospect/insights-query.ts", "utf8");
+  check(
+    "the exclusion is done by fetching real rows and filtering in application code on metadata.kind, not a SQL-level jsonb path filter (deliberately avoided -- Postgres/PostgREST NULL-vs-missing-key semantics on `->>'kind' != 'x'` would silently exclude rows that simply have no kind at all)",
+    /data\.filter\(\(row\) => \(row\.metadata as Record<string, unknown> \| null\)\?\.kind !== "contact_quality_issue"\)/.test(src)
+  );
+  check(
+    "a full functional proof (one genuine + one contact-quality-flagged CONTACT_ATTEMPTED row -> outreachPerformed counts only the genuine one) lives in scripts/verify-playbook-operational-followthrough.ts section 14 -- not duplicated here",
+    existsSync("scripts/verify-playbook-operational-followthrough.ts")
+  );
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

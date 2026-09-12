@@ -23,7 +23,7 @@ import type { OpportunityLevel } from "@/lib/prospect/types";
  * implementation of either.
  */
 const schema = z.object({
-  action: z.enum(["run_audit", "generate_demo", "contact", "refresh"])
+  action: z.enum(["run_audit", "generate_demo", "contact", "refresh", "create_fulfillment_project"])
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -214,6 +214,71 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case "refresh":
       // Nothing to change here — just forces the regenerate call below.
       break;
+
+    case "create_fulfillment_project": {
+      // Home Services Live Outreach Playbook, Stage 13: WON never creates a
+      // project automatically (Won Client Handoff's own rule) — this is
+      // the one explicit, deliberate action that does, reusing the exact
+      // same `projects` insert shape "run_audit" already uses above,
+      // minus the audit-specific website_reference/analysis_job rows this
+      // isn't running an audit. Only ever callable for an actually-WON
+      // prospect that doesn't already have one.
+      if (prospect.status !== "won") {
+        return NextResponse.json({ error: "Only a WON prospect can have a fulfillment project created." }, { status: 400 });
+      }
+      if (prospect.projectId) {
+        return NextResponse.json({ error: "A project already exists for this prospect." }, { status: 400 });
+      }
+      const { data: organization } = await supabase.from("organizations").select("plan_key").eq("id", organizationId).single();
+      const planKey = organization?.plan_key ?? "starter";
+      try {
+        await assertWithinLimit(supabase, organizationId, planKey, "projects");
+        const { data: project, error: projectError } = await supabase
+          .from("projects")
+          .insert({
+            organization_id: organizationId,
+            name: prospect.businessName,
+            industry: prospect.industry ? industryLabel(prospect.industry as IndustryKey) : "General",
+            primary_goal: "Fulfill agreed scope",
+            primary_cta: "Call now",
+            created_by: user.id,
+            status: "active"
+          })
+          .select("id")
+          .single();
+        if (projectError || !project) throw new Error(projectError?.message ?? "Unable to create project.");
+        await recordUsage(supabase, organizationId, "projects", user.id, project.id);
+
+        // Owner-review correction: a concurrent double-click could otherwise
+        // let two requests both pass the earlier `!prospect.projectId`
+        // check before either commits, each inserting its own project and
+        // racing to "win" the prospect's single project_id slot -- leaving
+        // an orphaned, partially-created project row from whichever
+        // request lost. Claim the slot with a CONDITIONAL update (only
+        // succeeds if project_id is still genuinely null, re-checked at
+        // write time, not merely at the read moment above) and roll back
+        // this request's own project insert if it loses the race, so no
+        // partially-created state survives either way.
+        const { data: claimed, error: claimError } = await supabase
+          .from("prospects")
+          .update({ project_id: project.id, updated_at: new Date().toISOString() })
+          .eq("id", prospect.id)
+          .eq("organization_id", organizationId)
+          .is("project_id", null)
+          .select("id");
+        if (claimError) throw new Error(claimError.message);
+        if (!claimed || claimed.length === 0) {
+          // Lost the race (or a project appeared between the initial read
+          // and now for any other reason) -- clean up this request's own
+          // orphan project rather than leave it dangling and unlinked.
+          await supabase.from("projects").delete().eq("id", project.id).eq("organization_id", organizationId);
+          return NextResponse.json({ error: "A fulfillment project was already created for this prospect (possibly by a concurrent request)." }, { status: 409 });
+        }
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create project." }, { status: 500 });
+      }
+      break;
+    }
   }
 
   const { data: refreshedRow } = await supabase.from("prospects").select("*").eq("id", prospect.id).single();
