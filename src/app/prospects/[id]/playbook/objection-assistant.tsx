@@ -65,7 +65,7 @@ export function ObjectionAssistant({ objections, vars }: { objections: Objection
 
       {active ? (
         <div className="mt-3">
-          <button type="button" onClick={() => setActive(null)} className="focus-ring text-[11.5px] text-iris-soft hover:underline">
+          <button type="button" onClick={() => setActive(null)} className="focus-ring text-[13px] text-iris-soft hover:underline">
             ← Back to list
           </button>
           <p className="mt-2 text-[12px] font-semibold text-ink">{active.label}</p>
@@ -78,7 +78,7 @@ export function ObjectionAssistant({ objections, vars }: { objections: Objection
               key={o.key}
               type="button"
               onClick={() => setActive(o)}
-              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[11.5px] text-muted hover:border-signal-warn/40 hover:text-ink"
+              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[13px] text-muted hover:border-signal-warn/40 hover:text-ink"
             >
               {o.label}
             </button>

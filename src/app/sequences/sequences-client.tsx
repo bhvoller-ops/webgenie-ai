@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Archive, Loader2, Plus, Repeat, Trash2 } from "lucide-react";
+import { Archive, Plus, Trash2 } from "lucide-react";
 import { PageShell } from "@/components/shell";
+import { PageHeader, EmptyState, LoadingSkeleton, DisclosurePanel } from "@/components/workspace";
 import { Pill } from "@/components/ui";
 import { SEQUENCE_STEP_CHANNEL_LABELS, type SequenceStepChannel } from "@/lib/prospect/types";
 
@@ -100,29 +101,19 @@ export function SequencesClient() {
 
   return (
     <PageShell role="admin">
-      <div className="panel p-6 sm:p-10">
-        <Pill tone="iris">
-          <Repeat className="h-3 w-3" aria-hidden />
-          Assisted Outreach Sequences
-        </Pill>
-        <h1 className="mt-4 max-w-2xl text-display-lg font-semibold text-ink">
-          You send it. <span className="gradient-text">WebGenie prepares it.</span>
-        </h1>
-        <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted">
-          Build a repeatable outreach plan, enroll a prospect, and WebGenie will surface each step in your Daily Queue exactly when it&rsquo;s due — never before, never sent automatically.
-        </p>
-      </div>
-
-      <div className="mt-6 flex items-center justify-between">
-        <h2 className="text-display-md font-semibold text-ink">Your Sequences</h2>
-        <button
-          onClick={() => setShowBuilder((v) => !v)}
-          className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          New Sequence
-        </button>
-      </div>
+      <PageHeader
+        title="Sequences"
+        description="Build a repeatable outreach plan and enroll a prospect — WebGenie surfaces each step in your Daily Queue exactly when it's due, never before, never sent automatically."
+        primaryAction={
+          <button
+            onClick={() => setShowBuilder((v) => !v)}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            New Sequence
+          </button>
+        }
+      />
 
       {showBuilder ? (
         <div className="mt-4 card p-6">
@@ -193,44 +184,79 @@ export function SequencesClient() {
       ) : null}
 
       {loading ? (
-        <div className="mt-8 flex justify-center py-12 text-muted">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        <div className="mt-6">
+          <LoadingSkeleton rows={3} />
         </div>
       ) : sequences.length === 0 ? (
-        <p className="mt-8 text-[13px] text-faint">No sequences yet — create one above.</p>
+        <div className="mt-6">
+          <EmptyState
+            title="No sequences yet"
+            description="Create a sequence above — a flat, ordered list of steps you enroll a prospect into. WebGenie surfaces each step when it's due; nothing sends itself."
+          />
+        </div>
       ) : (
-        <div className="mt-5 space-y-2.5">
-          {sequences.map((s) => (
-            <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-hairline bg-canvas/70 p-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-semibold text-ink">{s.name}</span>
+        <div className="mt-6 space-y-6">
+          <SequenceGroup label="Active & draft" sequences={sequences.filter((s) => s.status !== "archived")} onSetStatus={setStatus} onRemove={remove} />
+          <SequenceGroup label="Archived" sequences={sequences.filter((s) => s.status === "archived")} onSetStatus={setStatus} onRemove={remove} />
+        </div>
+      )}
+    </PageShell>
+  );
+}
+
+function SequenceGroup({
+  label,
+  sequences,
+  onSetStatus,
+  onRemove
+}: {
+  label: string;
+  sequences: SequenceRow[];
+  onSetStatus: (id: string, status: "draft" | "active" | "archived") => void;
+  onRemove: (id: string) => void;
+}) {
+  if (sequences.length === 0) return null;
+  return (
+    <div>
+      <h3 className="mb-2.5 text-[12.5px] font-semibold uppercase tracking-wide text-muted">{label}</h3>
+      <div className="space-y-2.5">
+        {sequences.map((s) => (
+          <div key={s.id} className="rounded-panel border border-hairline bg-canvas/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-semibold text-ink">{s.name}</span>
                   <Pill tone={STATUS_TONE[s.status]}>{s.status}</Pill>
-                  <span className="text-[11px] text-faint">{s.stepCount} step{s.stepCount === 1 ? "" : "s"}</span>
+                  <span className="text-[12.5px] text-faint">{s.stepCount} step{s.stepCount === 1 ? "" : "s"}</span>
                 </div>
-                {s.description ? <p className="mt-1 text-[12px] text-faint">{s.description}</p> : null}
               </div>
               <div className="flex items-center gap-1.5">
                 {s.status === "draft" ? (
-                  <button onClick={() => setStatus(s.id, "active")} className="focus-ring rounded-md border border-hairline bg-raised px-2.5 py-1 text-[11.5px] text-muted hover:text-ink">
+                  <button onClick={() => onSetStatus(s.id, "active")} className="focus-ring rounded-md border border-hairline bg-raised px-2.5 py-1.5 text-[12.5px] font-medium text-muted hover:text-ink">
                     Activate
                   </button>
                 ) : s.status === "active" ? (
-                  <button onClick={() => setStatus(s.id, "archived")} className="focus-ring rounded-md border border-hairline bg-raised px-2.5 py-1 text-[11.5px] text-muted hover:text-ink">
+                  <button onClick={() => onSetStatus(s.id, "archived")} className="focus-ring rounded-md border border-hairline bg-raised px-2.5 py-1.5 text-[12.5px] font-medium text-muted hover:text-ink">
                     <Archive className="mr-1 inline h-3 w-3" aria-hidden />
                     Archive
                   </button>
                 ) : null}
+                {/* Destructive action, separated and secondary -- only reachable for a draft that was never activated. */}
                 {s.status === "draft" ? (
-                  <button onClick={() => remove(s.id)} className="focus-ring rounded-md p-1.5 text-faint hover:text-signal-bad">
+                  <button onClick={() => onRemove(s.id)} aria-label={`Delete ${s.name}`} className="focus-ring rounded-md p-1.5 text-faint hover:text-signal-bad">
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                   </button>
                 ) : null}
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </PageShell>
+            {s.description ? (
+              <DisclosurePanel summary="Description" className="mt-2">
+                <p>{s.description}</p>
+              </DisclosurePanel>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

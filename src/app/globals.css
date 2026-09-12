@@ -61,6 +61,14 @@ body {
     @apply text-eyebrow font-semibold uppercase text-faint;
   }
 
+  /* UI clarity correction: the authenticated-app label -- legible 13px,
+     restrained tracking -- for use in place of `.eyebrow` on every
+     redesigned workspace page. `.eyebrow` itself is untouched (still used
+     by public/marketing surfaces and any not-yet-redesigned page). */
+  .label {
+    @apply text-label-sm font-semibold uppercase text-faint;
+  }
+
   .hairline-x {
     background: linear-gradient(
       90deg,

@@ -8,15 +8,14 @@ import {
   CheckCircle2,
   Clock,
   Compass,
-  Loader2,
   MapPin,
   Rocket,
   Search,
   SkipForward,
-  Sparkles,
   Target,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
+import { PageHeader, SummaryStrip, SummaryStripSkeleton, ActionToolbar, EmptyState, ErrorState, LoadingSkeleton, DisclosurePanel, InlineSpinner, type SummaryStripItem } from "@/components/workspace";
 import { Pill, type PillTone } from "@/components/ui";
 import type { QueueItem, QueueSummary } from "@/app/api/prospects/queue/route";
 import { cn } from "@/lib/format";
@@ -35,7 +34,7 @@ const FILTERS: { key: QueueFilter; label: string }[] = [
 const LEVEL_TONE: Record<string, PillTone> = { high: "good", medium: "warn", low: "neutral", insufficient_evidence: "info" };
 const PRIORITY_TONE: Record<string, PillTone> = { high: "bad", medium: "warn", low: "neutral" };
 
-const DEFAULT_VISIBLE = 5;
+const DEFAULT_VISIBLE = 8;
 
 function isOverdue(dueAt: string | null): boolean {
   if (!dueAt) return false;
@@ -46,6 +45,12 @@ function isToday(dueAt: string | null): boolean {
   if (!dueAt) return true; // undated items are always "today" work
   return new Date(dueAt).getTime() <= Date.now();
 }
+
+function isUpcoming(dueAt: string | null): boolean {
+  return Boolean(dueAt) && new Date(dueAt as string).getTime() > Date.now();
+}
+
+const TODAY_LABEL = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
 export function ProspectingClient({ organizationId }: { organizationId: string }) {
   const [items, setItems] = useState<QueueItem[] | null>(null);
@@ -98,6 +103,16 @@ export function ProspectingClient({ organizationId }: { organizationId: string }
 
   const visible = showAll ? filtered : filtered.slice(0, DEFAULT_VISIBLE);
 
+  // Grouped by due state (Phase 5C: "Group queue items by Overdue / Due
+  // Today / Upcoming"). "Waiting/Paused" is intentionally not a separate
+  // group here — the Daily Queue API only ever returns items that are
+  // already actionable (see /api/prospects/queue's own dueItems filter),
+  // so there's no real "paused, not yet due" signal in this data to group
+  // on; inventing one would be a fabricated status, not a UI change.
+  const overdueItems = visible.filter((i) => isOverdue(i.dueAt));
+  const upcomingItems = visible.filter((i) => isUpcoming(i.dueAt));
+  const todayItems = visible.filter((i) => !isOverdue(i.dueAt) && !isUpcoming(i.dueAt));
+
   async function act(actionId: string, body: Record<string, unknown>) {
     setPendingId(actionId);
     try {
@@ -115,88 +130,102 @@ export function ProspectingClient({ organizationId }: { organizationId: string }
     }
   }
 
+  const summaryItems: SummaryStripItem[] = summary
+    ? [
+        { label: "New to Review", value: summary.newToReview, icon: <Compass className="h-4 w-4" aria-hidden /> },
+        { label: "Ready to Contact", value: summary.readyToContact, tone: "good", icon: <Target className="h-4 w-4" aria-hidden /> },
+        { label: "Follow-ups Due", value: summary.followUpsDue, tone: "warn", icon: <Clock className="h-4 w-4" aria-hidden /> },
+        { label: "Demos Ready", value: summary.demosReady, tone: "neon", icon: <Rocket className="h-4 w-4" aria-hidden /> },
+        { label: "Meetings Scheduled", value: summary.meetingsScheduled, tone: "iris", icon: <CalendarClock className="h-4 w-4" aria-hidden /> },
+      ]
+    : [];
+
+  const totalDue = items?.length ?? 0;
+  const description =
+    totalDue === 0
+      ? "Nothing is due right now."
+      : `${totalDue} action${totalDue === 1 ? "" : "s"} worth your attention today, in priority order.`;
+
   return (
     <PageShell role="admin">
-      <div className="panel relative overflow-hidden p-6 sm:p-10">
-        <div
-          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.25]"
-          style={{ backgroundSize: "54px 54px", maskImage: "radial-gradient(620px 260px at 20% 0%, #000, transparent)", WebkitMaskImage: "radial-gradient(620px 260px at 20% 0%, #000, transparent)" }}
-          aria-hidden
-        />
-        <div className="relative">
-          <Pill tone="iris">
-            <Sparkles className="h-3 w-3" aria-hidden />
-            Daily Prospecting Queue
-          </Pill>
-          <h1 className="mt-4 max-w-2xl text-display-lg font-semibold text-ink">
-            Good morning. <span className="gradient-text">Let&rsquo;s find your next client.</span>
-          </h1>
-          <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted">
-            Here are the prospects and follow-ups that deserve your attention today.
-          </p>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="mt-8 flex items-center justify-center py-16 text-muted">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-        </div>
-      ) : error ? (
-        <div className="mt-6 rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">{error}</div>
-      ) : items && items.length === 0 ? (
-        <div className="mt-10 flex flex-col items-center rounded-panel border border-hairline bg-canvas/70 px-8 py-16 text-center">
-          <Compass className="h-8 w-8 text-faint" aria-hidden />
-          <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-muted">
-            No actions yet. Find prospects worth pursuing and WebGenie will build your action queue.
-          </p>
+      <PageHeader
+        title="Daily Queue"
+        description={description}
+        context={<span className="text-[13px] text-faint">{TODAY_LABEL}</span>}
+        primaryAction={items && items.length === 0 ? undefined : (
           <Link
             href="/finder"
-            className="focus-ring mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-hairline bg-raised px-3.5 py-2 text-[13px] font-medium text-muted transition-colors hover:text-ink"
           >
-            <Search className="h-4 w-4" aria-hidden />
-            Find Prospects
+            <Search className="h-3.5 w-3.5" aria-hidden />
+            Find more prospects
           </Link>
+        )}
+      />
+
+      {loading ? (
+        <div className="mt-6 space-y-6">
+          <SummaryStripSkeleton />
+          <LoadingSkeleton rows={4} />
+        </div>
+      ) : error ? (
+        <div className="mt-6">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      ) : items && items.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState
+            icon={<Compass className="h-8 w-8" aria-hidden />}
+            title="Nothing due right now"
+            description="Find prospects worth pursuing and WebGenie will build your action queue automatically."
+            action={
+              <Link
+                href="/finder"
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+              >
+                <Search className="h-4 w-4" aria-hidden />
+                Find Prospects
+              </Link>
+            }
+          />
         </div>
       ) : summary && items ? (
         <>
-          <div className="mt-8 grid gap-4 sm:grid-cols-5">
-            <SummaryCard icon={<Compass className="h-4 w-4 text-muted" aria-hidden />} label="New to Review" value={summary.newToReview} />
-            <SummaryCard icon={<Target className="h-4 w-4 text-signal-good" aria-hidden />} label="Ready to Contact" value={summary.readyToContact} tone="good" />
-            <SummaryCard icon={<Clock className="h-4 w-4 text-signal-warn" aria-hidden />} label="Follow-ups Due" value={summary.followUpsDue} tone="warn" />
-            <SummaryCard icon={<Rocket className="h-4 w-4 text-neon" aria-hidden />} label="Demos Ready" value={summary.demosReady} tone="neon" />
-            <SummaryCard icon={<CalendarClock className="h-4 w-4 text-iris-soft" aria-hidden />} label="Meetings Scheduled" value={summary.meetingsScheduled} tone="iris" />
+          <div className="mt-6">
+            <SummaryStrip items={summaryItems} />
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-display-md font-semibold text-ink">Your Next Actions</h2>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-section-title font-semibold text-ink">Your Next Actions</h2>
+            <ActionToolbar>
               {FILTERS.map((f) => (
                 <button
                   key={f.key}
                   onClick={() => setFilter(f.key)}
+                  aria-pressed={filter === f.key}
                   className={cn(
-                    "focus-ring rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                    "focus-ring rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
                     filter === f.key ? "border-iris/40 bg-iris/15 text-iris-soft" : "border-hairline bg-raised text-muted hover:text-ink"
                   )}
                 >
                   {f.label}
                 </button>
               ))}
-            </div>
+            </ActionToolbar>
           </div>
 
           {filtered.length === 0 ? (
             <p className="mt-6 text-[13px] text-faint">Nothing here right now.</p>
           ) : (
-            <div className="mt-5 space-y-3">
-              {visible.map((item) => (
-                <QueueRow key={item.actionId} item={item} pending={pendingId === item.actionId} onAct={act} />
-              ))}
+            <div className="mt-4 space-y-6">
+              <QueueGroup label="Overdue" tone="bad" items={overdueItems} pendingId={pendingId} onAct={act} />
+              <QueueGroup label="Due Today" tone="ink" items={todayItems} pendingId={pendingId} onAct={act} />
+              <QueueGroup label="Upcoming" tone="neutral" items={upcomingItems} pendingId={pendingId} onAct={act} />
             </div>
           )}
 
           {filtered.length > DEFAULT_VISIBLE ? (
-            <button onClick={() => setShowAll((v) => !v)} className="focus-ring mt-4 text-[13px] font-medium text-iris-soft hover:underline">
+            <button onClick={() => setShowAll((v) => !v)} className="focus-ring mt-5 text-[13px] font-medium text-iris-soft hover:underline">
               {showAll ? "Show fewer" : `View All (${filtered.length})`}
             </button>
           ) : null}
@@ -206,15 +235,34 @@ export function ProspectingClient({ organizationId }: { organizationId: string }
   );
 }
 
-function SummaryCard({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone?: "good" | "warn" | "neon" | "iris" }) {
-  const color = tone === "good" ? "text-signal-good" : tone === "warn" ? "text-signal-warn" : tone === "neon" ? "text-neon" : tone === "iris" ? "text-iris-soft" : "text-ink";
+function QueueGroup({
+  label,
+  tone,
+  items,
+  pendingId,
+  onAct
+}: {
+  label: string;
+  tone: "bad" | "ink" | "neutral";
+  items: QueueItem[];
+  pendingId: string | null;
+  onAct: (actionId: string, body: Record<string, unknown>) => void;
+}) {
+  if (items.length === 0) return null;
+  const dotClass = tone === "bad" ? "bg-signal-bad" : tone === "ink" ? "bg-iris" : "bg-faint";
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between">
-        <span className="eyebrow text-[10px]">{label}</span>
-        {icon}
+    <div>
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className={cn("h-1.5 w-1.5 rounded-full", dotClass)} aria-hidden />
+        <h3 className="text-[12.5px] font-semibold uppercase tracking-wide text-muted">
+          {label} <span className="font-mono text-faint">({items.length})</span>
+        </h3>
       </div>
-      <div className={cn("mt-2 font-mono text-3xl font-semibold tabular-nums tracking-tight", color)}>{value}</div>
+      <div className="space-y-2.5">
+        {items.map((item) => (
+          <QueueRow key={item.actionId} item={item} pending={pendingId === item.actionId} onAct={onAct} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -231,16 +279,27 @@ function QueueRow({
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const overdue = isOverdue(item.dueAt);
 
+  // Phase 5C priority: Open Playbook dominates CALL/EMAIL sequence
+  // actions; Run Audit dominates an unaudited prospect. Both still route
+  // to the real, existing destination (the playbook or the prospect page
+  // where the actual audit trigger lives) — this only makes the button's
+  // own label say the true next step instead of a generic "Open Prospect".
+  const primaryLabel = item.playbookChannel ? "Open Playbook" : item.actionType === "RUN_AUDIT" ? "Run Audit" : "Open Prospect";
+  const primaryHref = item.playbookChannel
+    ? `/prospects/${item.prospectId}/playbook?actionId=${item.actionId}${item.enrollmentId ? `&enrollmentId=${item.enrollmentId}` : ""}`
+    : `/prospects/${item.prospectId}`;
+
   return (
     <div className="rounded-panel border border-hairline bg-canvas/70 p-4 transition-colors hover:border-iris/30 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[14px] font-semibold text-ink">{item.businessName}</span>
-            {item.opportunityLevel ? <Pill tone={LEVEL_TONE[item.opportunityLevel]} className="text-[10.5px]">{item.opportunityLevel}</Pill> : null}
-            {overdue ? <Pill tone="bad" className="text-[10.5px]">Overdue</Pill> : null}
+            <span className="text-[15px] font-semibold text-ink">{item.businessName}</span>
+            {item.opportunityLevel ? <Pill tone={LEVEL_TONE[item.opportunityLevel]} className="text-[11px]">{item.opportunityLevel.replace(/_/g, " ")}</Pill> : null}
+            {overdue ? <Pill tone="bad" className="text-[11px]">Overdue</Pill> : null}
+            <Pill tone={PRIORITY_TONE[item.priority]} className="text-[11px]">{item.priority} priority</Pill>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-faint">
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12.5px] text-faint">
             {item.industry ? (
               <span className="inline-flex items-center gap-1">
                 <Building2 className="h-3 w-3" aria-hidden />
@@ -254,58 +313,67 @@ function QueueRow({
                 {item.state ? `, ${item.state}` : ""}
               </span>
             ) : null}
+            {item.playbookChannel ? (
+              <span className="inline-flex items-center gap-1 text-signal-good">
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                Verified {item.playbookChannel === "CALL" ? "call" : "email"} channel
+              </span>
+            ) : null}
+            {item.dueAt ? <span>Due {new Date(item.dueAt).toLocaleDateString()}</span> : null}
           </div>
-          <p className="mt-2 text-[13px] leading-relaxed text-ink/85">
+
+          {/* One concise sentence dominates the row -- the action label plus
+              a truncated reason. The full technical/sequence-step text (if
+              any) moves into "Why this action?" instead of being the
+              dominant paragraph. */}
+          <p className="mt-2 line-clamp-1 text-[14px] leading-relaxed text-ink/85">
             <span className="font-semibold text-iris-soft">{item.actionLabel}: </span>
             {item.reason}
           </p>
-          {item.evidenceSummary ? <p className="mt-1.5 text-[12px] leading-relaxed text-faint">{item.evidenceSummary}</p> : null}
-          <div className="mt-2 flex items-center gap-2">
-            <Pill tone={PRIORITY_TONE[item.priority]} className="text-[10px]">{item.priority} priority</Pill>
-            {item.dueAt ? <span className="text-[11px] text-faint">Due {new Date(item.dueAt).toLocaleDateString()}</span> : null}
-          </div>
+          {item.reason.length > 90 || item.evidenceSummary ? (
+            <DisclosurePanel summary="Why this action?" className="mt-1.5">
+              <p>{item.reason}</p>
+              {item.evidenceSummary ? <p className="mt-1.5">{item.evidenceSummary}</p> : null}
+            </DisclosurePanel>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {item.playbookChannel ? (
-            <Link
-              href={`/prospects/${item.prospectId}/playbook?actionId=${item.actionId}${item.enrollmentId ? `&enrollmentId=${item.enrollmentId}` : ""}`}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
-            >
-              Open Playbook
-            </Link>
-          ) : (
-            <Link
-              href={`/prospects/${item.prospectId}`}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
-            >
-              Open Prospect
-            </Link>
-          )}
-          <div className="relative flex items-center gap-1">
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+          <Link
+            href={primaryHref}
+            className="focus-ring inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+          >
+            {primaryLabel}
+          </Link>
+          <div className="relative flex items-center gap-1.5">
             <button
               onClick={() => onAct(item.actionId, { op: "complete" })}
               disabled={pending}
-              title="Mark done"
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink disabled:opacity-40"
+              className="focus-ring inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:text-ink disabled:opacity-40"
             >
-              {pending ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden /> : <CheckCircle2 className="h-2.5 w-2.5" aria-hidden />}
+              {pending ? <InlineSpinner /> : (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                  Mark done
+                </>
+              )}
             </button>
             <button
               onClick={() => setSnoozeOpen((v) => !v)}
               disabled={pending}
-              title="Snooze"
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink disabled:opacity-40"
+              aria-expanded={snoozeOpen}
+              className="focus-ring inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:text-ink disabled:opacity-40"
             >
-              <Clock className="h-2.5 w-2.5" aria-hidden />
+              <Clock className="h-3.5 w-3.5" aria-hidden />
+              Snooze
             </button>
             <button
               onClick={() => onAct(item.actionId, { op: "skip" })}
               disabled={pending}
-              title="Skip"
-              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink disabled:opacity-40"
+              className="focus-ring inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:text-ink disabled:opacity-40"
             >
-              <SkipForward className="h-2.5 w-2.5" aria-hidden />
+              <SkipForward className="h-3.5 w-3.5" aria-hidden />
+              Skip
             </button>
             {snoozeOpen ? (
               <div className="absolute right-0 top-full z-10 mt-1.5 w-36 overflow-hidden rounded-lg border border-hairline bg-canvas shadow-xl">
@@ -320,7 +388,7 @@ function QueueRow({
                       setSnoozeOpen(false);
                       onAct(item.actionId, { op: "snooze", option: opt.key });
                     }}
-                    className="block w-full px-3 py-2 text-left text-[12px] text-muted hover:bg-raised hover:text-ink"
+                    className="block w-full px-3 py-2 text-left text-[12.5px] text-muted hover:bg-raised hover:text-ink"
                   >
                     {opt.label}
                   </button>

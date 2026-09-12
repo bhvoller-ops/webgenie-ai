@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/access";
 import { sortQueueActions, isActionDueNow } from "@/lib/prospect/queue";
 import { PROSPECT_ACTION_LABELS, type OpportunityLevel, type ProspectActionType, type ActionPriority, type SequenceStepActionMetadata } from "@/lib/prospect/types";
+import { EVIDENCE_READINESS_DETAIL } from "@/lib/prospect/evidence-readiness";
+
+/**
+ * UI clarity correction -- evidence-display consistency fix. The stored
+ * opportunity_briefs.summary for a "has a website, no audit yet" prospect
+ * is always the literal sentence below (see
+ * lib/prospect/opportunity-brief.ts's hasWebsiteNoAuditBrief()) --
+ * regardless of whether a real, approved verified outreach observation
+ * exists for that prospect (migration 041's
+ * prospect_evidence_observations, already the source the Playbook itself
+ * reads via getVerifiedManualObservations()). Detecting that EXACT known
+ * sentence and swapping in the truthful verified_observation copy is a
+ * read-time presentation override, never a rewrite of the persisted brief
+ * -- see evidence-readiness.ts's file header for the full reasoning.
+ */
+const NO_AUDIT_SUMMARY_SUFFIX = "there isn't enough evidence yet to say what the opportunity is.";
 
 /**
  * The P1 Daily Prospecting Queue's data source — GET only, read-only.
@@ -70,6 +86,7 @@ export async function GET() {
 
   const prospectIds = nonSuppressedRows.map((r) => r.prospect_id);
   const briefByProspectId = new Map<string, { opportunity_level: OpportunityLevel; summary: string }>();
+  const verifiedObservationProspectIds = new Set<string>();
   if (prospectIds.length > 0) {
     const { data: briefs } = await supabase
       .from("opportunity_briefs")
@@ -78,12 +95,25 @@ export async function GET() {
     for (const b of briefs ?? []) {
       briefByProspectId.set(b.prospect_id as string, { opportunity_level: b.opportunity_level as OpportunityLevel, summary: b.summary as string });
     }
+
+    const { data: observationRows } = await supabase
+      .from("prospect_evidence_observations")
+      .select("prospect_id")
+      .eq("organization_id", organizationId)
+      .in("prospect_id", prospectIds)
+      .in("evidence_state", ["VERIFIED_PRESENT", "VERIFIED_ABSENT"]);
+    for (const row of observationRows ?? []) verifiedObservationProspectIds.add(row.prospect_id as string);
   }
 
   const now = new Date();
   const allItems: QueueItem[] = nonSuppressedRows.map((r) => {
     const prospectJoin = r.prospects as unknown as { business_name: string; industry: string | null; city: string | null; state: string | null } | null;
     const brief = briefByProspectId.get(r.prospect_id as string);
+    const hasVerifiedObservation = verifiedObservationProspectIds.has(r.prospect_id as string);
+    const evidenceSummary =
+      brief?.summary && brief.summary.endsWith(NO_AUDIT_SUMMARY_SUFFIX) && hasVerifiedObservation
+        ? EVIDENCE_READINESS_DETAIL.verified_observation
+        : (brief?.summary ?? null);
     const actionType = r.action_type as ProspectActionType;
     let playbookChannel: "CALL" | "EMAIL" | null = null;
     let enrollmentId: string | null = null;
@@ -110,7 +140,7 @@ export async function GET() {
       reason: r.reason as string,
       dueAt: r.due_at as string | null,
       status: r.status as "PENDING" | "SNOOZED",
-      evidenceSummary: brief?.summary ?? null,
+      evidenceSummary,
       playbookChannel,
       enrollmentId
     };

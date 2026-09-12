@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/format";
 
@@ -14,14 +15,19 @@ export interface NavGroupItem {
 }
 
 /**
- * The Dashboard / Prospector top-bar menus. Was a plain link list; redone as
- * a card grid — icon, title, one-line description per destination — since a
- * bare list of five short labels ("Leads", "Onboard", "Partners"...) doesn't
- * tell anyone unfamiliar with the app what they actually do.
+ * UI clarity correction: a workflow-grouped top-bar menu (WORK / OUTREACH /
+ * DELIVERY) -- icon, title, one-line description per destination, so a
+ * short label ("Leads", "Onboard", "Partners"...) still tells anyone
+ * unfamiliar with the app what it actually does. Now also reports the
+ * current-page state on both the trigger (a filled dot when any item in
+ * this group is the active route) and the active item itself -- the
+ * previous version had no current-page indication at all.
  */
 export function NavGroup({ label, items }: { label: string; items: NavGroupItem[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const hasActiveItem = items.some((item) => pathname === item.href || pathname?.startsWith(`${item.href}/`));
 
   useEffect(() => {
     if (!open) return;
@@ -48,10 +54,12 @@ export function NavGroup({ label, items }: { label: string; items: NavGroupItem[
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={cn(
-          "focus-ring inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink",
-          open && "bg-raised text-ink"
+          "focus-ring inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-raised hover:text-ink",
+          open || hasActiveItem ? "text-ink" : "text-muted",
+          open && "bg-raised"
         )}
       >
+        {hasActiveItem ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-iris" aria-hidden /> : null}
         {label}
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden />
       </button>
@@ -62,22 +70,37 @@ export function NavGroup({ label, items }: { label: string; items: NavGroupItem[
             wide ? "grid w-[440px] grid-cols-2 gap-1" : "w-[260px]"
           )}
         >
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="focus-ring group flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-raised"
-            >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-iris/25 bg-iris/10 text-iris-soft transition-colors group-hover:border-iris/45 group-hover:bg-iris/15">
-                {item.icon}
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-semibold text-ink">{item.label}</span>
-                <span className="mt-0.5 block text-[11.5px] leading-snug text-faint">{item.description}</span>
-              </span>
-            </Link>
-          ))}
+          {items.map((item) => {
+            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "focus-ring group flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-raised",
+                  active && "bg-raised"
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors",
+                    active ? "border-iris/45 bg-iris/15 text-iris-soft" : "border-iris/25 bg-iris/10 text-iris-soft group-hover:border-iris/45 group-hover:bg-iris/15"
+                  )}
+                >
+                  {item.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-[13.5px] font-semibold text-ink">
+                    {item.label}
+                    {active ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-iris" aria-hidden /> : null}
+                  </span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-faint">{item.description}</span>
+                </span>
+              </Link>
+            );
+          })}
         </div>
       ) : null}
     </div>

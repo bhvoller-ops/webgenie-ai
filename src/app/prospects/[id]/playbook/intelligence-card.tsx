@@ -78,7 +78,7 @@ export function IntelligenceCard({
 
           {intelligence.verifiedObservations.length > 0 ? (
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-faint">Verified observation</p>
+              <p className="text-[13px] font-medium uppercase tracking-wide text-faint">Verified observation</p>
               <ul className="mt-1.5 space-y-1.5">
                 {intelligence.verifiedObservations.map((o) => (
                   <li key={o} className="text-[12.5px] leading-relaxed text-ink/85">
@@ -91,18 +91,18 @@ export function IntelligenceCard({
 
           {intelligence.opportunitySummary ? (
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-faint">Opportunity summary</p>
+              <p className="text-[13px] font-medium uppercase tracking-wide text-faint">Opportunity summary</p>
               <p className="mt-1 text-[12.5px] leading-relaxed text-ink/85">{intelligence.opportunitySummary}</p>
             </div>
           ) : null}
 
           {intelligence.priorContactCount > 0 ? (
-            <p className="text-[11.5px] text-faint">
+            <p className="text-[13px] text-faint">
               {intelligence.priorContactCount} prior contact attempt{intelligence.priorContactCount === 1 ? "" : "s"}
               {intelligence.lastContactOutcome ? ` · last outcome: ${intelligence.lastContactOutcome.replace(/_/g, " ")}` : ""}
             </p>
           ) : (
-            <p className="text-[11.5px] text-faint">No prior contact recorded.</p>
+            <p className="text-[13px] text-faint">No prior contact recorded.</p>
           )}
         </div>
       ) : null}
@@ -119,7 +119,7 @@ function ChannelRow({ label, value, result }: { label: string; value: string | n
         <span className="font-medium">{label}</span>
         {value ? <span className="text-faint">{value}</span> : null}
       </div>
-      <span className={cn("text-[11px] font-medium", tone)}>
+      <span className={cn("text-[13px] font-medium", tone)}>
         {result.activatable
           ? result.corroboration === "single_source"
             ? "SINGLE SOURCE"

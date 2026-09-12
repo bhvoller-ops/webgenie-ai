@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Copy, Loader2, Maximize2, Minimize2, PhoneOff, Shield, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/format";
+import { DisclosurePanel } from "@/components/workspace";
 import { renderTemplate, type PlaybookRenderVars } from "@/lib/playbook/render";
 import { PLAYBOOK_STAGE_LABELS, type PlaybookStageKey } from "@/lib/playbook/types";
 import type { PlaybookContext, PlaybookBlocked } from "@/lib/playbook/resolve-context";
@@ -517,21 +518,21 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
       {/* HEADER */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
         <div className="min-w-0">
-          <p className="truncate text-[14px] font-semibold text-ink">{context.intelligence.businessName}</p>
-          <p className="text-[11.5px] text-faint">
-            {context.config.playbookName} · {channel} · Stage {stageIndex + 1} of {LINEAR_STAGES.length}: {PLAYBOOK_STAGE_LABELS[stage]}
+          <p className="truncate text-[15px] font-semibold text-ink">{context.intelligence.businessName}</p>
+          <p className="text-[13px] text-muted">
+            {context.config.playbookName} · {channel}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setFocusMode((v) => !v)}
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-[11.5px] text-muted hover:text-ink"
+            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-[13px] text-muted hover:text-ink"
           >
             {focusMode ? <Minimize2 className="h-3.5 w-3.5" aria-hidden /> : <Maximize2 className="h-3.5 w-3.5" aria-hidden />}
             Focus Mode
           </button>
-          <button type="button" onClick={handleExitClick} className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-[11.5px] text-muted hover:text-signal-bad">
+          <button type="button" onClick={handleExitClick} className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-3 py-1.5 text-[13px] text-muted hover:text-signal-bad">
             <X className="h-3.5 w-3.5" aria-hidden />
             Exit
           </button>
@@ -542,30 +543,53 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-signal-warn/30 bg-signal-warn/10 px-3 py-2.5">
           <p className="text-[12px] text-signal-warn">Leave without recording an outcome? Nothing typed here has been saved.</p>
           <div className="flex gap-2">
-            <button onClick={() => router.push(`/prospects/${prospectId}`)} className="focus-ring rounded-md border border-signal-warn/40 px-2.5 py-1 text-[11.5px] font-medium text-signal-warn">
+            <button onClick={() => router.push(`/prospects/${prospectId}`)} className="focus-ring rounded-md border border-signal-warn/40 px-2.5 py-1 text-[13px] font-medium text-signal-warn">
               Exit Without Recording
             </button>
-            <button onClick={() => setConfirmExit(false)} className="focus-ring rounded-md px-2.5 py-1 text-[11.5px] text-faint hover:text-muted">
+            <button onClick={() => setConfirmExit(false)} className="focus-ring rounded-md px-2.5 py-1 text-[13px] text-faint hover:text-muted">
               Stay
             </button>
           </div>
         </div>
       ) : null}
 
-      {/* STAGE PROGRESS */}
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {LINEAR_STAGES.map((s, i) => (
-          <span
-            key={s}
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[10.5px] font-medium",
-              i === stageIndex ? "bg-iris/20 text-iris-soft" : i < stageIndex ? "bg-signal-good/15 text-signal-good" : "bg-raised text-faint"
-            )}
-          >
-            {PLAYBOOK_STAGE_LABELS[s]}
-          </span>
-        ))}
+      {/* STAGE PROGRESS — a compact step indicator (progress dots + the
+          current stage's real name) replacing seven equally-styled pills
+          that all competed for attention at once. The full stage list
+          stays available as an optional disclosure for anyone who wants
+          to see the whole path. */}
+      <div className="mt-4 flex items-center gap-3">
+        <div className="flex items-center gap-1" role="img" aria-label={`Stage ${stageIndex + 1} of ${LINEAR_STAGES.length}`}>
+          {LINEAR_STAGES.map((s, i) => (
+            <span
+              key={s}
+              aria-hidden
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === stageIndex ? "w-5 bg-iris" : i < stageIndex ? "w-1.5 bg-signal-good" : "w-1.5 bg-hairline"
+              )}
+            />
+          ))}
+        </div>
+        <span className="text-[13px] font-medium text-ink">
+          Stage {stageIndex + 1} of {LINEAR_STAGES.length}: {PLAYBOOK_STAGE_LABELS[stage]}
+        </span>
       </div>
+      <DisclosurePanel summary="Show all stages" className="mt-2">
+        <div className="flex flex-wrap gap-1.5">
+          {LINEAR_STAGES.map((s, i) => (
+            <span
+              key={s}
+              className={cn(
+                "rounded-full px-2.5 py-1 text-[12px] font-medium",
+                i === stageIndex ? "bg-iris/20 text-iris-soft" : i < stageIndex ? "bg-signal-good/15 text-signal-good" : "bg-raised text-faint"
+              )}
+            >
+              {PLAYBOOK_STAGE_LABELS[s]}
+            </span>
+          ))}
+        </div>
+      </DisclosurePanel>
 
       <div className={cn("mt-6 grid gap-6", focusMode ? "grid-cols-1" : "lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start")}>
         {/* MAIN STAGE PANEL */}
@@ -741,7 +765,7 @@ function PreCallCheck({
       </ul>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-faint">Your name (used in scripts)</label>
+          <label className="mb-1 block text-[13px] font-medium text-faint">Your name (used in scripts)</label>
           <input
             value={callerName}
             onChange={(e) => onCallerName(e.target.value)}
@@ -750,7 +774,7 @@ function PreCallCheck({
           />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-medium text-faint">Your callback number (used in voicemail/email scripts)</label>
+          <label className="mb-1 block text-[13px] font-medium text-faint">Your callback number (used in voicemail/email scripts)</label>
           <input
             value={callerPhone}
             onChange={(e) => onCallerPhone(e.target.value)}
@@ -759,7 +783,7 @@ function PreCallCheck({
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-[11px] font-medium text-faint">Your organization&rsquo;s website (optional — omitted from scripts if left blank)</label>
+          <label className="mb-1 block text-[13px] font-medium text-faint">Your organization&rsquo;s website (optional — omitted from scripts if left blank)</label>
           <input
             value={organizationWebsite}
             onChange={(e) => onOrganizationWebsite(e.target.value)}
@@ -769,7 +793,7 @@ function PreCallCheck({
         </div>
       </div>
       {callerName || callerPhone || organizationWebsite ? (
-        <button type="button" onClick={onClearIdentity} className="focus-ring mt-2 text-[11px] text-faint hover:text-signal-bad">
+        <button type="button" onClick={onClearIdentity} className="focus-ring mt-2 text-[13px] text-faint hover:text-signal-bad">
           Clear saved caller identity (stored only in this browser)
         </button>
       ) : null}
@@ -817,10 +841,10 @@ function GatekeeperStage({
         ))}
       </div>
 
-      <p className="mt-5 text-[11px] font-medium uppercase tracking-wide text-faint">If a gatekeeper answers</p>
+      <p className="mt-5 text-[13px] font-medium uppercase tracking-wide text-faint">If a gatekeeper answers</p>
       <ScriptBlock text={renderTemplate(config.openings.gatekeeperReachingRightPerson, vars)} />
 
-      <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-faint">If asked what this is about</p>
+      <p className="mt-4 text-[13px] font-medium uppercase tracking-wide text-faint">If asked what this is about</p>
       <ScriptBlock text={renderTemplate(config.openings.gatekeeperWhatIsThisAbout, vars)} />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -829,7 +853,7 @@ function GatekeeperStage({
         <Field label="Direct number" value={gatekeeper.directNumber} onChange={(v) => onChange({ ...gatekeeper, directNumber: v })} />
         <Field label="Best callback time" value={gatekeeper.callbackTime} onChange={(v) => onChange({ ...gatekeeper, callbackTime: v })} />
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-faint">
+      <p className="mt-2 text-[13px] leading-relaxed text-faint">
         Any contact info captured here is not automatically treated as verified — it follows the same verification workflow before it can activate a channel.
       </p>
     </div>
@@ -888,7 +912,7 @@ function VerifiedObservationStage({
       <ScriptBlock text={renderTemplate(config.openings.verifiedObservationTemplate, vars)} />
 
       <div className="mt-3">
-        <label className="mb-1 block text-[11px] font-medium text-faint">Restrained potential impact (your words — avoid causation claims)</label>
+        <label className="mb-1 block text-[13px] font-medium text-faint">Restrained potential impact (your words — avoid causation claims)</label>
         <input
           value={restrainedImpact}
           onChange={(e) => onRestrainedImpact(e.target.value)}
@@ -908,7 +932,7 @@ function VerifiedObservationStage({
           <div className="mt-2">
             {script.subject ? <p className="text-[12px] font-semibold text-ink">{script.subject}</p> : null}
             <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink/85">{script.body}</p>
-            <button onClick={onCopy} className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1 text-[11px] text-muted hover:text-ink">
+            <button onClick={onCopy} className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1 text-[13px] text-muted hover:text-ink">
               {copied ? <Check className="h-3 w-3 text-signal-good" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
               Copy
             </button>
@@ -917,14 +941,14 @@ function VerifiedObservationStage({
           <button
             onClick={onPrepare}
             disabled={preparingScript}
-            className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-2.5 py-1.5 text-[11.5px] font-medium text-iris-soft disabled:opacity-60"
+            className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-iris/35 bg-iris/10 px-2.5 py-1.5 text-[13px] font-medium text-iris-soft disabled:opacity-60"
           >
             {preparingScript ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : <Sparkles className="h-3 w-3" aria-hidden />}
             Prepare script
           </button>
         )}
-        {scriptError ? <p className="mt-2 text-[11.5px] text-signal-bad">{scriptError}</p> : null}
-        <p className="mt-2 text-[10.5px] leading-relaxed text-faint">Preparing or copying this script is not outreach — nothing is sent until you act on it yourself.</p>
+        {scriptError ? <p className="mt-2 text-[13px] text-signal-bad">{scriptError}</p> : null}
+        <p className="mt-2 text-[12.5px] leading-relaxed text-faint">Preparing or copying this script is not outreach — nothing is sent until you act on it yourself.</p>
       </div>
     </div>
   );
@@ -955,7 +979,7 @@ function DiscoveryStage({
                 type="button"
                 onClick={() => onTogglePain(q.key)}
                 className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-medium",
                   painPoints.includes(q.key) ? "border-signal-warn/40 bg-signal-warn/15 text-signal-warn" : "border-hairline text-faint"
                 )}
               >
@@ -972,7 +996,7 @@ function DiscoveryStage({
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[11px] text-faint">An unanswered question is never converted into a negative finding.</p>
+      <p className="mt-3 text-[13px] text-faint">An unanswered question is never converted into a negative finding.</p>
     </div>
   );
 }
@@ -1005,14 +1029,14 @@ function BookAssessmentStage({
       </div>
       <ScriptBlock className="mt-3" text={renderTemplate(config.bookingClose, vars)} />
       <div className="mt-4">
-        <label className="mb-1 block text-[11px] font-medium text-faint">Agreed appointment time (only if actually confirmed)</label>
+        <label className="mb-1 block text-[13px] font-medium text-faint">Agreed appointment time (only if actually confirmed)</label>
         <input
           value={bookedTime}
           onChange={(e) => onBookedTime(e.target.value)}
           placeholder="Not booked yet"
           className="focus-ring w-full max-w-xs rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink"
         />
-        <p className="mt-1.5 text-[11px] text-faint">This is not marked booked until you record that outcome explicitly in the next stage.</p>
+        <p className="mt-1.5 text-[13px] text-faint">This is not marked booked until you record that outcome explicitly in the next stage.</p>
       </div>
     </div>
   );
@@ -1069,7 +1093,7 @@ function NoAnswerStage({
               <ScriptBlock className="mt-2" text={voicemailText} />
               <button
                 onClick={() => copy(voicemailText, setVoicemailCopied)}
-                className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] text-muted hover:text-ink"
+                className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[13px] text-muted hover:text-ink"
               >
                 {voicemailCopied ? <Check className="h-3 w-3 text-signal-good" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
                 Copy
@@ -1091,7 +1115,7 @@ function NoAnswerStage({
             </div>
             <button
               onClick={() => copy(`${emailSubject}\n\n${emailBody}`, setEmailCopied)}
-              className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[11.5px] text-muted hover:text-ink"
+              className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-raised px-2.5 py-1.5 text-[13px] text-muted hover:text-ink"
             >
               {emailCopied ? <Check className="h-3 w-3 text-signal-good" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
               Copy
@@ -1100,7 +1124,7 @@ function NoAnswerStage({
         )}
       </div>
 
-      <p className="mt-4 text-[11px] leading-relaxed text-faint">
+      <p className="mt-4 text-[13px] leading-relaxed text-faint">
         Copying a script is not outreach. The next stage requires you to explicitly confirm whether a voicemail was actually left or an email was actually sent — nothing here marks either as done.
       </p>
 
@@ -1123,7 +1147,7 @@ function ScriptBlock({ text, className }: { text: string; className?: string }) 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-medium text-faint">{label}</label>
+      <label className="mb-1 block text-[13px] font-medium text-faint">{label}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)} className="focus-ring w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-[13px] text-ink" />
     </div>
   );
