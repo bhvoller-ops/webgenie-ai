@@ -80,7 +80,7 @@ export function InsightsClient() {
             <div className="label mb-4">Acquisition funnel</div>
             <ol className="flex flex-col gap-0 sm:flex-row sm:items-stretch">
               {funnel.map((step, i) => (
-                <li key={step.label} className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-1.5">
+                <li key={step.label} className="flex flex-1 items-center gap-3">
                   <div className="flex items-center gap-3 sm:flex-col sm:items-center sm:text-center">
                     <div
                       className={`font-mono text-2xl font-semibold tabular-nums ${step.value === 0 ? "text-faint" : step.tone === "good" ? "text-signal-good" : "text-ink"}`}
