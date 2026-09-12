@@ -95,8 +95,10 @@ export interface PlaybookConfig {
   playbookName: string;
   industryKey: string;
   terminology: {
-    /** e.g. "roofing company" / "home services business" */
+    /** e.g. "roofing company" / "home services business" -- a full noun phrase, safe to follow with "owners" but NEVER with "companies"/"businesses" (it already contains one). */
     businessNoun: string;
+    /** e.g. "roofing" / "home services" -- an adjective/modifier form, safe to precede "companies"/"businesses". Owner-review correction: reusing businessNoun in that slot produced "roofing company companies". */
+    industryAdjective: string;
     /** e.g. "roof inspection" / "on-site assessment" */
     assessmentNoun: string;
   };
@@ -106,9 +108,14 @@ export interface PlaybookConfig {
   evidenceCategories: EvidenceCategory[];
   openings: {
     gatekeeperOpening: string;
+    /** "If a gatekeeper answers" -- asking to be routed to the right person. */
+    gatekeeperReachingRightPerson: string;
     gatekeeperWhatIsThisAbout: string;
     permissionOpening: string;
+    /** The "I reviewed X. I noticed Y." lead-in -- kept separate from the impact/pivot sentence below so the UI can insert the restrained-impact input field between them. */
     verifiedObservationTemplate: string;
+    /** The "That may {{restrainedImpact}}. We help..." pivot -- a distinct field, not a hardcoded UI string, so a specialized variant can genuinely override it. */
+    verifiedObservationImpactTemplate: string;
   };
   objectionResponses: ObjectionResponse[];
   bookingClose: string;

@@ -17,6 +17,7 @@ export const HOME_SERVICES_BASE_CONFIG: PlaybookConfig = {
   industryKey: "_default",
   terminology: {
     businessNoun: "home services business",
+    industryAdjective: "home services",
     assessmentNoun: "on-site assessment"
   },
   commonServices: ["repairs", "installations", "maintenance", "emergency service", "free estimates"],
@@ -46,12 +47,20 @@ export const HOME_SERVICES_BASE_CONFIG: PlaybookConfig = {
   ],
   openings: {
     gatekeeperOpening: "Hi, is this the owner or the person responsible for marketing at {{businessName}}?",
+    gatekeeperReachingRightPerson:
+      "Thanks. I'm trying to reach whoever handles the company's website and new-customer marketing. I found something specific in their online presence that may be affecting customer inquiries. Who would be the best person to speak with?",
     gatekeeperWhatIsThisAbout:
       "It isn't a general sales pitch. I found a specific issue in the company's public online presence and would like to show the person responsible what I found. If it isn't useful, there's no obligation.",
     permissionOpening:
-      "Great—my name is {{callerName}} with {{organizationName}}. I'll be brief. I was reviewing {{businessNoun}} companies around {{location}} and noticed something specific about {{businessName}}'s online presence. Do you have about 30 seconds?",
-    verifiedObservationTemplate:
-      "I reviewed {{evidenceTarget}}. I noticed {{verifiedObservation}}. That may {{restrainedImpact}}. We help {{industryLabel}} businesses improve how their online presence converts interested customers into real inquiries. I have a couple of practical recommendations. Would it be helpful if I shared them?"
+      "Great—my name is {{callerName}} with {{organizationName}}. I'll be brief. I was reviewing {{industryAdjective}} companies around {{location}} and noticed something specific about {{businessName}}'s online presence. Do you have about 30 seconds?",
+    // Owner-review visual QA fix: no trailing period after
+    // {{verifiedObservation}} -- real evidence text (see
+    // prospect_evidence_observations.observation_text) already ends in
+    // its own sentence-ending punctuation; appending another one produced
+    // a visible ".." in live testing (Gold Stars Roof's real observation).
+    verifiedObservationTemplate: "I reviewed {{evidenceTarget}}. I noticed {{verifiedObservation}}",
+    verifiedObservationImpactTemplate:
+      "That may {{restrainedImpact}}. We help {{industryAdjective}} businesses improve how their online presence converts interested customers into real inquiries. I have a couple of practical recommendations. Would it be helpful if I shared them?"
   },
   objectionResponses: [
     {
@@ -76,7 +85,7 @@ export const HOME_SERVICES_BASE_CONFIG: PlaybookConfig = {
       key: "how_did_you_get_my_number",
       label: "How did you get my number?",
       response:
-        "It was listed publicly with the business. I was researching {{businessNoun}} companies in the area. If you would rather not receive calls from us, I'll record that immediately."
+        "It was listed publicly with the business. I was researching {{industryAdjective}} companies in the area. If you would rather not receive calls from us, I'll record that immediately."
     },
     {
       key: "how_much_does_it_cost",

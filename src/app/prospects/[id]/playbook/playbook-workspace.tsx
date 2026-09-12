@@ -155,7 +155,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
       organizationName: context.intelligence.organizationName,
       location: context.intelligence.city ? `${context.intelligence.city}${context.intelligence.state ? `, ${context.intelligence.state}` : ""}` : "",
       businessNoun: context.config.terminology.businessNoun,
-      industryLabel: context.config.terminology.businessNoun,
+      industryAdjective: context.config.terminology.industryAdjective,
       evidenceTarget: context.intelligence.websiteUrl ?? `${context.intelligence.businessName}'s online presence`,
       verifiedObservation: context.intelligence.verifiedObservations[0] ?? "",
       restrainedImpact,
@@ -496,14 +496,22 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
           ) : null}
 
           {stage === "GATEKEEPER" ? (
-            <GatekeeperStage vars={vars} gatekeeper={gatekeeper} onChange={(g) => { setGatekeeper(g); markDirty(); }} onNoAnswer={jumpToNoAnswer} onRequestedNoContact={jumpToOutcome} />
+            <GatekeeperStage
+              vars={vars}
+              config={context.config}
+              gatekeeper={gatekeeper}
+              onChange={(g) => { setGatekeeper(g); markDirty(); }}
+              onNoAnswer={jumpToNoAnswer}
+              onRequestedNoContact={jumpToOutcome}
+            />
           ) : null}
 
-          {stage === "OPENING" ? <OpeningStage vars={vars} /> : null}
+          {stage === "OPENING" ? <OpeningStage vars={vars} config={context.config} /> : null}
 
           {stage === "VERIFIED_OBSERVATION" ? (
             <VerifiedObservationStage
               vars={vars}
+              config={context.config}
               restrainedImpact={restrainedImpact}
               onRestrainedImpact={(v) => { setRestrainedImpact(v); markDirty(); }}
               script={script}
@@ -528,6 +536,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
           {stage === "BOOK_ASSESSMENT" ? (
             <BookAssessmentStage
               vars={vars}
+              config={context.config}
               optionA={bookingOptionA}
               optionB={bookingOptionB}
               onOptionA={(v) => { setBookingOptionA(v); markDirty(); }}
@@ -666,12 +675,14 @@ function PreCallCheck({
 
 function GatekeeperStage({
   vars,
+  config,
   gatekeeper,
   onChange,
   onNoAnswer,
   onRequestedNoContact
 }: {
   vars: PlaybookRenderVars;
+  config: import("@/lib/playbook/types").PlaybookConfig;
   gatekeeper: { name: string; role: string; directNumber: string; email: string; callbackTime: string };
   onChange: (g: typeof gatekeeper) => void;
   onNoAnswer: () => void;
@@ -680,7 +691,7 @@ function GatekeeperStage({
   return (
     <div>
       <div className="eyebrow mb-3">Gatekeeper or Decision-Maker</div>
-      <ScriptBlock text={renderTemplate("Hi, is this the owner or the person responsible for marketing at {{businessName}}?", vars)} />
+      <ScriptBlock text={renderTemplate(config.openings.gatekeeperOpening, vars)} />
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {(
           [
@@ -700,12 +711,10 @@ function GatekeeperStage({
       </div>
 
       <p className="mt-5 text-[11px] font-medium uppercase tracking-wide text-faint">If a gatekeeper answers</p>
-      <ScriptBlock
-        text="Thanks. I'm trying to reach whoever handles the company's website and new-customer marketing. I found something specific in their online presence that may be affecting customer inquiries. Who would be the best person to speak with?"
-      />
+      <ScriptBlock text={renderTemplate(config.openings.gatekeeperReachingRightPerson, vars)} />
 
       <p className="mt-4 text-[11px] font-medium uppercase tracking-wide text-faint">If asked what this is about</p>
-      <ScriptBlock text="It isn't a general sales pitch. I found a specific issue in the company's public online presence and would like to show the person responsible what I found. If it isn't useful, there's no obligation." />
+      <ScriptBlock text={renderTemplate(config.openings.gatekeeperWhatIsThisAbout, vars)} />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <Field label="Decision-maker name" value={gatekeeper.name} onChange={(v) => onChange({ ...gatekeeper, name: v })} />
@@ -720,16 +729,11 @@ function GatekeeperStage({
   );
 }
 
-function OpeningStage({ vars }: { vars: PlaybookRenderVars }) {
+function OpeningStage({ vars, config }: { vars: PlaybookRenderVars; config: import("@/lib/playbook/types").PlaybookConfig }) {
   return (
     <div>
       <div className="eyebrow mb-3">Permission-Based Opening</div>
-      <ScriptBlock
-        text={renderTemplate(
-          "Great—my name is {{callerName}} with {{organizationName}}. I'll be brief. I was reviewing {{businessNoun}} companies around {{location}} and noticed something specific about {{businessName}}'s online presence. Do you have about 30 seconds?",
-          vars
-        )}
-      />
+      <ScriptBlock text={renderTemplate(config.openings.permissionOpening, vars)} />
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {["Yes", "I'm busy", "What is this about?", "Not interested", "Call later"].map((b) => (
           <div key={b} className="rounded-lg border border-hairline bg-raised/50 px-3 py-2 text-[12px] text-muted">
@@ -743,6 +747,7 @@ function OpeningStage({ vars }: { vars: PlaybookRenderVars }) {
 
 function VerifiedObservationStage({
   vars,
+  config,
   restrainedImpact,
   onRestrainedImpact,
   script,
@@ -753,6 +758,7 @@ function VerifiedObservationStage({
   copied
 }: {
   vars: PlaybookRenderVars;
+  config: import("@/lib/playbook/types").PlaybookConfig;
   restrainedImpact: string;
   onRestrainedImpact: (v: string) => void;
   script: GeneratedScript | null;
@@ -771,7 +777,8 @@ function VerifiedObservationStage({
           No structured verified observation is on file for this prospect yet — the script below will show a placeholder rather than an invented claim.
         </p>
       ) : null}
-      <ScriptBlock text={renderTemplate(vars.verifiedObservation ? "I reviewed {{evidenceTarget}}. I noticed {{verifiedObservation}}." : "I reviewed {{evidenceTarget}}. I noticed [verified observation].", vars)} />
+      {/* renderTemplate() already substitutes a visible "[verified observation]" placeholder when vars.verifiedObservation is empty -- no separate ternary/hardcoded fallback string needed here. */}
+      <ScriptBlock text={renderTemplate(config.openings.verifiedObservationTemplate, vars)} />
 
       <div className="mt-3">
         <label className="mb-1 block text-[11px] font-medium text-faint">Restrained potential impact (your words — avoid causation claims)</label>
@@ -783,10 +790,7 @@ function VerifiedObservationStage({
         />
       </div>
 
-      <ScriptBlock
-        className="mt-3"
-        text={renderTemplate("That may {{restrainedImpact}}. We help {{industryLabel}} businesses improve how their online presence converts interested customers into real inquiries. I have a couple of practical recommendations. Would it be helpful if I shared them?", vars)}
-      />
+      <ScriptBlock className="mt-3" text={renderTemplate(config.openings.verifiedObservationImpactTemplate, vars)} />
 
       <div className="mt-4 rounded-xl border border-hairline bg-raised/40 p-4">
         <div className="flex items-center justify-between">
@@ -868,6 +872,7 @@ function DiscoveryStage({
 
 function BookAssessmentStage({
   vars,
+  config,
   optionA,
   optionB,
   onOptionA,
@@ -876,6 +881,7 @@ function BookAssessmentStage({
   onBookedTime
 }: {
   vars: PlaybookRenderVars;
+  config: import("@/lib/playbook/types").PlaybookConfig;
   optionA: string;
   optionB: string;
   onOptionA: (v: string) => void;
@@ -890,13 +896,7 @@ function BookAssessmentStage({
         <Field label="Proposed time A" value={optionA} onChange={onOptionA} />
         <Field label="Proposed time B" value={optionB} onChange={onOptionB} />
       </div>
-      <ScriptBlock
-        className="mt-3"
-        text={renderTemplate(
-          "Based on what you've told me, the useful next step is a short 15-minute website and lead-flow assessment. I'll show you what I found, what I would correct first and what a stronger customer-inquiry path could look like. If it makes sense, we can discuss helping you implement it. If not, you'll still leave with the recommendations. Would {{optionA}} or {{optionB}} work better?",
-          vars
-        )}
-      />
+      <ScriptBlock className="mt-3" text={renderTemplate(config.bookingClose, vars)} />
       <div className="mt-4">
         <label className="mb-1 block text-[11px] font-medium text-faint">Agreed appointment time (only if actually confirmed)</label>
         <input

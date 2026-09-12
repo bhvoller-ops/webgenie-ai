@@ -252,14 +252,22 @@ export function OutcomePanel({
         ) : null}
 
         {!confirming ? (
-          <button
-            type="button"
-            disabled={!canConfirm}
-            onClick={() => setConfirming(true)}
-            className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
-          >
-            Preview & Confirm
-          </button>
+          <div className="mt-3">
+            <button
+              type="button"
+              disabled={!canConfirm}
+              onClick={() => setConfirming(true)}
+              aria-describedby={!canConfirm ? "outcome-confirm-reason" : undefined}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+            >
+              Preview & Confirm
+            </button>
+            {!canConfirm ? (
+              <p id="outcome-confirm-reason" className="mt-1.5 text-[11px] text-signal-warn">
+                {noteRequired && !note.trim() ? "A note is required for this outcome." : followUpRequired && !followUpOption ? "A follow-up date is required for this outcome." : ""}
+              </p>
+            ) : null}
+          </div>
         ) : (
           <div className="mt-3 rounded-lg border border-hairline bg-canvas/70 p-3">
             <p className="text-[12px] leading-relaxed text-ink/85">

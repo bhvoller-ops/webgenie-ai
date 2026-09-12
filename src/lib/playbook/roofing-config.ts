@@ -16,6 +16,7 @@ export const ROOFING_CONFIG: PlaybookConfig = {
   industryKey: "roofer",
   terminology: {
     businessNoun: "roofing company",
+    industryAdjective: "roofing",
     assessmentNoun: "roof inspection"
   },
   commonServices: [

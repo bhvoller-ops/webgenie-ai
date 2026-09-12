@@ -536,6 +536,22 @@ function runSourceChecks() {
       })()
     );
   }
+
+  console.log("\nB15. Owner-review accessibility fix: Escape closes the Objection Assistant overlay and restores focus, disabled controls expose a reason");
+  {
+    const oaSrc = src("src/app/prospects/[id]/playbook/objection-assistant.tsx");
+    check("an Escape keydown handler is registered while the overlay is open", /e\.key === "Escape"/.test(oaSrc));
+    check("closing (by any path) restores focus to the trigger button, not just removes the panel", /triggerRef\.current\?\.focus\(\)/.test(oaSrc));
+    check("the overlay has an accessible role/label for assistive tech", /role="dialog"/.test(oaSrc) && /aria-label="Objection Assistant"/.test(oaSrc));
+    check("the keydown listener is cleaned up on close/unmount (no leaked global listener)", /removeEventListener\("keydown"/.test(oaSrc));
+
+    const outcomePanelSrc = src("src/app/prospects/[id]/playbook/outcome-panel.tsx");
+    check(
+      "the disabled 'Preview & Confirm' button exposes its reason via aria-describedby, not only a hover-only title",
+      /aria-describedby=\{!canConfirm \? "outcome-confirm-reason" : undefined\}/.test(outcomePanelSrc)
+    );
+    check("the reason text element the button describes actually exists with a matching id", /id="outcome-confirm-reason"/.test(outcomePanelSrc));
+  }
 }
 
 run()

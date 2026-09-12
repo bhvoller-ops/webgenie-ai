@@ -9,7 +9,7 @@ import * as path from "path";
 import { HOME_SERVICES_BASE_CONFIG } from "../src/lib/playbook/home-services-config";
 import { ROOFING_CONFIG } from "../src/lib/playbook/roofing-config";
 import { resolvePlaybookConfig } from "../src/lib/playbook/get-config";
-import { renderTemplate } from "../src/lib/playbook/render";
+import { renderTemplate, type PlaybookRenderVars } from "../src/lib/playbook/render";
 import { PLAYBOOK_OUTCOMES, OUTCOME_MAPPING, REQUIRES_NOTE as REQUIRES_NOTE_FOR_TEST, REQUIRES_FOLLOW_UP as REQUIRES_FOLLOW_UP_FOR_TEST } from "../src/app/prospects/[id]/playbook/outcome-panel";
 
 let passed = 0;
@@ -173,6 +173,74 @@ console.log("\n10. Full outcome-mapping table (for the owner-review report)");
     );
   }
   check("table printed for every outcome", true);
+}
+
+console.log("\n11. Owner-review visual QA fix: no 'X company companies' / 'X company businesses' grammar duplication in either config");
+{
+  const allTemplateText = (cfg: typeof HOME_SERVICES_BASE_CONFIG) =>
+    [
+      cfg.openings.gatekeeperOpening,
+      cfg.openings.gatekeeperReachingRightPerson,
+      cfg.openings.gatekeeperWhatIsThisAbout,
+      cfg.openings.permissionOpening,
+      cfg.openings.verifiedObservationTemplate,
+      cfg.openings.verifiedObservationImpactTemplate,
+      cfg.bookingClose,
+      cfg.voicemailScript,
+      cfg.emailTemplate.subject,
+      cfg.emailTemplate.body,
+      ...cfg.objectionResponses.map((o) => o.response)
+    ].join("\n");
+
+  for (const [name, cfg] of [["Home Services base", HOME_SERVICES_BASE_CONFIG], ["Roofing", ROOFING_CONFIG]] as const) {
+    check(`${name}: no raw "{{businessNoun}} companies" template text`, !allTemplateText(cfg).includes("{{businessNoun}} companies"));
+    check(`${name}: no raw "{{businessNoun}} businesses" template text`, !allTemplateText(cfg).includes("{{businessNoun}} businesses"));
+
+    // Render every template with this config's own real terminology values
+    // and confirm the ACTUAL rendered text never contains the duplicated
+    // "<businessNoun> companies"/"<businessNoun> businesses" pattern --
+    // this is the literal defect found in live visual QA ("roofing company
+    // companies around Atlanta, GA").
+    const vars: PlaybookRenderVars = {
+      businessNoun: cfg.terminology.businessNoun,
+      industryAdjective: cfg.terminology.industryAdjective,
+      callerName: "Alex",
+      organizationName: "VibeLabs",
+      location: "Atlanta, GA",
+      businessName: "Test Co"
+    };
+    const rendered = renderTemplate(allTemplateText(cfg), vars);
+    check(`${name}: rendered text never contains "${cfg.terminology.businessNoun} companies"`, !rendered.includes(`${cfg.terminology.businessNoun} companies`));
+    check(`${name}: rendered text never contains "${cfg.terminology.businessNoun} businesses"`, !rendered.includes(`${cfg.terminology.businessNoun} businesses`));
+  }
+}
+
+console.log("\n11b. Owner-review visual QA fix: no double period after a real observation that already ends in punctuation");
+{
+  for (const [name, cfg] of [["Home Services base", HOME_SERVICES_BASE_CONFIG], ["Roofing", ROOFING_CONFIG]] as const) {
+    const rendered = renderTemplate(cfg.openings.verifiedObservationTemplate, {
+      evidenceTarget: "https://example.com",
+      // A real observation from production always ends in its own period.
+      verifiedObservation: "Its site lists a Texas address for an Atlanta business."
+    });
+    check(`${name}: rendered observation sentence does not end in ".." `, !rendered.includes(".."));
+  }
+}
+
+console.log("\n12. Owner-review visual QA fix: every stage script actually comes from config, not a hardcoded UI duplicate");
+{
+  const wsSrc = fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/playbook-workspace.tsx"), "utf8");
+  const stageConfigRefs: Record<string, string> = {
+    GatekeeperStage: "config.openings.gatekeeperOpening",
+    OpeningStage: "config.openings.permissionOpening",
+    VerifiedObservationStage: "config.openings.verifiedObservationTemplate",
+    BookAssessmentStage: "config.bookingClose"
+  };
+  for (const [fnName, expectedRef] of Object.entries(stageConfigRefs)) {
+    const fnStart = wsSrc.indexOf(`function ${fnName}(`);
+    const fnBody = wsSrc.slice(fnStart, wsSrc.indexOf("\n}\n", fnStart));
+    check(`${fnName}() reads its script from ${expectedRef}, not a hardcoded literal`, fnStart > -1 && fnBody.includes(expectedRef));
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
