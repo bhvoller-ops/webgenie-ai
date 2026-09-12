@@ -181,11 +181,15 @@ export function LaunchClient() {
           Real progress
           {bottleneck ? <Pill tone="warn">Bottleneck: {bottleneck.label}</Pill> : <Pill tone="good">Full funnel active</Pill>}
         </div>
-        {/* Compact horizontal funnel -- wraps to a vertical list on narrow screens. */}
-        <ol className="flex flex-col gap-0 sm:flex-row sm:items-stretch sm:gap-0">
-          {milestones.map((m, i) => (
-            <li key={m.key} className="flex flex-1 items-center gap-2.5 sm:flex-col sm:items-stretch sm:gap-1.5">
-              <div className="flex items-center gap-2.5 sm:flex-col sm:items-center sm:gap-1.5 sm:text-center">
+        {/* Compact horizontal funnel -- wraps to a vertical list on narrow
+            screens. A single connecting line sits behind the row of dots
+            (desktop only) rather than a per-item divider, which is more
+            robust than trying to stretch a divider inside each flex item. */}
+        <div className="relative">
+          <div className="absolute left-4 right-4 top-3.5 hidden h-px bg-hairline sm:block" aria-hidden />
+          <ol className="relative flex flex-col gap-3 sm:flex-row sm:gap-0">
+            {milestones.map((m) => (
+              <li key={m.key} className="flex flex-1 items-center gap-2.5 sm:flex-col sm:items-center sm:gap-1.5 sm:text-center">
                 <span
                   className={cn(
                     "grid h-7 w-7 shrink-0 place-items-center rounded-full border",
@@ -198,11 +202,10 @@ export function LaunchClient() {
                   <div className={cn("text-[12.5px] font-medium leading-tight", m.done ? "text-ink" : "text-muted")}>{m.label}</div>
                   {m.count !== null ? <div className="font-mono text-[11.5px] text-faint">{m.count}</div> : null}
                 </div>
-              </div>
-              {i < milestones.length - 1 ? <div className="ml-3.5 mt-1 h-4 w-px bg-hairline sm:ml-0 sm:mt-3.5 sm:h-px sm:w-full sm:flex-1" aria-hidden /> : null}
-            </li>
-          ))}
-        </ol>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     </PageShell>
   );
