@@ -56,6 +56,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
   const [outcomePending, setOutcomePending] = useState(false);
   const [outcomeError, setOutcomeError] = useState("");
   const [outcomeSaved, setOutcomeSaved] = useState(false);
+  const [operationalDone, setOperationalDone] = useState<"skip" | "snooze" | null>(null);
 
   // OWNER-REVIEW CORRECTION: caller identity is never hardcoded and never
   // silently blank. Name/phone/website are per-viewer conveniences stored
@@ -284,6 +285,34 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
     }
   }
 
+  /**
+   * Wrong contact / Number invalid / Contact information disputed:
+   * purely operational, never a recorded outcome. Reuses the EXISTING
+   * truthful skip/snooze operation on the current prospect_action --
+   * never perform()/pitch-outcome(), never a call_log status write.
+   */
+  async function handleOperational(op: "skip" | "snooze", snoozeOption?: string) {
+    if (!actionId) return; // OutcomePanel only offers this when hasActionId is true
+    setOutcomePending(true);
+    setOutcomeError("");
+    try {
+      const body: Record<string, unknown> = op === "skip" ? { op: "skip" } : { op: "snooze", option: snoozeOption };
+      const res = await fetch(`/api/prospect-actions/${actionId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Couldn't update this action.");
+      setOperationalDone(op);
+      setDirty(false);
+    } catch (e) {
+      setOutcomeError(e instanceof Error ? e.message : "Couldn't update this action.");
+    } finally {
+      setOutcomePending(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -311,6 +340,25 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
         <p className="mt-3 text-[13.5px] leading-relaxed text-ink">Outcome saved. The Daily Queue and sequence have been updated.</p>
         <p className="mt-2 text-[12px] leading-relaxed text-muted">
           If this prospect just went WON, open its prospect page to start Won Client Handoff — WON never creates a fulfillment project automatically.
+        </p>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <Link href={`/prospects/${prospectId}`} className="focus-ring text-[12.5px] font-medium text-iris-soft hover:underline">
+            Back to prospect
+          </Link>
+          <Link href="/prospecting" className="focus-ring text-[12px] text-faint hover:text-muted">
+            Back to Daily Queue
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (operationalDone) {
+    return (
+      <div className="mx-auto mt-16 max-w-md rounded-panel border border-hairline bg-canvas/70 p-6 text-center">
+        <Check className="mx-auto h-6 w-6 text-muted" aria-hidden />
+        <p className="mt-3 text-[13.5px] leading-relaxed text-ink">
+          Action {operationalDone === "skip" ? "skipped" : "snoozed"}. No outcome was recorded — nothing was claimed about the prospect&rsquo;s interest.
         </p>
         <div className="mt-4 flex flex-col items-center gap-2">
           <Link href={`/prospects/${prospectId}`} className="focus-ring text-[12.5px] font-medium text-iris-soft hover:underline">
@@ -549,7 +597,14 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
           {stage === "OUTCOME" ? (
             <>
               {outcomeError ? <p className="mb-3 text-[12.5px] text-signal-bad">{outcomeError}</p> : null}
-              <OutcomePanel channel={channel} willAdvanceSequence={willAdvanceSequence} onConfirm={handleOutcomeConfirm} pending={outcomePending} />
+              <OutcomePanel
+                channel={channel}
+                hasActionId={Boolean(actionId)}
+                willAdvanceSequence={willAdvanceSequence}
+                onConfirm={handleOutcomeConfirm}
+                onOperational={handleOperational}
+                pending={outcomePending}
+              />
             </>
           ) : null}
 

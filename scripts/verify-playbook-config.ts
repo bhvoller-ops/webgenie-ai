@@ -10,7 +10,14 @@ import { HOME_SERVICES_BASE_CONFIG } from "../src/lib/playbook/home-services-con
 import { ROOFING_CONFIG } from "../src/lib/playbook/roofing-config";
 import { resolvePlaybookConfig } from "../src/lib/playbook/get-config";
 import { renderTemplate, type PlaybookRenderVars } from "../src/lib/playbook/render";
-import { PLAYBOOK_OUTCOMES, OUTCOME_MAPPING, REQUIRES_NOTE as REQUIRES_NOTE_FOR_TEST, REQUIRES_FOLLOW_UP as REQUIRES_FOLLOW_UP_FOR_TEST } from "../src/app/prospects/[id]/playbook/outcome-panel";
+import {
+  PLAYBOOK_OUTCOMES,
+  OUTCOME_MAPPING,
+  CONVERSATION_BRANCHES,
+  REQUIRES_NOTE as REQUIRES_NOTE_FOR_TEST,
+  REQUIRES_FOLLOW_UP as REQUIRES_FOLLOW_UP_FOR_TEST,
+  REQUIRES_AFFIRMATION as REQUIRES_AFFIRMATION_FOR_TEST
+} from "../src/app/prospects/[id]/playbook/outcome-panel";
 
 let passed = 0;
 let failed = 0;
@@ -81,7 +88,7 @@ console.log("\n4. Template rendering never fabricates a fact for a missing varia
   check("multiple variables in one template all resolve independently", renderTemplate("{{a}} and {{b}}", { a: "X", b: "Y" }) === "X and Y");
 }
 
-console.log("\n5. Outcome vocabulary maps only onto EXISTING enums — no invented duplicate event semantics");
+console.log("\n5. SEMANTIC CORRECTION: no persisted outcome is lossy -- every mapping is EXACT, no exceptions");
 {
   const EXISTING_OUTCOME_ENUM = ["no_answer", "left_voicemail", "sent", "replied", "interested", "not_interested", "meeting_booked", "won", "lost"];
   check(
@@ -89,43 +96,64 @@ console.log("\n5. Outcome vocabulary maps only onto EXISTING enums — no invent
     Object.values(OUTCOME_MAPPING).every((m) => m.value === null || EXISTING_OUTCOME_ENUM.includes(m.value))
   );
   check("every playbook outcome option has a mapping entry (no orphan option)", PLAYBOOK_OUTCOMES.every((o) => o.key in OUTCOME_MAPPING));
+  check("EVERY mapping entry is exact -- there is no lossy/approximate entry left anywhere", Object.values(OUTCOME_MAPPING).every((m) => m.exact === true));
   check("'opted_out' maps to null — routed through /suppress instead, never through the outcome enum", OUTCOME_MAPPING.opted_out.value === null);
-  check("'won' maps to the existing 'won' status", OUTCOME_MAPPING.won.value === "won" && OUTCOME_MAPPING.won.exact);
-  check("'lost' maps to the existing 'lost' status", OUTCOME_MAPPING.lost.value === "lost" && OUTCOME_MAPPING.lost.exact);
-  check("'assessment_booked' maps to the existing 'meeting_booked' status", OUTCOME_MAPPING.assessment_booked.value === "meeting_booked" && OUTCOME_MAPPING.assessment_booked.exact);
-  check("'voicemail_left' maps to the existing 'left_voicemail' status", OUTCOME_MAPPING.voicemail_left.value === "left_voicemail" && OUTCOME_MAPPING.voicemail_left.exact);
-  check("the full 18-option vocabulary (spec's 15 + won/lost + email_sent) is all present", PLAYBOOK_OUTCOMES.length === 18);
+  check("'won' maps to the existing 'won' status", OUTCOME_MAPPING.won.value === "won");
+  check("'lost' maps to the existing 'lost' status", OUTCOME_MAPPING.lost.value === "lost");
+  check("'assessment_booked' maps to the existing 'meeting_booked' status", OUTCOME_MAPPING.assessment_booked.value === "meeting_booked");
+  check("'voicemail_left' maps to the existing 'left_voicemail' status, distinct from 'no_answer'", OUTCOME_MAPPING.voicemail_left.value === "left_voicemail" && OUTCOME_MAPPING.voicemail_left.value !== OUTCOME_MAPPING.no_answer.value);
+  check("'email_sent' maps EXACTLY to 'sent' (this is what 'sent' was always meant for)", OUTCOME_MAPPING.email_sent.value === "sent");
+  check("the final persisted-outcome menu has exactly 13 entries (the semantically supported set)", PLAYBOOK_OUTCOMES.length === 13);
 }
 
-console.log("\n6. Owner-review correction: no outcome claims something that didn't happen (rules 1 & 2)");
+console.log("\n6. SEMANTIC CORRECTION: the 4 prohibited false mappings are gone -- not merely relabeled");
 {
-  check(
-    "'gatekeeper_only' does NOT claim nothing happened -- 'no_answer' is used only as the least-wrong non-stop bucket, and is marked lossy (disclosed, not silent)",
-    OUTCOME_MAPPING.gatekeeper_only.value === "no_answer" && !OUTCOME_MAPPING.gatekeeper_only.exact
-  );
-  check(
-    "'information_requested' is never stored as 'sent' -- nothing was transmitted, so 'sent' would be a materially misleading stored value",
-    OUTCOME_MAPPING.information_requested.value !== "sent"
-  );
-  check(
-    "'callback_scheduled' is never stored as 'sent' either, for the same reason",
-    OUTCOME_MAPPING.callback_scheduled.value !== "sent"
-  );
-  check(
-    "'voicemail_left' is genuinely distinct from 'no_answer' -- never conflated",
-    OUTCOME_MAPPING.voicemail_left.value !== OUTCOME_MAPPING.no_answer.value
-  );
-  check("'email_sent' exists and maps EXACTLY to 'sent' (this is what 'sent' was always meant for)", OUTCOME_MAPPING.email_sent.value === "sent" && OUTCOME_MAPPING.email_sent.exact);
-  check(
-    "every LOSSY mapping requires a note (so the real detail is never lost, only the stored enum is approximate)",
-    Object.entries(OUTCOME_MAPPING).every(([key, m]) => {
-      if (m.exact || key === "opted_out") return true;
-      return REQUIRES_NOTE_FOR_TEST.includes(key as keyof typeof OUTCOME_MAPPING);
-    })
-  );
+  check("'wrong_contact' is NOT a key in OUTCOME_MAPPING at all -- it is an operational branch, never a stored outcome", !("wrong_contact" in OUTCOME_MAPPING));
+  check("'number_invalid' is NOT a key in OUTCOME_MAPPING at all", !("number_invalid" in OUTCOME_MAPPING));
+  check("'contact_info_disputed' is NOT a key in OUTCOME_MAPPING at all", !("contact_info_disputed" in OUTCOME_MAPPING));
+  check("'other' is NOT a key in OUTCOME_MAPPING at all -- removed entirely, not repaired with a required note", !("other" in OUTCOME_MAPPING));
+  check("'gatekeeper_only' is NOT a key in OUTCOME_MAPPING at all -- it is a branch, not a stored outcome", !("gatekeeper_only" in OUTCOME_MAPPING));
+  check("'spoke_with_decision_maker' is NOT a key in OUTCOME_MAPPING at all -- it is a branch requiring a real disposition", !("spoke_with_decision_maker" in OUTCOME_MAPPING));
+
+  const wrongContact = CONVERSATION_BRANCHES.find((b) => b.key === "wrong_contact");
+  const numberInvalid = CONVERSATION_BRANCHES.find((b) => b.key === "number_invalid");
+  const contactDisputed = CONVERSATION_BRANCHES.find((b) => b.key === "contact_info_disputed");
+  check("'wrong_contact' is a real conversation branch, marked operational (skip/snooze only, no status)", Boolean(wrongContact?.operational));
+  check("'number_invalid' is a real conversation branch, marked operational", Boolean(numberInvalid?.operational));
+  check("'contact_info_disputed' is a real conversation branch, marked operational", Boolean(contactDisputed?.operational));
+
+  const gatekeeperOnly = CONVERSATION_BRANCHES.find((b) => b.key === "gatekeeper_only");
+  const spokeWith = CONVERSATION_BRANCHES.find((b) => b.key === "spoke_with_decision_maker");
+  check("'gatekeeper_only' is a non-operational branch (reveals a filtered real-outcome list)", Boolean(gatekeeperOnly && !gatekeeperOnly.operational));
+  check("'gatekeeper_only' cannot reach 'not_interested' or 'won' -- only genuinely plausible results from a gatekeeper-only call", Boolean(gatekeeperOnly?.reachableOutcomes?.every((k) => ["callback_scheduled", "information_requested", "no_answer"].includes(k))));
+  check("'spoke_with_decision_maker' is a non-operational branch requiring a real disposition", Boolean(spokeWith && !spokeWith.operational));
+  check("'spoke_with_decision_maker' cannot resolve to 'no_answer' -- if someone spoke, 'no answer' is never a valid result of this branch", Boolean(spokeWith && !spokeWith.reachableOutcomes?.includes("no_answer")));
 }
 
-console.log("\n7. Owner-review correction: sequence-progression correctness (rule 3) -- cross-checked against the REAL route source, not just re-asserted here");
+console.log("\n7. SEMANTIC CORRECTION: 'interested' requires an affirmative confirmation, never assumed");
+{
+  check("'interested' requires an explicit affirmation gate", REQUIRES_AFFIRMATION_FOR_TEST.includes("interested"));
+  check("'interested' requires a note", REQUIRES_NOTE_FOR_TEST.includes("interested"));
+  check("'interested' requires a follow-up date", REQUIRES_FOLLOW_UP_FOR_TEST.includes("interested"));
+  check("'qualified_not_ready' maps to the same 'interested' status but is a distinct, separately labeled choice (not silently folded away)", OUTCOME_MAPPING.qualified_not_ready.value === "interested" && OUTCOME_MAPPING.qualified_not_ready.value === OUTCOME_MAPPING.interested.value);
+  check("'qualified_not_ready' still requires its own note + follow-up (the affirmation is specific to the bare 'Interested' button, not required a second time here since the note itself must state the qualification)", REQUIRES_NOTE_FOR_TEST.includes("qualified_not_ready") && REQUIRES_FOLLOW_UP_FOR_TEST.includes("qualified_not_ready"));
+}
+
+console.log("\n8. SEMANTIC CORRECTION: 'information_requested' / 'callback_scheduled' produce a REAL next action, not a note-only promise");
+{
+  const nbaSrc = fs.readFileSync(path.join(__dirname, "..", "src/lib/prospect/action-generation.ts"), "utf8");
+  check(
+    "the real computeProspectAction() routes call_log.status 'replied' to REVIEW_REPLY unconditionally (the actual, existing, queue-visible next action this produces)",
+    /callLog\?\.status === "interested" \|\| callLog\?\.status === "replied"/.test(nbaSrc) && /actionType: "REVIEW_REPLY"/.test(nbaSrc)
+  );
+  check("'information_requested' maps to 'replied' -- the prospect genuinely responded, so this is exact, and REVIEW_REPLY is real and queue-visible", OUTCOME_MAPPING.information_requested.value === "replied");
+  check("'callback_scheduled' maps to 'replied' for the same honest reason", OUTCOME_MAPPING.callback_scheduled.value === "replied");
+  check("both require a note (the specific promise/detail is never buried -- it's what the human sees when they open the REVIEW_REPLY action)", REQUIRES_NOTE_FOR_TEST.includes("information_requested") && REQUIRES_NOTE_FOR_TEST.includes("callback_scheduled"));
+  check("'callback_scheduled' additionally requires a real follow-up date, not merely a note", REQUIRES_FOLLOW_UP_FOR_TEST.includes("callback_scheduled"));
+  check("the UI discloses the REVIEW_REPLY mechanism explicitly for these two outcomes (not silently assumed)", /This creates a real, queue-visible \\"Review Reply\\" action/.test(fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8")));
+}
+
+console.log("\n9. Sequence-progression correctness -- cross-checked against the REAL route source, not just re-asserted here");
 {
   const performRouteSrc = fs.readFileSync(
     path.join(__dirname, "..", "src/app/api/prospects/[id]/sequence-enrollments/[enrollmentId]/perform/route.ts"),
@@ -142,40 +170,43 @@ console.log("\n7. Owner-review correction: sequence-progression correctness (rul
     check(`"${key}" -> "${mapping.value}": isStopOutcome (${mapping.isStopOutcome}) matches the real route's own stopOutcomes list (${realIsStop})`, mapping.isStopOutcome === realIsStop);
   }
 
-  check(
-    "'wrong_contact' / 'number_invalid' / 'contact_info_disputed' are all STOP outcomes -- continuing to retry known-bad contact data would be wrong, not merely imprecise",
-    OUTCOME_MAPPING.wrong_contact.isStopOutcome && OUTCOME_MAPPING.number_invalid.isStopOutcome && OUTCOME_MAPPING.contact_info_disputed.isStopOutcome
-  );
-  check(
-    "'gatekeeper_only' is NON-STOP -- the decision-maker hasn't been reached yet, so the sequence should keep trying",
-    !OUTCOME_MAPPING.gatekeeper_only.isStopOutcome
-  );
+  check("'no_answer' is NON-STOP -- the sequence should keep trying", !OUTCOME_MAPPING.no_answer.isStopOutcome);
+  check("'voicemail_left' is NON-STOP", !OUTCOME_MAPPING.voicemail_left.isStopOutcome);
+  check("'email_sent' is NON-STOP", !OUTCOME_MAPPING.email_sent.isStopOutcome);
 }
 
-console.log("\n8. Owner-review correction: a promised follow-up is never silently dropped (part of rule 1's spirit)");
-{
-  check("'callback_scheduled' requires a follow-up date, not merely offers one", REQUIRES_FOLLOW_UP_FOR_TEST.includes("callback_scheduled"));
-  check("'qualified_not_ready' requires a follow-up date too", REQUIRES_FOLLOW_UP_FOR_TEST.includes("qualified_not_ready"));
-}
-
-console.log("\n9. Owner-review correction: 'assessment_booked' never implies WON (rule 6)");
+console.log("\n10. 'assessment_booked' never implies WON");
 {
   check("'assessment_booked' and 'won' map to genuinely different stored values", OUTCOME_MAPPING.assessment_booked.value !== OUTCOME_MAPPING.won.value);
   check("selecting 'assessment_booked' is a completely separate choice from 'won' in the picker (not a sub-state of it)", PLAYBOOK_OUTCOMES.some((o) => o.key === "assessment_booked") && PLAYBOOK_OUTCOMES.some((o) => o.key === "won"));
 }
 
-console.log("\n10. Full outcome-mapping table (for the owner-review report)");
+console.log("\n10b. Operational branches never touch perform()/pitch-outcome() -- only the existing skip/snooze operation");
+{
+  const wsSrc = fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/playbook-workspace.tsx"), "utf8");
+  const handleOpBody = wsSrc.slice(wsSrc.indexOf("async function handleOperational"), wsSrc.indexOf("if (loading) {"));
+  check("handleOperational() calls the existing /api/prospect-actions/{id} route", /\/api\/prospect-actions\/\$\{actionId\}/.test(handleOpBody));
+  check("handleOperational() never calls /perform or /pitch/.../outcome", !/\/perform/.test(handleOpBody) && !handleOpBody.includes("/outcome`"));
+  check("handleOperational() never calls /suppress", !/\/suppress/.test(handleOpBody));
+  check("the operational branch UI never renders a note as being saved anywhere -- it is explicitly labeled a working note only", /kept on this screen only|not saved to prospect history/.test(fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8")));
+}
+
+console.log("\n11. Full outcome-mapping table (for the semantic-correction report)");
 {
   for (const o of PLAYBOOK_OUTCOMES) {
     const m = OUTCOME_MAPPING[o.key];
     console.log(
-      `  ${o.label.padEnd(28)} -> ${(m.value ?? "(suppress route)").padEnd(15)} | ${m.exact ? "EXACT" : "LOSSY"} | ${m.isStopOutcome ? "STOP " : "CONT "} | note:${REQUIRES_NOTE_FOR_TEST.includes(o.key) ? "req" : "opt "} | followUp:${REQUIRES_FOLLOW_UP_FOR_TEST.includes(o.key) ? "req" : "opt "}`
+      `  ${o.label.padEnd(28)} -> ${(m.value ?? "(suppress route)").padEnd(15)} | EXACT | ${m.isStopOutcome ? "STOP " : "CONT "} | note:${REQUIRES_NOTE_FOR_TEST.includes(o.key) ? "req" : "opt "} | followUp:${REQUIRES_FOLLOW_UP_FOR_TEST.includes(o.key) ? "req" : "opt "} | affirm:${REQUIRES_AFFIRMATION_FOR_TEST.includes(o.key) ? "req" : "n/a"}`
     );
   }
-  check("table printed for every outcome", true);
+  console.log("\n  Conversation branches (never persisted on their own):");
+  for (const b of CONVERSATION_BRANCHES) {
+    console.log(`  ${b.label.padEnd(28)} -> ${b.operational ? "operational (skip/snooze only)" : `resolves to: ${b.reachableOutcomes?.join(", ")}`}`);
+  }
+  check("table printed for every outcome and branch", true);
 }
 
-console.log("\n11. Owner-review visual QA fix: no 'X company companies' / 'X company businesses' grammar duplication in either config");
+console.log("\n13. Owner-review visual QA fix: no 'X company companies' / 'X company businesses' grammar duplication in either config");
 {
   const allTemplateText = (cfg: typeof HOME_SERVICES_BASE_CONFIG) =>
     [
@@ -215,7 +246,7 @@ console.log("\n11. Owner-review visual QA fix: no 'X company companies' / 'X com
   }
 }
 
-console.log("\n11b. Owner-review visual QA fix: no double period after a real observation that already ends in punctuation");
+console.log("\n14. Owner-review visual QA fix: no double period after a real observation that already ends in punctuation");
 {
   for (const [name, cfg] of [["Home Services base", HOME_SERVICES_BASE_CONFIG], ["Roofing", ROOFING_CONFIG]] as const) {
     const rendered = renderTemplate(cfg.openings.verifiedObservationTemplate, {
@@ -227,7 +258,7 @@ console.log("\n11b. Owner-review visual QA fix: no double period after a real ob
   }
 }
 
-console.log("\n12. Owner-review visual QA fix: every stage script actually comes from config, not a hardcoded UI duplicate");
+console.log("\n15. Owner-review visual QA fix: every stage script actually comes from config, not a hardcoded UI duplicate");
 {
   const wsSrc = fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/playbook-workspace.tsx"), "utf8");
   const stageConfigRefs: Record<string, string> = {
