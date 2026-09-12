@@ -150,7 +150,17 @@ console.log("\n8. SEMANTIC CORRECTION: 'information_requested' / 'callback_sched
   check("'callback_scheduled' maps to 'replied' for the same honest reason", OUTCOME_MAPPING.callback_scheduled.value === "replied");
   check("both require a note (the specific promise/detail is never buried -- it's what the human sees when they open the REVIEW_REPLY action)", REQUIRES_NOTE_FOR_TEST.includes("information_requested") && REQUIRES_NOTE_FOR_TEST.includes("callback_scheduled"));
   check("'callback_scheduled' additionally requires a real follow-up date, not merely a note", REQUIRES_FOLLOW_UP_FOR_TEST.includes("callback_scheduled"));
-  check("the UI discloses the REVIEW_REPLY mechanism explicitly for these two outcomes (not silently assumed)", /This creates a real, queue-visible \\"Review Reply\\" action/.test(fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8")));
+  const outcomePanelSrcForDisclosure = fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8");
+  check(
+    "OPERATIONAL FOLLOW-THROUGH CORRECTION: the UI discloses that 'callback_scheduled' creates a real, due-dated Callback action (not merely a note on a generic REVIEW_REPLY)",
+    /This creates a real, due-dated \\"Callback\\" action that will appear in Daily Queue/.test(outcomePanelSrcForDisclosure)
+  );
+  check(
+    "OPERATIONAL FOLLOW-THROUGH CORRECTION: the UI discloses that 'information_requested' creates a real, immediately-actionable Send-information action (not merely a note)",
+    /This creates a real, immediately-actionable \\"Send information\\" action/.test(outcomePanelSrcForDisclosure)
+  );
+  check("callback UI requires date, time and purpose before it can be confirmed (not merely the generic follow-up dropdown)", /callbackFieldsValid/.test(outcomePanelSrcForDisclosure) && /callbackDate/.test(outcomePanelSrcForDisclosure) && /callbackTime/.test(outcomePanelSrcForDisclosure) && /callbackPurpose/.test(outcomePanelSrcForDisclosure));
+  check("information-requested UI requires the requested-info text before it can be confirmed", /infoFieldsValid/.test(outcomePanelSrcForDisclosure) && /requestedInfo/.test(outcomePanelSrcForDisclosure));
 }
 
 console.log("\n9. Sequence-progression correctness -- cross-checked against the REAL route source, not just re-asserted here");
@@ -188,7 +198,19 @@ console.log("\n10b. Operational branches never touch perform()/pitch-outcome() -
   check("handleOperational() calls the existing /api/prospect-actions/{id} route", /\/api\/prospect-actions\/\$\{actionId\}/.test(handleOpBody));
   check("handleOperational() never calls /perform or /pitch/.../outcome", !/\/perform/.test(handleOpBody) && !handleOpBody.includes("/outcome`"));
   check("handleOperational() never calls /suppress", !/\/suppress/.test(handleOpBody));
-  check("the operational branch UI never renders a note as being saved anywhere -- it is explicitly labeled a working note only", /kept on this screen only|not saved to prospect history/.test(fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8")));
+  const outcomePanelSrcForOperational = fs.readFileSync(path.join(__dirname, "..", "src/app/prospects/[id]/playbook/outcome-panel.tsx"), "utf8");
+  check(
+    "OPERATIONAL FOLLOW-THROUGH CORRECTION: the operational branch UI now truthfully discloses that a structured event WILL be recorded (the note is genuinely persisted, not a working-note-only fiction)",
+    /What will be recorded:/.test(outcomePanelSrcForOperational) && /never classified as not interested, no answer, engagement, or conversion/.test(outcomePanelSrcForOperational)
+  );
+  check(
+    "the operational branch discloses the channel-blocking consequence (only the affected channel, not the whole prospect)",
+    /becomes unavailable in the Playbook until reverified/.test(outcomePanelSrcForOperational) && /other verified channels are untouched/.test(outcomePanelSrcForOperational)
+  );
+  check(
+    "even with no queue action attached, the branch still offers to record the event (no dead end)",
+    /onLogOnly/.test(outcomePanelSrcForOperational) && /Record this issue/.test(outcomePanelSrcForOperational)
+  );
 }
 
 console.log("\n11. Full outcome-mapping table (for the semantic-correction report)");

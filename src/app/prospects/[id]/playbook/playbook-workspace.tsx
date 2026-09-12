@@ -10,7 +10,7 @@ import { PLAYBOOK_STAGE_LABELS, type PlaybookStageKey } from "@/lib/playbook/typ
 import type { PlaybookContext, PlaybookBlocked } from "@/lib/playbook/resolve-context";
 import { IntelligenceCard } from "./intelligence-card";
 import { ObjectionAssistant } from "./objection-assistant";
-import { OutcomePanel, OUTCOME_MAPPING, type PlaybookOutcomeKey } from "./outcome-panel";
+import { OutcomePanel, OUTCOME_MAPPING, type PlaybookOutcomeKey, type OutcomeExtra } from "./outcome-panel";
 
 const LINEAR_STAGES: PlaybookStageKey[] = ["PRE_CALL_CHECK", "GATEKEEPER", "OPENING", "VERIFIED_OBSERVATION", "DISCOVERY", "BOOK_ASSESSMENT", "OUTCOME"];
 
@@ -220,7 +220,7 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
     // Copying a script is not outreach — no activity, no state change here.
   }
 
-  async function handleOutcomeConfirm(outcome: PlaybookOutcomeKey, outcomeNote: string, followUpOption: string) {
+  async function handleOutcomeConfirm(outcome: PlaybookOutcomeKey, outcomeNote: string, followUpOption: string, extra: OutcomeExtra) {
     if (!context || !channel) return;
     setOutcomePending(true);
     setOutcomeError("");
@@ -275,6 +275,34 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
           const json = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(json.error || "Couldn't save that outcome.");
         }
+
+        // Owner-review operational-follow-through correction: the perform/
+        // pitch-outcome call above just logged the real contact attempt and
+        // triggered regenerateProspectIntelligence(), which will have
+        // computed a generic REVIEW_REPLY for this prospect's one active
+        // action slot. For these two outcomes specifically, immediately
+        // overwrite that SAME slot with a real, structured action instead
+        // of leaving the specific promise buried only in the note above —
+        // see lib/prospect/operational-followup.ts for why this is safe
+        // against the DB's one-active-action-per-prospect unique index
+        // (it updates the existing single row, never inserts a second one).
+        if (outcome === "callback_scheduled" && extra.callbackDueAt && extra.callbackPurpose) {
+          const res = await fetch(`/api/prospects/${prospectId}/callback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dueAt: extra.callbackDueAt, purpose: extra.callbackPurpose })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || "Outcome saved, but the callback action itself couldn't be scheduled.");
+        } else if (outcome === "information_requested" && extra.requestedInfo) {
+          const res = await fetch(`/api/prospects/${prospectId}/information-request`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestedInfo: extra.requestedInfo, channel, promisedTiming: extra.promisedTiming || undefined })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || "Outcome saved, but the information-delivery action itself couldn't be created.");
+        }
       }
       setOutcomeSaved(true);
       setDirty(false);
@@ -291,20 +319,44 @@ export function PlaybookWorkspace({ prospectId, actionId, enrollmentId }: { pros
    * truthful skip/snooze operation on the current prospect_action --
    * never perform()/pitch-outcome(), never a call_log status write.
    */
-  async function handleOperational(op: "skip" | "snooze", snoozeOption?: string) {
-    if (!actionId) return; // OutcomePanel only offers this when hasActionId is true
+  /** ConversationBranchKey -> contact-quality API's issueType vocabulary (deliberately distinct spellings kept in sync here, not silently assumed equal). */
+  const BRANCH_TO_ISSUE_TYPE: Record<string, "wrong_contact" | "invalid_number" | "disputed_info"> = {
+    wrong_contact: "wrong_contact",
+    number_invalid: "invalid_number",
+    contact_info_disputed: "disputed_info"
+  };
+
+  async function handleOperational(branchKey: string, op: "skip" | "snooze" | "log", opNote: string, snoozeOption?: string) {
+    if (!context || !channel) return;
     setOutcomePending(true);
     setOutcomeError("");
     try {
-      const body: Record<string, unknown> = op === "skip" ? { op: "skip" } : { op: "snooze", option: snoozeOption };
-      const res = await fetch(`/api/prospect-actions/${actionId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Couldn't update this action.");
-      setOperationalDone(op);
+      const issueType = BRANCH_TO_ISSUE_TYPE[branchKey];
+      if (issueType) {
+        // Always persist the real, structured operational event first --
+        // independent of whether an action exists to skip/snooze. Never
+        // classified as not_interested/no_answer; never touches call_log.
+        const res = await fetch(`/api/prospects/${prospectId}/contact-quality`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel, issueType, note: opNote || undefined, actionId: actionId || undefined })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || "Couldn't record this event.");
+      }
+
+      if ((op === "skip" || op === "snooze") && actionId) {
+        const body: Record<string, unknown> = op === "skip" ? { op: "skip" } : { op: "snooze", option: snoozeOption };
+        const res = await fetch(`/api/prospect-actions/${actionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || "Couldn't update this action.");
+      }
+
+      setOperationalDone(op === "log" ? "skip" : op); // reuses the same "not a recorded outcome" confirmation screen
       setDirty(false);
     } catch (e) {
       setOutcomeError(e instanceof Error ? e.message : "Couldn't update this action.");

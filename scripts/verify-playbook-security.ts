@@ -552,6 +552,71 @@ function runSourceChecks() {
     );
     check("the reason text element the button describes actually exists with a matching id", /id="outcome-confirm-reason"/.test(outcomePanelSrc));
   }
+
+  console.log("\nB16. Operational follow-through correction: the 3 new routes stay tenant-scoped and derive organization_id server-side");
+  {
+    const callbackSrc = src("src/app/api/prospects/[id]/callback/route.ts");
+    const infoRequestSrc = src("src/app/api/prospects/[id]/information-request/route.ts");
+    const contactQualitySrc = src("src/app/api/prospects/[id]/contact-quality/route.ts");
+    const operationalFollowupSrc = src("src/lib/prospect/operational-followup.ts");
+    const contactQualityLibSrc = src("src/lib/prospect/contact-quality.ts");
+
+    for (const [name, routeSrc] of [
+      ["callback", callbackSrc],
+      ["information-request", infoRequestSrc],
+      ["contact-quality", contactQualitySrc]
+    ] as const) {
+      check(`${name} route calls requireAdminApi() before touching the database`, /requireAdminApi\(\)/.test(routeSrc));
+      check(`${name} route derives organizationId from the session context, never from the request body`, /const \{ supabase, organizationId(, user)? \} = ctx;/.test(routeSrc));
+      check(`${name} route's prospect lookup is scoped by both prospectId AND organization_id (cross-tenant prospect ids 404, not leak)`, /\.eq\("id", prospectId\)\.eq\("organization_id", organizationId\)/.test(routeSrc));
+      check(`${name} route never accepts an organizationId/organization_id field from the parsed request body`, !/parsed\.data\.organizationId/.test(routeSrc) && !/parsed\.data\.organization_id/.test(routeSrc));
+    }
+
+    check("callback route rejects a suppressed prospect with 409 before scheduling", /isSuppressed\(prospect\)/.test(callbackSrc) && /status: 409/.test(callbackSrc));
+    check("information-request route rejects a suppressed prospect with 409 before creating the action", /isSuppressed\(prospect\)/.test(infoRequestSrc) && /status: 409/.test(infoRequestSrc));
+    check(
+      "contact-quality route deliberately does NOT gate on suppression (a contact-quality fact can and should still be recorded even for an already-suppressed prospect)",
+      !/isSuppressed/.test(contactQualitySrc)
+    );
+
+    check(
+      "upsertCallbackAction()/upsertInformationRequestAction() scope both their update() and insert() paths to organization_id (never a bare prospect_id update)",
+      (() => {
+        const updateBlocks = operationalFollowupSrc.match(/\.update\(\{[\s\S]{0,400}?\.eq\("organization_id", input\.organizationId\)/g);
+        return Boolean(updateBlocks && updateBlocks.length >= 2);
+      })()
+    );
+    check(
+      "both upsert helpers look up the existing active action scoped by organization_id AND prospect_id, never prospect_id alone",
+      (operationalFollowupSrc.match(/\.eq\("organization_id", organizationId\)\s*\.eq\("prospect_id", prospectId\)/g) ?? []).length >= 1
+    );
+    check(
+      "logContactQualityEvent() passes organizationId straight through to logActivity() rather than re-deriving or trusting a client-supplied value",
+      /organizationId: input\.organizationId/.test(contactQualityLibSrc)
+    );
+    check(
+      "the contact-quality verification-conflict row it inserts is scoped to the same organization_id (never a global/unscoped row)",
+      /organization_id: input\.organizationId/.test(contactQualityLibSrc) && /prospect_contact_verifications/.test(contactQualityLibSrc)
+    );
+
+    const workspaceSrcForRoutes = src("src/app/prospects/[id]/playbook/playbook-workspace.tsx");
+    check(
+      "the workspace's contact-quality call maps each ConversationBranchKey to the route's own issueType vocabulary via an explicit table (never forwards the raw branch key)",
+      /BRANCH_TO_ISSUE_TYPE/.test(workspaceSrcForRoutes)
+    );
+    check(
+      "the contact-quality event is logged regardless of whether a queue action exists (hasActionId only gates the additional skip/snooze call, never the event itself)",
+      (() => {
+        const body = workspaceSrcForRoutes.slice(
+          workspaceSrcForRoutes.indexOf("async function handleOperational"),
+          workspaceSrcForRoutes.indexOf("async function handleOperational") + 1800
+        );
+        const issueTypeIdx = body.indexOf("issueType");
+        const actionIdGateIdx = body.indexOf('(op === "skip" || op === "snooze") && actionId');
+        return issueTypeIdx !== -1 && actionIdGateIdx !== -1 && issueTypeIdx < actionIdGateIdx;
+      })()
+    );
+  }
 }
 
 run()

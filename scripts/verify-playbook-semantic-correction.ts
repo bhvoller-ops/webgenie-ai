@@ -82,12 +82,22 @@ console.log("\n7. Information requested produces the proper next action");
     "the real computeProspectAction() unconditionally routes call_log.status 'replied' to REVIEW_REPLY -- a genuine, existing, queue-visible next action",
     /callLog\?\.status === "interested" \|\| callLog\?\.status === "replied"/.test(nbaSrc) && /actionType: "REVIEW_REPLY"/.test(nbaSrc)
   );
-  check("this is disclosed to the caller in the UI before they save, not silently assumed", /This creates a real, queue-visible \\"Review Reply\\" action/.test(opSrc));
+  check(
+    "OPERATIONAL FOLLOW-THROUGH CORRECTION: this is disclosed to the caller in the UI before they save -- 'information_requested' now creates its own real, immediately-actionable Send-information action, not silently assumed",
+    /This creates a real, immediately-actionable \\"Send information\\" action/.test(opSrc)
+  );
 }
 
 console.log("\n8. Callback scheduled requires a date/time");
 check("'callback_scheduled' is in REQUIRES_FOLLOW_UP", REQUIRES_FOLLOW_UP.includes("callback_scheduled"));
-check("the Confirm button is disabled until a follow-up option is chosen for outcomes in REQUIRES_FOLLOW_UP", /followUpRequired && !followUpOption/.test(opSrc));
+check(
+  "OPERATIONAL FOLLOW-THROUGH CORRECTION: the Confirm button is disabled until callback date, time AND purpose are all provided (a stricter, date/time/timezone-specific requirement than the old generic follow-up dropdown)",
+  /callbackFieldsValid/.test(opSrc) && /Date, time, and a callback purpose are all required/.test(opSrc)
+);
+check(
+  "the generic follow-up dropdown requirement still gates non-callback outcomes in REQUIRES_FOLLOW_UP (e.g. 'qualified_not_ready')",
+  /followUpRequired && !isCallback && !followUpOption/.test(opSrc)
+);
 
 console.log("\n9. Callback scheduled creates one canonical follow-up action");
 {
@@ -157,7 +167,10 @@ console.log("\n19. Notes cannot contradict the canonical outcome");
   // onConfirm(), and that's the only thing the API call ever receives as
   // the outcome. There is no code path where free-text note content is
   // parsed back into a different outcome value.
-  check("onConfirm is always called with the single already-selected `outcome`, never derived from note text", /onConfirm\(outcome, note, followUpOption\)/.test(opSrc));
+  check(
+    "onConfirm is always called with the single already-selected `outcome`, never derived from note text (the 4th `extra` argument carries only structured callback/info-request fields, never a note-derived outcome)",
+    /onConfirm\(outcome, note, followUpOption, \{/.test(opSrc)
+  );
   check("OUTCOME_MAPPING lookups are keyed by the selected outcome, never by note content", /OUTCOME_MAPPING\[outcome\]\.value/.test(wsSrc));
   check("no code anywhere parses the note field to determine which status to store (no note-derived branching)", !/note\.includes\(|note\.match\(|note\.split\(/.test(wsSrc) && !/note\.includes\(|note\.match\(|note\.split\(/.test(opSrc));
 }

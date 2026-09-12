@@ -19,6 +19,25 @@ async function countActivity(supabase: SupabaseClient, organizationId: string, a
 }
 
 /**
+ * Owner-review correction: CONTACT_ATTEMPTED also covers the Playbook's
+ * new contact-quality events (wrong contact / invalid number / disputed
+ * info -- see lib/prospect/contact-quality.ts). Those are real attempts
+ * ("outreachPerformed" would otherwise be literally true), but they are
+ * NOT a successful outreach performance in the sense this metric means
+ * to measure, and the explicit requirement is that they be excluded from
+ * outreach-success/engagement metrics. Rather than a fragile jsonb path
+ * filter at the SQL layer (NULL-vs-missing-key semantics are easy to get
+ * subtly wrong there), this fetches the real rows and excludes exactly
+ * the ones flagged `metadata.kind === "contact_quality_issue"` in plain,
+ * unambiguous application code -- no migration, no new column.
+ */
+async function countGenuineOutreachAttempts(supabase: SupabaseClient, organizationId: string): Promise<number> {
+  const { data } = await supabase.from("prospect_activities").select("metadata").eq("organization_id", organizationId).eq("activity_type", "CONTACT_ATTEMPTED");
+  if (!data) return 0;
+  return data.filter((row) => (row.metadata as Record<string, unknown> | null)?.kind !== "contact_quality_issue").length;
+}
+
+/**
  * The one function /api/insights calls (MANDATORY FIX 1). Extracted out of
  * the route handler specifically so it's callable directly -- with a
  * service-role client, no HTTP/session context needed -- from a real
@@ -50,7 +69,7 @@ export async function computeInsightsSummary(supabase: SupabaseClient, organizat
     countActivity(supabase, organizationId, "AUDIT_COMPLETED"),
     countActivity(supabase, organizationId, "DEMO_GENERATED"),
     countActivity(supabase, organizationId, "DEMO_ROOM_SHARED"),
-    countActivity(supabase, organizationId, "CONTACT_ATTEMPTED"),
+    countGenuineOutreachAttempts(supabase, organizationId),
     countActivity(supabase, organizationId, "FOLLOW_UP_SCHEDULED"),
     countActivity(supabase, organizationId, "MEETING_LOGGED"),
     countActivity(supabase, organizationId, "PROSPECT_WON"),
