@@ -67,6 +67,7 @@ export function GalleryClient({ role }: { role: AccessRole }) {
   return (
     <PageShell role={role}>
       <SectionHeading
+        center
         title="Industry gallery"
         description={`${industryList.length} illustrative industry website templates — a separate example library from WebGenie's real site generator (see /samples). Click any card to preview the complete page.`}
       />

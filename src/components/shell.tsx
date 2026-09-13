@@ -175,11 +175,22 @@ const RESOURCES_ITEMS: NavGroupItem[] = [
   },
 ];
 
+/**
+ * Public SaaS Impeccable rebuild (P0 centering pass): the public site's
+ * shared responsive side padding -- 16-20px mobile, 24-32px tablet, 32-48px
+ * desktop -- replacing the previous flat `px-6` (24px at every width) on
+ * every guest surface (TopBar, Footer, PageShell's <main>). Authenticated
+ * chrome keeps its own unchanged `px-6` literal, kept as a separate string
+ * on purpose so a future public-only padding change can't silently reach
+ * the authenticated app.
+ */
+export const PUBLIC_SHELL_PADDING = "px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12";
+
 export function TopBar({ role = "guest" }: { role?: AccessRole }) {
   const contentWidth = "max-w-[1280px]";
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
-      <div className={cn("relative mx-auto flex h-16 items-center gap-6 px-6", contentWidth)}>
+      <div className={cn("relative mx-auto flex h-16 items-center gap-6", role === "guest" ? PUBLIC_SHELL_PADDING : "px-6", contentWidth)}>
         <Logo />
         {role === "guest" ? (
           <PublicNav />
@@ -263,29 +274,44 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
 }
 
 /**
- * Public SaaS Impeccable rebuild (Phase 4L): replaces the previous
- * "Website intelligence, blueprints, and build-ready prompt packages" tagline
- * (stale wording from a prior positioning) and the isolated "SimpleOS ·
- * WebGenie AI" mark (SimpleOS is never explained to a customer anywhere in
- * this app, so an unexplained second brand name in the footer reads as a
- * mistake) with an honest one-line description, the four real destinations
- * a visitor can reach from here, and a correct copyright line naming the
- * actual operating relationship (WebGenie AI is a product of VibeLabs
- * Agency). No Privacy/Terms links -- neither route exists yet, and this
- * phase does not fabricate one.
+ * P0 (VibeLabs brand-relationship pass): rebuilt as a structured
+ * multi-column footer -- brand+description, then grouped Product/Account
+ * columns, then a Company column naming the real VibeLabs relationship
+ * (an external link to vibelabsagency.com, not copied VibeLabs copy) --
+ * inspired by vibelabsagency.com's own footer structure. Still no
+ * Privacy/Terms links: neither route exists on this app yet, and copying
+ * VibeLabs' legal links here would misrepresent WebGenie's own state, so
+ * this phase still does not fabricate one.
  */
-const FOOTER_LINKS = [
-  { href: "/#product", label: "Product" },
-  { href: "/gallery", label: "Examples" },
-  { href: "/login", label: "Account" },
-  { href: "/support", label: "Support" },
+const FOOTER_COLUMNS = [
+  {
+    heading: "Product",
+    links: [
+      { href: "/#product", label: "Product" },
+      { href: "/#how-it-works", label: "How It Works" },
+      { href: "/gallery", label: "Examples" },
+      { href: "/#plans", label: "Plans" },
+    ],
+  },
+  {
+    heading: "Account",
+    links: [
+      { href: "/signup", label: "Start Free" },
+      { href: "/login", label: "Sign In" },
+      { href: "/support", label: "Support" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [{ href: "https://www.vibelabsagency.com/", label: "VibeLabs Agency", external: true }],
+  },
 ] as const;
 
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto max-w-[1280px] px-6 py-12">
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+      <div className={cn("mx-auto max-w-[1280px] py-12", PUBLIC_SHELL_PADDING)}>
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
             <Logo compact />
             <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
@@ -293,20 +319,28 @@ export function Footer() {
               opportunity, and prepare the work before you ever pick up the phone.
             </p>
           </div>
-          <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3">
-            {FOOTER_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="focus-ring rounded text-[13.5px] text-muted transition-colors hover:text-ink"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {FOOTER_COLUMNS.map((col) => (
+            <nav key={col.heading} aria-label={col.heading}>
+              <p className="text-[13px] font-semibold text-ink">{col.heading}</p>
+              <ul className="mt-3 space-y-2.5">
+                {col.links.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      {...("external" in link && link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      className="focus-ring rounded text-[13.5px] text-muted transition-colors hover:text-ink"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
-        <div className="mt-10 border-t border-hairline pt-6 text-[12px] text-faint">
-          © {new Date().getFullYear()} VibeLabs Agency. WebGenie AI is built and operated by VibeLabs Agency.
+        <div className="mt-10 flex flex-col gap-2 border-t border-hairline pt-6 text-[12px] text-faint sm:flex-row sm:items-center sm:justify-between">
+          <span>© {new Date().getFullYear()} VibeLabs Agency. All rights reserved.</span>
+          <span>WebGenie AI is a product built and operated by VibeLabs Agency.</span>
         </div>
       </div>
     </footer>
@@ -343,7 +377,7 @@ export function PageShell({ children, role = "guest" }: { children: ReactNode; r
   return (
     <div className="min-h-screen">
       <TopBar role={role} />
-      <main className={cn("mx-auto px-6", contentWidth)}>{children}</main>
+      <main className={cn("mx-auto", role === "guest" ? PUBLIC_SHELL_PADDING : "px-6", contentWidth)}>{children}</main>
       {role === "guest" ? <Footer /> : <AuthenticatedFooter />}
     </div>
   );

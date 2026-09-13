@@ -1,9 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
-  BookOpen,
   Bot,
   Check,
   CheckCheck,
@@ -12,6 +12,7 @@ import {
   Handshake,
   Minus,
   Phone,
+  PhoneCall,
   Plus,
   Radar,
   Repeat,
@@ -30,6 +31,7 @@ import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { industryList as GALLERY_TEMPLATE_LIST } from "@/data/gallery/industries";
+import { cn } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -40,18 +42,31 @@ export const metadata: Metadata = {
 };
 
 /**
- * Public SaaS Impeccable rebuild (this build): / is the public marketing
+ * Public SaaS Impeccable rebuild (this build). / is the public marketing
  * funnel for a stranger who's never heard of WebGenie. A signed-in visitor
  * never sees it — the redirect below sends them to their real home first.
+ *
+ * P0 (VibeLabs brand-relationship + centering pass): the page architecture
+ * is now built around a consistent centered shell (see
+ * components/shell.tsx's PUBLIC_SHELL_PADDING) with intentional alignment
+ * choices layered on top -- major section introductions and the hero are
+ * centered (adapted from vibelabsagency.com's own composition discipline:
+ * centered nav, centered hero, full-width bands with centered content,
+ * alternating section rhythm), while comparison-table contents, feature
+ * explanations, FAQ answers, and gallery cards stay left-aligned where
+ * scanning benefits. WebGenie keeps its own violet accent and its own
+ * copy throughout -- nothing here is copied from VibeLabs' site, which was
+ * used only as directional inspiration for layout discipline, per the
+ * task's explicit "do not clone it."
  *
  * Positioning: WebGenie is the client-acquisition *workspace* for agencies
  * -- not a CRM, not a lead database, not an autonomous outreach system, and
  * not a promise that clients close themselves. The human performs every
  * outreach step; WebGenie finds the opportunity, verifies it with evidence,
  * and prepares the material for the call. Every count and claim below is
- * derived from real product state (INDUSTRIES / GALLERY_INDUSTRIES, the
- * actual generator) or explicitly labeled illustrative -- see
- * docs/history.md and CLAUDE.md §2 for what's actually shipped.
+ * derived from real product state (INDUSTRIES / the gallery's own
+ * industryList) or explicitly labeled illustrative -- see docs/history.md
+ * and CLAUDE.md §2 for what's actually shipped.
  */
 const REAL_INDUSTRY_COUNT = Object.keys(INDUSTRIES).length;
 // Same canonical source /gallery itself renders from (GALLERY_INDUSTRIES in
@@ -83,111 +98,174 @@ export default async function HomePage() {
   return (
     <PageShell role="guest">
       <Hero />
-      <TrustStrip />
+      <Band tone="soft">
+        <TrustStrip />
+      </Band>
       <CoreProblem />
-      <ProductWorkflow />
+      <Band tone="soft">
+        <ProductWorkflow />
+      </Band>
       <ProductProof />
-      <Differentiation />
+      <Band tone="soft">
+        <Differentiation />
+      </Band>
       <WhoItsFor />
-      <Examples />
+      <Band tone="soft">
+        <Examples />
+      </Band>
       <Plans />
-      <Faq />
+      <Band tone="soft">
+        <Faq />
+      </Band>
       <FinalCta />
     </PageShell>
   );
 }
 
 /** Shared vertical rhythm between sections -- ~56-72px mobile, ~96-128px desktop. */
-const SECTION = "mt-14 sm:mt-24 lg:mt-32";
+const SECTION = "py-14 sm:py-24 lg:py-32";
+const SECTION_PLAIN = "mt-14 sm:mt-24 lg:mt-32";
+
+/**
+ * Full-width background band containing centered content -- adapted from
+ * vibelabsagency.com's alternating panel/plain rhythm. Breaks out of the
+ * page shell's own max-width to span the viewport (the standard
+ * `left-1/2 -mx-[50vw] w-screen` trick, anchored to the viewport rather
+ * than any ancestor's padding), then re-centers its children at the same
+ * max-width + responsive padding as the rest of the shell so nothing
+ * inside a band ever misaligns with the sections above/below it.
+ */
+function Band({ children, tone = "soft" }: { children: ReactNode; tone?: "soft" }) {
+  return (
+    <div className={cn("relative left-1/2 right-1/2 -mx-[50vw] w-screen border-y border-hairline", tone === "soft" && "bg-surface/30")}>
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12">{children}</div>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
-/* A. Hero                                                              */
+/* A. Hero -- centered composition                                     */
 /* ------------------------------------------------------------------ */
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden pt-2">
+    <section className="relative overflow-hidden pt-6 text-center">
       <div
         className="pointer-events-none absolute inset-0 -z-10 bg-grid-fade opacity-[0.3]"
-        style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(760px 380px at 20% -10%, #000, transparent)" }}
+        style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(900px 420px at 50% -10%, #000, transparent)" }}
         aria-hidden
       />
-      <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-center lg:gap-16">
-        <div>
-          <h1 className="max-w-2xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
-            Find the right local business. <span className="gradient-text">Know exactly why they need you.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink/80 sm:text-lg">
-            WebGenie finds local businesses worth contacting, verifies the opportunity with real
-            evidence, and prepares something concrete to bring to the call — a demo site or an
-            audit — before you ever pick up the phone. You make the call. WebGenie does the
-            preparation.
-          </p>
+      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-iris-soft">Client acquisition for agencies</p>
+      <h1 className="mx-auto mt-4 max-w-3xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
+        Find the right business. <span className="gradient-text">Start with something real.</span>
+      </h1>
+      <p className="mx-auto mt-6 max-w-[720px] text-base leading-relaxed text-ink/80 sm:text-lg">
+        WebGenie helps agencies find local prospects, verify the opportunity, prepare
+        evidence-backed outreach and manage every next step.
+      </p>
 
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Button href="/signup">
-              Start Free
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button href="#how-it-works" variant="secondary">
-              See WebGenie in Action
-            </Button>
-          </div>
-          <p className="mt-3 text-sm text-faint">7-day full-access trial. No credit card required.</p>
-        </div>
-
-        <HeroProductPeek />
+      <div className="mx-auto mt-9 flex max-w-sm flex-col items-center justify-center gap-3 sm:max-w-none sm:flex-row">
+        <Button href="/signup" className="w-full sm:w-auto">
+          Start Free
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Button>
+        <Button href="#how-it-works" variant="secondary" className="w-full sm:w-auto">
+          See WebGenie in Action
+        </Button>
       </div>
+      <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-faint">
+        <span>7-day full-access trial</span>
+        <span aria-hidden>·</span>
+        <span>No credit card required</span>
+        <span aria-hidden>·</span>
+        <span>Human-executed outreach</span>
+      </p>
+
+      <HeroProductWalkthrough />
     </section>
   );
 }
 
 /**
- * A compact, honestly-labeled narrative strip for the hero's second column
- * -- the real Finder -> verified opportunity -> Daily Queue -> Playbook
- * connection, using the app's real terminology and a real sample business
- * (not a screenshot, not fabricated metrics). Marked "Illustrative example"
- * throughout, same fixture business ProductProof uses below, so the two
- * moments read as one continuous example rather than two invented numbers.
+ * The hero's visual proof -- a single substantial, centered panel
+ * (~1100px, matching vibelabsagency.com's "Meet Vivi" panel weight)
+ * spanning the width beneath the headline, instead of a small card pushed
+ * to one side. Walks through the same four real stages every prospect
+ * actually moves through -- Find prospect -> Verify opportunity -> Prepare
+ * outreach -> Take the next action -- using the app's real component
+ * patterns (a Finder-shaped result row, the real ScoreRing component, a
+ * Daily Queue row) rather than an abstract icon list. One sample business
+ * carried through all four stages for narrative continuity; explicitly
+ * labeled illustrative throughout -- this is not a screenshot, and no
+ * fabricated metric appears anywhere in it.
  */
-function HeroProductPeek() {
+function HeroProductWalkthrough() {
   const biz = SAMPLE_BUSINESSES.find((b) => b.id === "sample-plumber")!;
-  const steps: Array<{ icon: typeof ScanLine; tone: "iris" | "warn" | "good"; title: string; detail: string }> = [
-    {
-      icon: ScanLine,
-      tone: "iris",
-      title: biz.name,
-      detail: `Found in Finder — ${biz.city}, ${biz.state} · ${biz.rating}★ (${biz.reviewCount})`,
-    },
-    { icon: Radar, tone: "warn", title: "Verified opportunity", detail: "No AI receptionist, no 24/7 coverage — evidence-traced" },
-    { icon: CheckCheck, tone: "iris", title: "Added to Daily Queue", detail: "Prioritized above lower-value prospects" },
-    { icon: BookOpen, tone: "good", title: "Playbook ready", detail: "Suggested script and next action prepared" },
-  ];
-  const toneClasses = {
-    iris: "border-iris/30 text-iris-soft",
-    warn: "border-signal-warn/30 text-signal-warn",
-    good: "border-signal-good/30 text-signal-good",
-  } as const;
-
   return (
-    <div className="mt-12 w-full max-w-sm rounded-panel border border-hairline bg-canvas/60 p-5 backdrop-blur-sm lg:mt-0">
-      <div className="mb-3 text-[13px] font-medium uppercase tracking-wide text-faint">Illustrative example</div>
-      <ol className="relative space-y-4">
-        <div aria-hidden className="absolute bottom-3 left-[15px] top-3 w-px bg-hairline" />
-        {steps.map((s) => (
-          <li key={s.title} className="relative flex gap-3">
-            <span
-              className={`relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border bg-void ${toneClasses[s.tone]}`}
-            >
-              <s.icon className="h-3.5 w-3.5" aria-hidden />
-            </span>
-            <div className="pt-0.5">
-              <div className="text-sm font-medium text-ink">{s.title}</div>
-              <div className="mt-0.5 text-sm text-muted">{s.detail}</div>
+    <div className="mt-14 text-left lg:mt-16">
+      <div className="panel mx-auto max-w-[1100px] overflow-hidden">
+        <div className="grid grid-cols-1 divide-y divide-hairline sm:grid-cols-2 sm:divide-y-0 sm:divide-x lg:grid-cols-4">
+          <div className="p-6">
+            <StageLabel index={1} title="Find prospect" />
+            <div className="mt-4 rounded-lg border border-hairline bg-canvas/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-ink">{biz.name}</span>
+                <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px]">
+                  <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
+                  <span className="font-mono text-faint">{biz.rating}</span>
+                </span>
+              </div>
+              <p className="mt-1.5 text-sm text-muted">
+                {biz.city}, {biz.state} · no website found
+              </p>
             </div>
-          </li>
-        ))}
-      </ol>
+          </div>
+
+          <div className="flex flex-col items-center p-6 text-center">
+            <StageLabel index={2} title="Verify opportunity" center />
+            <div className="mt-4">
+              <ScoreRing score={46} size={92} stroke={8} label="Website Health" sublabel="Illustrative example" />
+            </div>
+          </div>
+
+          <div className="p-6">
+            <StageLabel index={3} title="Prepare outreach" />
+            <div className="mt-4 space-y-2">
+              <div className="rounded-lg border border-hairline bg-canvas/60 p-3">
+                <p className="text-sm font-medium text-ink">Demo site generated</p>
+                <p className="mt-0.5 text-sm text-muted">Ready before the call</p>
+              </div>
+              <div className="rounded-lg border border-hairline bg-canvas/60 p-3">
+                <p className="text-sm font-medium text-ink">Playbook script ready</p>
+                <p className="mt-0.5 text-sm text-muted">Suggested opening & next action</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-center p-6">
+            <StageLabel index={4} title="Take the next action" />
+            <div className="mt-4 rounded-lg border border-iris/30 bg-iris/10 p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-iris-soft">
+                <PhoneCall className="h-3.5 w-3.5" aria-hidden />
+                Call {biz.phone}
+              </p>
+              <p className="mt-1.5 text-sm text-muted">You make the call — WebGenie prepared everything before it.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="mt-3 text-center text-sm text-faint">
+        Illustrative example — the same connected flow every real prospect moves through.
+      </p>
+    </div>
+  );
+}
+
+function StageLabel({ index, title, center = false }: { index: number; title: string; center?: boolean }) {
+  return (
+    <div className={cn("flex items-center gap-2", center && "justify-center")}>
+      <span className="font-mono text-[13px] tracking-wide text-faint">{String(index).padStart(2, "0")}</span>
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
     </div>
   );
 }
@@ -205,32 +283,48 @@ const TRUST_ITEMS = [
 
 function TrustStrip() {
   return (
-    <div className={SECTION}>
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-y border-hairline py-5 text-center">
-        {TRUST_ITEMS.map((item, i) => (
-          <span key={item} className="flex items-center gap-3">
-            <span className="text-sm font-medium text-muted">{item}</span>
-            {i < TRUST_ITEMS.length - 1 ? <span className="h-1 w-1 rounded-full bg-hairline" aria-hidden /> : null}
-          </span>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 py-5 text-center">
+      {TRUST_ITEMS.map((item, i) => (
+        <span key={item} className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted">{item}</span>
+          {i < TRUST_ITEMS.length - 1 ? <span className="h-1 w-1 rounded-full bg-hairline" aria-hidden /> : null}
+        </span>
+      ))}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* C. Core problem — one argument, not six questions                   */
+/* C. Core problem — one centered argument + horizontal examples        */
 /* ------------------------------------------------------------------ */
+
+const PROBLEM_EXAMPLES = [
+  {
+    icon: ScanLine,
+    title: "The right business never gets called.",
+    body: "A great fit sits three pages down in a search nobody finishes.",
+  },
+  {
+    icon: Radar,
+    title: "A pitch with nothing behind it.",
+    body: "Guessing what's wrong with their site is not the same as showing them.",
+  },
+  {
+    icon: Repeat,
+    title: "A good call with no next step.",
+    body: "Without a queue, yesterday's promising lead quietly disappears.",
+  },
+];
 
 function CoreProblem() {
   return (
-    <div className={SECTION}>
-      <div className="mx-auto max-w-[68ch]">
+    <div className={SECTION_PLAIN}>
+      <div className="mx-auto max-w-[68ch] text-center">
         <h2 className="text-display-md font-semibold text-ink">
           Building services is not the hard part. Building a repeatable client-acquisition
           process is.
         </h2>
-        <p className="mt-5 text-base leading-relaxed text-ink/80">
+        <p className="mx-auto mt-5 max-w-[68ch] text-base leading-relaxed text-ink/80">
           Most agencies can deliver good work. What they don&apos;t have is a dependable way to
           find the next business worth calling — one that&apos;s actually a fit, not a guess from
           a spreadsheet. WebGenie doesn&apos;t replace outreach; it replaces the guessing that
@@ -240,12 +334,21 @@ function CoreProblem() {
           wondering who to call and what to say.
         </p>
       </div>
+      <div className="mx-auto mt-10 grid max-w-4xl gap-8 border-t border-hairline pt-8 sm:grid-cols-3">
+        {PROBLEM_EXAMPLES.map((example) => (
+          <div key={example.title} className="flex flex-col gap-2">
+            <example.icon className="h-4 w-4 text-signal-bad" aria-hidden />
+            <p className="text-sm font-semibold text-ink">{example.title}</p>
+            <p className="text-sm leading-relaxed text-muted">{example.body}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* D. Product workflow — nav anchor "Product"                          */
+/* D. Product workflow — nav anchor "Product" — full-width band         */
 /* ------------------------------------------------------------------ */
 
 const WORKFLOW_STAGES = [
@@ -259,12 +362,12 @@ const WORKFLOW_STAGES = [
 
 function ProductWorkflow() {
   return (
-    <div id="product" className={`${SECTION} scroll-mt-24`}>
+    <div id="product" className={cn(SECTION, "scroll-mt-24")}>
       <SectionIntro
         title="One connected process, not six separate tools"
         description="Every stage below ships today — the same workflow a signed-in account actually runs, not a roadmap."
       />
-      <ol className="relative mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3 lg:grid-cols-6">
+      <ol className="relative mt-10 grid grid-cols-1 gap-8 text-left sm:grid-cols-3 lg:grid-cols-6">
         <div aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-hairline lg:block" />
         {WORKFLOW_STAGES.map((stage, i) => (
           <li key={stage.title} className="relative flex flex-col items-start">
@@ -296,13 +399,13 @@ const QUEUE_PREVIEW: Array<{ name: string; priority: "warn" | "good" | "neutral"
 
 function ProductProof() {
   return (
-    <div id="how-it-works" className={`${SECTION} scroll-mt-24`}>
+    <div id="how-it-works" className={cn(SECTION_PLAIN, "scroll-mt-24")}>
       <SectionIntro
         title="See it work, not just hear about it"
         description="Three real moments from the actual product — illustrative businesses throughout, real product behavior."
       />
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-3">
+      <div className="mt-10 grid gap-4 text-left lg:grid-cols-3">
         {/* Finder */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
@@ -405,7 +508,7 @@ function ProductProof() {
 }
 
 /* ------------------------------------------------------------------ */
-/* F. Differentiation — not a CRM, not a lead list                     */
+/* F. Differentiation — not a CRM, not a lead list — full-width band    */
 /* ------------------------------------------------------------------ */
 
 const COMPARISON_ROWS: Array<{ traditional: string; webgenie: string }> = [
@@ -423,7 +526,7 @@ function Differentiation() {
         title="This isn't a CRM, and it isn't a lead list"
         description="A CRM organizes clients you already have. A lead list gives you names with no context. WebGenie does the work in between."
       />
-      <div className="mt-8 overflow-x-auto rounded-card border border-hairline">
+      <div className="mx-auto mt-8 max-w-4xl overflow-x-auto rounded-card border border-hairline">
         <table className="w-full min-w-[560px] border-collapse text-left">
           <caption className="sr-only">Traditional prospecting compared with WebGenie</caption>
           <thead>
@@ -461,14 +564,14 @@ function Differentiation() {
 }
 
 /* ------------------------------------------------------------------ */
-/* G. Who it's for — nav anchor "Who It's For"                         */
+/* G. Who it's for — nav anchor "Who It's For" — audience split         */
 /* ------------------------------------------------------------------ */
 
 function WhoItsFor() {
   return (
-    <div id="who-its-for" className={`${SECTION} scroll-mt-24`}>
+    <div id="who-its-for" className={cn(SECTION_PLAIN, "scroll-mt-24")}>
       <SectionIntro title="Who WebGenie is built for" />
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+      <div className="mx-auto mt-8 grid max-w-4xl gap-4 text-left lg:grid-cols-2">
         <div className="card p-6">
           <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris/30 bg-iris/10">
             <Rocket className="h-4 w-4 text-iris-soft" aria-hidden />
@@ -496,7 +599,7 @@ function WhoItsFor() {
 }
 
 /* ------------------------------------------------------------------ */
-/* H. Examples                                                         */
+/* H. Examples — full-width band                                       */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -514,13 +617,8 @@ function Examples() {
       <SectionIntro
         title="See the kind of site WebGenie builds"
         description={`Four real, live-rendered demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
-        action={
-          <Button href="/gallery" variant="secondary">
-            Explore All Examples
-          </Button>
-        }
       />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mx-auto mt-8 grid max-w-4xl gap-4 text-left sm:grid-cols-2">
         {EXAMPLE_BUSINESSES.map((biz) => {
           const url = demoSiteUrl(biz, { by: "WebGenie AI", sample: true });
           const label = INDUSTRIES[biz.industry as keyof typeof INDUSTRIES]?.label ?? biz.industry;
@@ -557,14 +655,19 @@ function Examples() {
           );
         })}
       </div>
-      <p className="mt-5 text-sm text-faint">
-        Want more? The example gallery has {GALLERY_TEMPLATE_COUNT} illustrative templates across
-        dozens of additional business types.{" "}
-        <Link href="/samples" className="focus-ring underline decoration-dotted underline-offset-4 hover:text-muted">
-          Or browse the curated sample set
-        </Link>
-        .
-      </p>
+      <div className="mt-8 text-center">
+        <Button href="/gallery" variant="secondary">
+          Explore All Examples
+        </Button>
+        <p className="mx-auto mt-4 max-w-lg text-sm text-faint">
+          Want more? The example gallery has {GALLERY_TEMPLATE_COUNT} illustrative templates
+          across dozens of additional business types.{" "}
+          <Link href="/samples" className="focus-ring underline decoration-dotted underline-offset-4 hover:text-muted">
+            Or browse the curated sample set
+          </Link>
+          .
+        </p>
+      </div>
     </div>
   );
 }
@@ -582,12 +685,12 @@ const PLAN_FACTS: Array<{ q: string; a: string }> = [
 
 function Plans() {
   return (
-    <div id="plans" className={`${SECTION} scroll-mt-24`}>
+    <div id="plans" className={cn(SECTION_PLAIN, "scroll-mt-24")}>
       <SectionIntro
         title="Plans"
         description="Pricing for WebGenie isn't finalized yet, so here's exactly what to expect instead of a number we'd have to walk back."
       />
-      <dl className="mt-8 grid gap-x-8 gap-y-6 sm:grid-cols-2">
+      <dl className="mx-auto mt-8 grid max-w-3xl gap-x-8 gap-y-6 text-left sm:grid-cols-2">
         {PLAN_FACTS.map((fact) => (
           <div key={fact.q} className="border-t border-hairline pt-4">
             <dt className="text-sm font-semibold text-ink">{fact.q}</dt>
@@ -595,7 +698,7 @@ function Plans() {
           </div>
         ))}
       </dl>
-      <div className="mt-8">
+      <div className="mt-8 text-center">
         <Button href="/signup">
           Start Free
           <ArrowRight className="h-4 w-4" aria-hidden />
@@ -606,7 +709,7 @@ function Plans() {
 }
 
 /* ------------------------------------------------------------------ */
-/* J. FAQ                                                              */
+/* J. FAQ — centered heading, left-aligned answers — full-width band    */
 /* ------------------------------------------------------------------ */
 
 const FAQ_ITEMS: Array<{ q: string; a: string }> = [
@@ -640,14 +743,14 @@ function Faq() {
   return (
     <div className={SECTION}>
       <SectionIntro title="Frequently asked" />
-      <div className="mt-8 divide-y divide-hairline border-t border-hairline">
+      <div className="mx-auto mt-8 max-w-2xl divide-y divide-hairline border-t border-hairline text-left">
         {FAQ_ITEMS.map((item) => (
           <details key={item.q} className="group py-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-ink marker:hidden">
               {item.q}
               <ChevronDown className="h-4 w-4 shrink-0 text-faint transition-transform group-open:rotate-180" aria-hidden />
             </summary>
-            <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink/80">{item.a}</p>
+            <p className="mt-3 text-sm leading-relaxed text-ink/80">{item.a}</p>
           </details>
         ))}
       </div>
@@ -661,7 +764,7 @@ function Faq() {
 
 function FinalCta() {
   return (
-    <div className={`${SECTION} mb-8 text-center`}>
+    <div className={cn(SECTION_PLAIN, "mb-8 text-center")}>
       <h2 className="mx-auto max-w-xl text-display-md font-semibold text-ink">
         Your next client conversation should start with something real.
       </h2>
@@ -678,14 +781,13 @@ function FinalCta() {
   );
 }
 
-function SectionIntro({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+/** Every major section introduction is centered -- adapted from
+ * vibelabsagency.com's consistently centered section headings. */
+function SectionIntro({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-6">
-      <div className="max-w-2xl">
-        <h2 className="text-display-md font-semibold text-ink">{title}</h2>
-        {description ? <p className="mt-2.5 text-sm leading-relaxed text-ink/80">{description}</p> : null}
-      </div>
-      {action}
+    <div className="mx-auto max-w-2xl text-center">
+      <h2 className="text-display-md font-semibold text-ink">{title}</h2>
+      {description ? <p className="mt-2.5 text-sm leading-relaxed text-ink/80">{description}</p> : null}
     </div>
   );
 }

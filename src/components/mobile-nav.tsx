@@ -69,7 +69,11 @@ export function MobileNav({
   const close = () => setOpen(false);
 
   return (
-    <div className="md:hidden">
+    // P0 (centering pass): guest's hamburger stays visible until `lg`
+    // (matching PublicNav's own lg:flex handoff) since the 5 flat public
+    // nav items need more room at md than the authenticated NavGroup
+    // dropdowns this same breakpoint still works fine for.
+    <div className={role === "guest" ? "lg:hidden" : "md:hidden"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

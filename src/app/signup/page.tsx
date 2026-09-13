@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { Panel } from "@/components/ui";
 import { AuthShell } from "@/components/auth-shell";
 
 /**
@@ -68,7 +67,7 @@ export default function SignupPage() {
 
   return (
     <AuthShell>
-      <Panel className="mt-6 w-full">
+      <div className="mt-6 w-full">
         <h1 className="text-display-md font-semibold text-ink">Create your account</h1>
         <p className="mt-2 text-sm text-muted">
           7-day full-access trial. No credit card required.
@@ -134,7 +133,7 @@ export default function SignupPage() {
             Sign in
           </Link>
         </p>
-      </Panel>
+      </div>
     </AuthShell>
   );
 }

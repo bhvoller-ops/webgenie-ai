@@ -129,11 +129,29 @@ export function SectionHeading({
   title,
   description,
   action,
+  center = false,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  /**
+   * Public SaaS Impeccable rebuild (P0 centering pass): opt-in centered
+   * variant for guest pages (/samples, /gallery) -- defaults to false so
+   * every authenticated usage (admin/support, calls, leads, partners,
+   * playbooks, projects, settings, trial/portal) renders exactly as
+   * before, unchanged.
+   */
+  center?: boolean;
 }) {
+  if (center) {
+    return (
+      <div className="text-center">
+        <h2 className="text-display-md font-semibold text-ink">{title}</h2>
+        {description ? <p className="mx-auto mt-2.5 max-w-2xl text-sm leading-relaxed text-muted">{description}</p> : null}
+        {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="max-w-2xl">

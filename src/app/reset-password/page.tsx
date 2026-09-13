@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Panel } from "@/components/ui";
 import { AuthShell } from "@/components/auth-shell";
 
 type Status = "checking" | "ready" | "invalid";
@@ -62,7 +61,7 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthShell>
-      <Panel className="mt-6 w-full">
+      <div className="mt-6 w-full">
         <h1 className="text-display-md font-semibold text-ink">Set a new password</h1>
 
         {status === "checking" ? <p className="mt-4 text-sm text-muted">Checking your link…</p> : null}
@@ -110,7 +109,7 @@ export default function ResetPasswordPage() {
             {message}
           </p>
         ) : null}
-      </Panel>
+      </div>
     </AuthShell>
   );
 }

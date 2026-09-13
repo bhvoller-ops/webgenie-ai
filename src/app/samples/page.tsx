@@ -67,6 +67,7 @@ export default async function SamplesPage() {
   return (
     <PageShell role={role}>
       <SectionHeading
+        center
         title="Sample sites"
         description="Illustrative example businesses, built by the real WebGenie generator — not real prospects. Use these to judge design quality, or pull one up mid-call as a reference."
       />

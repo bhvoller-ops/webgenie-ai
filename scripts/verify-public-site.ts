@@ -203,7 +203,7 @@ console.log("\n9. Authenticated component isolation -- AppShell/nav/operational 
 
 console.log("\n10. Mobile layout classes -- responsive grids/columns present on every rebuilt public page");
 {
-  check("homepage sections use responsive sm:/lg: grid classes, not fixed desktop-only widths", /grid-cols-1 gap-8 sm:grid-cols-3 lg:grid-cols-6/.test(src("src/app/page.tsx")) && /sm:grid-cols-2/.test(src("src/app/page.tsx")));
+  check("homepage sections use responsive sm:/lg: grid classes, not fixed desktop-only widths", /grid-cols-1[^"]*sm:grid-cols-3[^"]*lg:grid-cols-6/.test(src("src/app/page.tsx")) && /sm:grid-cols-2/.test(src("src/app/page.tsx")));
   check("/samples grid is responsive (sm:/lg:)", /sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/samples/page.tsx")));
   check("/gallery grid collapses to 1 column on mobile", /grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/gallery/gallery-client.tsx")));
   check("AuthShell's value panel is hidden below lg (mobile prioritizes the form)", /hidden overflow-hidden border-l border-hairline bg-canvas\/60 lg:flex/.test(src("src/components/auth-shell.tsx")));
@@ -240,6 +240,33 @@ console.log("\n14. No changed authenticated event/business-logic semantics (spot
 {
   const actionsRouteDiff = execSync("git diff --stat main -- src/app/api/prospects", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
   check("src/app/api/prospects/** (real prospect business logic) has zero diff against main", actionsRouteDiff.trim().length === 0, actionsRouteDiff.trim().slice(0, 300));
+}
+
+console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, WebGenie's own accent kept");
+{
+  const shellSrc = src("src/components/shell.tsx");
+  check("a shared PUBLIC_SHELL_PADDING constant exists (16-20/24-32/32-48px responsive side padding)", /PUBLIC_SHELL_PADDING = "px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12"/.test(shellSrc));
+  check("TopBar applies PUBLIC_SHELL_PADDING only for role===\"guest\", authenticated px-6 untouched", /role === "guest" \? PUBLIC_SHELL_PADDING : "px-6"/.test(shellSrc));
+  check("PageShell's <main> applies the same guest-only padding split", /role === "guest" \? PUBLIC_SHELL_PADDING : "px-6"/.test(shellSrc));
+  check("Footer is a real multi-column structure (Product/Account/Company), not a single flat link row", /FOOTER_COLUMNS/.test(shellSrc) && /heading: "Product"/.test(shellSrc) && /heading: "Account"/.test(shellSrc) && /heading: "Company"/.test(shellSrc));
+  check("Footer's Company column links to the real vibelabsagency.com site (the actual brand relationship), not copied VibeLabs copy", /https:\/\/www\.vibelabsagency\.com\//.test(shellSrc) && /label: "VibeLabs Agency"/.test(shellSrc));
+
+  const pageSrc = src("src/app/page.tsx");
+  check("Hero is a centered composition (text-center), not left-column/right-card", /function Hero\(\)[\s\S]{0,120}text-center/.test(pageSrc));
+  check("Hero headline uses the P0-directed copy without losing WebGenie's own violet accent (gradient-text span, never a VibeLabs cyan literal)", /Find the right business\.[\s\S]{0,40}gradient-text/.test(pageSrc) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
+  check("Hero has a substantial centered product-walkthrough panel (not a small side card) naming all four real stages", /Find prospect/.test(pageSrc) && /Verify opportunity/.test(pageSrc) && /Prepare outreach/.test(pageSrc) && /Take the next action/.test(pageSrc) && /max-w-\[1100px\]/.test(pageSrc));
+  check("every major SectionIntro is centered (mx-auto ... text-center), not left-aligned with a right-side action slot", /function SectionIntro[\s\S]{0,200}text-center/.test(pageSrc) && !/function SectionIntro\(\{ title, description, action/.test(pageSrc));
+  check("a reusable full-width Band component exists for alternating section backgrounds", /function Band\(/.test(pageSrc) && /-mx-\[50vw\] w-screen/.test(pageSrc));
+  check("Band re-centers its children at the same max-width/padding as the rest of the shell", /max-w-\[1280px\] px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12/.test(pageSrc));
+  check("comparison-table contents and FAQ answers stay left-aligned inside their centered containers (text-left present, not centered prose)", /max-w-4xl overflow-x-auto rounded-card border border-hairline/.test(pageSrc) && /max-w-2xl divide-y divide-hairline border-t border-hairline text-left/.test(pageSrc));
+
+  const navSrc = src("src/components/public-nav.tsx");
+  check("public nav switches to desktop at lg (1024px), not md (768px), so the 5 flat items never wrap against the logo/CTAs", /lg:flex/.test(navSrc) && !/md:flex/.test(navSrc));
+  const mobileNavSrc = src("src/components/mobile-nav.tsx");
+  check("mobile hamburger's own breakpoint is guest-aware (lg:hidden for guest, md:hidden unchanged for authenticated roles)", /role === "guest" \? "lg:hidden" : "md:hidden"/.test(mobileNavSrc));
+
+  const authShellSrc = src("src/components/auth-shell.tsx");
+  check("AuthShell is one centered, bounded composition (a capped max-width .panel), not an edge-to-edge full-viewport grid", /max-w-\[1160px\]/.test(authShellSrc) && /\bpanel\b/.test(authShellSrc) && !/grid min-h-screen lg:grid-cols-2/.test(authShellSrc));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

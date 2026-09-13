@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Panel } from "@/components/ui";
 import { AuthShell } from "@/components/auth-shell";
 
 export default function ForgotPasswordPage() {
@@ -34,7 +33,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell>
-      <Panel className="mt-6 w-full">
+      <div className="mt-6 w-full">
         <h1 className="text-display-md font-semibold text-ink">Reset your password</h1>
         <p className="mt-2 text-sm text-muted">Enter your account email and we&apos;ll send you a reset link.</p>
 
@@ -70,7 +69,7 @@ export default function ForgotPasswordPage() {
         <Link href="/login" className="mt-6 inline-block text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-ink">
           Back to sign in
         </Link>
-      </Panel>
+      </div>
     </AuthShell>
   );
 }

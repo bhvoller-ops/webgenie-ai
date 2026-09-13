@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { Panel } from "@/components/ui";
 import { AuthShell } from "@/components/auth-shell";
 
 export default function LoginPage() {
@@ -36,7 +35,7 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <Panel className="mt-6 w-full">
+      <div className="mt-6 w-full">
         <h1 className="text-display-md font-semibold text-ink">Sign in</h1>
         <p className="mt-2 text-sm text-muted">Enter your email and password to sign in.</p>
 
@@ -98,7 +97,7 @@ export default function LoginPage() {
             Create an account
           </Link>
         </div>
-      </Panel>
+      </div>
     </AuthShell>
   );
 }

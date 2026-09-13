@@ -37,7 +37,13 @@ function isNavItemActive(pathname: string | null, item: (typeof PUBLIC_NAV_ITEMS
 export function PublicNav() {
   const pathname = usePathname();
   return (
-    <nav className="hidden items-center gap-1 md:flex">
+    // P0 (centering pass): the 5 flat public nav items (widest: "Who It's
+    // For") need more room than the authenticated NavGroup dropdowns
+    // (Work/Outreach/Delivery/Resources) they replace here -- at md
+    // (768px) they wrapped awkwardly against the logo and CTAs. Switches
+    // to desktop nav at lg (1024px) instead; the mobile hamburger's own
+    // breakpoint in mobile-nav.tsx is guest-aware to match.
+    <nav className="hidden items-center gap-1 lg:flex">
       {PUBLIC_NAV_ITEMS.map((item) => {
         const active = isNavItemActive(pathname, item);
         return (
