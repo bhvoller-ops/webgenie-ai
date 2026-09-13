@@ -70,12 +70,13 @@ export function chatWidgetMarkup(
 }
 
 export function chatWidgetScript(
-  business: { name: string; phone: string; city: string; state: string; hours?: string },
+  business: { id: string; name: string; phone: string; city: string; state: string; hours?: string },
   profile: Pick<IndustryProfile, "label" | "services" | "faq">,
   organizationId?: string,
   isSample?: boolean
 ): string {
   const payload = {
+    id: business.id,
     name: business.name,
     industryLabel: profile.label,
     phone: business.phone,

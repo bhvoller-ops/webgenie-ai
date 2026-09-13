@@ -55,7 +55,7 @@ export function leadFormMarkup(builtBy?: string): string {
 }
 
 export function leadFormScript(
-  business: { name: string; industryLabel: string; phone: string },
+  business: { id: string; name: string; industryLabel: string; phone: string },
   organizationId?: string,
   isSample?: boolean
 ): string {

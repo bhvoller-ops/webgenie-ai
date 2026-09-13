@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
 import { getDefaultOrganizationId } from "@/lib/organizations";
+import { SAMPLE_BUSINESS_IDS } from "@/lib/sitegen/samples";
 
 /**
  * Public-facing hero quote-request form on every generated site. No auth --
@@ -18,14 +19,25 @@ import { getDefaultOrganizationId } from "@/lib/organizations";
  * back first," still loudly logged so a stale/broken embed stays visible
  * instead of silently misattributing a lead.
  *
- * Sample-site safety (Phase 7): `isSample` is an explicit, intentional flag
- * (see SiteOptions.isSample) set only for /samples' fixture businesses and
- * the homepage's single demo preview -- never inferred from a missing
- * organizationId. When true, this route never inserts a chat_leads row,
- * regardless of whether an organizationId happens to be present.
+ * Sample-site safety, hardened (owner-review finding): this route used to
+ * skip persistence purely because the request body claimed `isSample:
+ * true` -- a value this endpoint has no auth and receives straight from
+ * client-side JS, so anyone could craft a raw POST with that flag either
+ * way. That's a real hole in both directions: `isSample: true` on a real
+ * organization's traffic would silently drop a genuine lead, and
+ * `isSample: false` against a sample business would create a real
+ * database row (exactly what happened once during manual testing of this
+ * fix -- see docs/history.md). The skip decision is now derived ONLY from
+ * `business.id` matching SAMPLE_BUSINESS_IDS -- the fixed, literal ids of
+ * this app's known fixture businesses ("sample-plumber", etc.), which a
+ * real prospect's id (a Google Place ID or a prospects-table UUID) can
+ * never coincidentally equal. The client-submitted `isSample` is kept only
+ * to log a loud warning when it disagrees with the server-derived value,
+ * which would mean either a bug or a tampering attempt.
  */
 const schema = z.object({
   business: z.object({
+    id: z.string().min(1).max(200),
     name: z.string().max(200),
     industryLabel: z.string().max(100),
     phone: z.string().max(40)
@@ -51,7 +63,13 @@ export async function POST(request: Request) {
   }
   const { business, organizationId, isSample, name, email, phone, city, service, message } = parsed.data;
 
-  if (isSample) {
+  const isKnownSample = SAMPLE_BUSINESS_IDS.has(business.id);
+  if (Boolean(isSample) !== isKnownSample) {
+    console.error(
+      `site-lead: client-submitted isSample (${isSample}) disagrees with the server-derived value (${isKnownSample}) for business.id "${business.id}" -- possible tampering or a stale embed. Trusting the server-derived value.`
+    );
+  }
+  if (isKnownSample) {
     // Illustrative demo — never persists a real lead. See file-header note.
     return corsJson({ ok: true, demo: true });
   }

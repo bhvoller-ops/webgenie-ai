@@ -159,14 +159,37 @@ console.log("\n7. Sample-form non-production behavior -- isSample flag threaded 
   check("chatWidgetScript() embeds IS_SAMPLE and sends it in the POST body to /api/site-chat", /var IS_SAMPLE = /.test(chatWidgetSrc) && /isSample: IS_SAMPLE/.test(chatWidgetSrc));
 
   const siteLeadSrc = src("src/app/api/site-lead/route.ts");
-  check("/api/site-lead accepts isSample in its schema and returns early (never inserts) when true", /isSample: z\.boolean\(\)\.optional\(\)/.test(siteLeadSrc) && /if \(isSample\) \{/.test(siteLeadSrc) && /return corsJson\(\{ ok: true, demo: true \}\)/.test(siteLeadSrc));
+  check("/api/site-lead's business schema requires an id (needed to derive sample-ness server-side)", /business: z\.object\(\{\s*id: z\.string\(\)/.test(siteLeadSrc));
+  check("/api/site-lead returns early (never inserts) for a known sample business, still returning demo:true", /return corsJson\(\{ ok: true, demo: true \}\)/.test(siteLeadSrc));
 
   const siteChatSrc = src("src/app/api/site-chat/route.ts");
-  check("/api/site-chat accepts isSample in its schema and never persists a captured lead when true", /isSample: z\.boolean\(\)\.optional\(\)/.test(siteChatSrc) && /args\.name && args\.phone && !isSample/.test(siteChatSrc));
+  check("/api/site-chat's business schema requires an id (needed to derive sample-ness server-side)", /business: z\.object\(\{\s*id: z\.string\(\)/.test(siteChatSrc));
   check("/api/site-chat's genuine (non-sample) fallback uses getDefaultOrganizationId(), not the .limit(1).single() anti-pattern", /getDefaultOrganizationId\(supabase\)/.test(siteChatSrc) && !/\.from\("organizations"\)\.select\("id"\)\.limit\(1\)\.single\(\)/.test(siteChatSrc));
 
   check("/samples passes sample:true to demoSiteUrl()", /demoSiteUrl\([^)]*sample: true/.test(src("src/app/samples/page.tsx")));
   check("the homepage's demo preview passes sample:true to demoSiteUrl()", (src("src/app/page.tsx").match(/demoSiteUrl\([^)]*sample: true/g) ?? []).length >= 1);
+}
+
+console.log("\n7b. Owner-review hardening -- the client-submitted isSample claim is NEVER trusted alone");
+{
+  const samplesSrc2 = src("src/lib/sitegen/samples.ts");
+  check("SAMPLE_BUSINESS_IDS is exported as the authoritative, fixed set of known fixture ids", /export const SAMPLE_BUSINESS_IDS: ReadonlySet<string> = new Set\(SAMPLE_BUSINESSES\.map\(\(b\) => b\.id\)\)/.test(samplesSrc2));
+
+  const leadFormSrc2 = src("src/lib/sitegen/lead-form.ts");
+  check("leadFormScript()'s business type now requires id (so it's actually embedded and sent)", /business: \{ id: string; name: string; industryLabel: string; phone: string \}/.test(leadFormSrc2));
+  const chatWidgetSrc2 = src("src/lib/sitegen/chat-widget.ts");
+  check("chatWidgetScript()'s business type now requires id, and the embedded payload includes it", /business: \{ id: string;/.test(chatWidgetSrc2) && /id: business\.id,/.test(chatWidgetSrc2));
+  check("generate.ts's leadFormScript() call site passes the real business.id through (not a constructed object missing it)", /leadFormScript\(\{ id: business\.id, name: business\.name/.test(src("src/lib/sitegen/generate.ts")));
+
+  const siteLeadSrc2 = src("src/app/api/site-lead/route.ts");
+  check("/api/site-lead imports SAMPLE_BUSINESS_IDS and derives isKnownSample from business.id, not from the client's isSample", /import \{ SAMPLE_BUSINESS_IDS \} from "@\/lib\/sitegen\/samples"/.test(siteLeadSrc2) && /const isKnownSample = SAMPLE_BUSINESS_IDS\.has\(business\.id\)/.test(siteLeadSrc2));
+  check("/api/site-lead gates the skip-persistence branch on isKnownSample, never on the raw client isSample flag", /if \(isKnownSample\) \{/.test(siteLeadSrc2) && !/if \(isSample\) \{/.test(siteLeadSrc2));
+  check("/api/site-lead logs a loud warning when the client's claim disagrees with the server-derived value (tamper/bug signal)", /disagrees with the server-derived value/.test(siteLeadSrc2));
+
+  const siteChatSrc2 = src("src/app/api/site-chat/route.ts");
+  check("/api/site-chat imports SAMPLE_BUSINESS_IDS and derives isKnownSample from business.id, not from the client's isSample", /import \{ SAMPLE_BUSINESS_IDS \} from "@\/lib\/sitegen\/samples"/.test(siteChatSrc2) && /const isKnownSample = SAMPLE_BUSINESS_IDS\.has\(business\.id\)/.test(siteChatSrc2));
+  check("/api/site-chat gates the lead-capture insert on !isKnownSample, never on the raw client isSample flag", /args\.name && args\.phone && !isKnownSample/.test(siteChatSrc2) && !/args\.name && args\.phone && !isSample\b/.test(siteChatSrc2));
+  check("/api/site-chat logs a loud warning when the client's claim disagrees with the server-derived value", /disagrees with the server-derived value/.test(siteChatSrc2));
 }
 
 console.log("\n8. Login/signup/password-reset route preservation -- visual-only change, auth logic byte-identical");

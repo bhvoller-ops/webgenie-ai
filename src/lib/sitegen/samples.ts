@@ -30,3 +30,16 @@ export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenInd
   industry,
   source: "sample"
 }));
+
+/**
+ * Sample-site safety, hardened: the authoritative, server-only source of
+ * truth for "is this business one of our known illustrative fixtures" --
+ * a fixed set of literal ids ("sample-plumber", etc.) that a real
+ * prospect's business.id (a Google Place ID or a prospect-table UUID, see
+ * src/app/api/prospects/[id]/actions/route.ts) can never coincidentally
+ * match. /api/site-lead and /api/site-chat use this to decide whether to
+ * skip persistence -- NEVER the client-submitted `isSample` boolean alone,
+ * which a caller crafting a raw request could set to anything. See those
+ * routes' own comments for the full reasoning.
+ */
+export const SAMPLE_BUSINESS_IDS: ReadonlySet<string> = new Set(SAMPLE_BUSINESSES.map((b) => b.id));

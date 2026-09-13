@@ -578,7 +578,7 @@ ${
 
 ${chatWidgetMarkup(business, builtBy ? esc(builtBy) : undefined, branding?.logoUrl ? esc(branding.logoUrl) : undefined)}
 <script>${chatWidgetScript(business, p, options.organizationId, options.isSample)}</script>
-<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId, options.isSample)}</script>
+<script>${leadFormScript({ id: business.id, name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId, options.isSample)}</script>
 
 </body>
 </html>`;

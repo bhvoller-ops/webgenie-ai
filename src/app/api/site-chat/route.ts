@@ -2,6 +2,7 @@ import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDefaultOrganizationId } from "@/lib/organizations";
+import { SAMPLE_BUSINESS_IDS } from "@/lib/sitegen/samples";
 
 /**
  * Public-facing intake chat for generated sites (demo or client). No auth --
@@ -9,12 +10,16 @@ import { getDefaultOrganizationId } from "@/lib/organizations";
  * data (services, FAQ, hours) passed in the request; the model is never
  * given anything to hallucinate a price, guarantee, or fact from.
  *
- * Sample-site safety (Phase 7): `isSample` is an explicit, intentional flag
- * (see SiteOptions.isSample) set only for /samples' fixture businesses and
- * the homepage's single demo preview -- never inferred from a missing
- * organizationId. When true, a captured lead is never persisted, regardless
- * of whether an organizationId happens to be present; the chat itself still
- * answers normally so the widget's behavior stays demonstrable.
+ * Sample-site safety, hardened (owner-review finding): this route used to
+ * gate persistence on the request body's own `isSample` claim -- a value
+ * this unauthenticated endpoint receives straight from client-side JS, so
+ * a raw request could set it either way (suppressing a real lead, or
+ * forcing a real insert for a sample business -- see site-lead/route.ts's
+ * header comment for the fuller reasoning and the real incident this
+ * pattern already caused once). The skip decision is now derived ONLY
+ * from `business.id` matching SAMPLE_BUSINESS_IDS, the fixed set of this
+ * app's known fixture ids -- never from the client-submitted flag, which
+ * is kept only to log a disagreement (a bug or tampering signal).
  */
 
 const messageSchema = z.object({
@@ -24,6 +29,7 @@ const messageSchema = z.object({
 
 const schema = z.object({
   business: z.object({
+    id: z.string().min(1).max(200),
     name: z.string().max(200),
     industryLabel: z.string().max(100),
     phone: z.string().max(40),
@@ -93,6 +99,12 @@ export async function POST(request: Request) {
   }
 
   const { business, organizationId, isSample, messages } = parsed.data;
+  const isKnownSample = SAMPLE_BUSINESS_IDS.has(business.id);
+  if (Boolean(isSample) !== isKnownSample) {
+    console.error(
+      `site-chat: client-submitted isSample (${isSample}) disagrees with the server-derived value (${isKnownSample}) for business.id "${business.id}" -- possible tampering or a stale embed. Trusting the server-derived value.`
+    );
+  }
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -128,7 +140,7 @@ export async function POST(request: Request) {
         // fall through with empty args; still acknowledge the visitor
       }
 
-      if (args.name && args.phone && !isSample) {
+      if (args.name && args.phone && !isKnownSample) {
         try {
           const supabase = createAdminClient();
 
