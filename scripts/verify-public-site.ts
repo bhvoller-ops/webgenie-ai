@@ -519,14 +519,20 @@ console.log("\n19. Owner-review finding -- trial-copy truthfulness (no unsupport
   check("Plans FAQ question is duration-neutral (\"when the trial ends\", not \"after 7 days\")", /What happens when the trial ends\?/.test(homeSrc) && !/What happens after 7 days\?/.test(homeSrc));
   check("Plans FAQ's \"what's included\" answer keeps its full-access SCOPE claim (structurally provable -- no separate trial-tier feature gate exists) without restating a duration", /Full access to Finder, evidence-based audits, the site generator, Daily Queue, and Playbook/.test(homeSrc));
 
-  check("the authenticated /trial-expired page (out of scope -- gated behind sign-in, not a public route) was not touched by this pass", (() => {
-    try {
-      const diff = execSync("git diff HEAD -- src/app/trial-expired/page.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
-      return diff.trim().length === 0;
-    } catch {
-      return true; // no such diff possible / git unavailable -- don't fail the suite over tooling
-    }
+  // Cross-surface follow-up: the owner authorized exactly one further
+  // exception -- /trial-expired (authenticated, gated behind sign-in,
+  // otherwise off-limits) still said "Your 7-day trial is over," the same
+  // unproven duration this whole section removes from every public
+  // surface. Authorization was scoped strictly to that one sentence.
+  const trialExpiredSrc = src("src/app/trial-expired/page.tsx");
+  check("/trial-expired no longer states the unproven 7-day duration; its sentence now reads \"Your trial has ended\"", !/7-day|7 days/i.test(trialExpiredSrc) && /Your trial has ended, so your workspace is paused\./.test(trialExpiredSrc));
+  check("/trial-expired's fix is scoped to exactly that one sentence -- no layout, styling, redirect, or auth-guard line changed", (() => {
+    const diff = execSync("git diff 385af1e -- src/app/trial-expired/page.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
+    const changedLines = diff.split("\n").filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"));
+    // Exactly one line removed and one added (the same sentence, edited in place).
+    return changedLines.length === 2 && changedLines.some((l) => l.startsWith("-") && /7-day trial is over/.test(l)) && changedLines.some((l) => l.startsWith("+") && /trial has ended/.test(l));
   })());
+  check("no WebGenie-owned account surface (public or authenticated) states an unproven trial-duration number anymore", noBadDuration(trialExpiredSrc));
 
   check("src/lib/auth/access.ts's trial gate remains a single all-or-nothing boolean, not a feature-limited tier (the structural basis for keeping the \"full access\" scope claim)", /trialExpired/.test(src("src/lib/auth/access.ts")) && !/trial.?tier|limited.?feature/i.test(src("src/lib/auth/access.ts")));
 }
