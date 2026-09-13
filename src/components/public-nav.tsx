@@ -12,18 +12,23 @@ import { cn } from "@/lib/format";
  * authenticated WORK/OUTREACH/DELIVERY/RESOURCES NavGroups in shell.tsx —
  * this component is guest-only.
  *
- * The section anchors (`/#product`, `/#how-it-works`, `/#who-its-for`,
- * `/#plans`) target ids on the homepage; from any other guest page they
- * still resolve correctly (Next.js navigates to `/` and the browser
- * scrolls to the hash). "Examples" is a real route (`/gallery`, the full
- * library) rather than a homepage anchor, and is shown active from either
- * `/gallery` or `/samples` — the two example-browsing destinations.
+ * The section anchors (`/#product`, `/#how-it-works`, `/#plans`) target
+ * ids on the homepage; from any other guest page they still resolve
+ * correctly (Next.js navigates to `/` and the browser scrolls to the
+ * hash). "Examples" is a real route (`/gallery`, the full library) rather
+ * than a homepage anchor, and is shown active from either `/gallery` or
+ * `/samples` — the two example-browsing destinations.
+ *
+ * Composition pass: the standalone "Who WebGenie is built for" section
+ * this nav used to link to (`/#who-its-for`) was removed -- its two
+ * audiences are now a clause inside the problem section's own copy, not
+ * a distinct destination worth a nav entry. Removing the section without
+ * also removing this link would have left a dead anchor.
  */
 export const PUBLIC_NAV_ITEMS = [
   { href: "/#product", label: "Product" },
   { href: "/#how-it-works", label: "How It Works" },
   { href: "/gallery", label: "Examples", matchAlso: ["/samples"] },
-  { href: "/#who-its-for", label: "Who It's For" },
   { href: "/#plans", label: "Plans" },
 ] as const;
 
@@ -37,12 +42,12 @@ function isNavItemActive(pathname: string | null, item: (typeof PUBLIC_NAV_ITEMS
 export function PublicNav() {
   const pathname = usePathname();
   return (
-    // P0 (centering pass): the 5 flat public nav items (widest: "Who It's
-    // For") need more room than the authenticated NavGroup dropdowns
-    // (Work/Outreach/Delivery/Resources) they replace here -- at md
-    // (768px) they wrapped awkwardly against the logo and CTAs. Switches
-    // to desktop nav at lg (1024px) instead; the mobile hamburger's own
-    // breakpoint in mobile-nav.tsx is guest-aware to match.
+    // P0 (centering pass): the flat public nav items need more room than
+    // the authenticated NavGroup dropdowns (Work/Outreach/Delivery/
+    // Resources) they replace here -- at md (768px) they wrapped
+    // awkwardly against the logo and CTAs. Switches to desktop nav at lg
+    // (1024px) instead; the mobile hamburger's own breakpoint in
+    // mobile-nav.tsx is guest-aware to match.
     <nav className="hidden items-center gap-1 lg:flex">
       {PUBLIC_NAV_ITEMS.map((item) => {
         const active = isNavItemActive(pathname, item);

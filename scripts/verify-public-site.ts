@@ -39,7 +39,12 @@ function src(relPath: string): string {
 console.log("1. Public navigation -- credible SaaS header, guest-only, current-page state");
 {
   const navSrc = src("src/components/public-nav.tsx");
-  check("PublicNav lists Product/How It Works/Examples/Who It's For/Plans", /"Product"/.test(navSrc) && /"How It Works"/.test(navSrc) && /"Examples"/.test(navSrc) && /"Who It's For"/.test(navSrc) && /"Plans"/.test(navSrc));
+  // Composition pass: "Who It's For" was dropped from the nav along with
+  // the standalone section it linked to -- asserted absent, not present.
+  check("PublicNav lists Product/How It Works/Examples/Plans, and no longer a dangling Who It's For link", (() => {
+    const itemsBlock = navSrc.slice(navSrc.indexOf("PUBLIC_NAV_ITEMS = ["), navSrc.indexOf("] as const"));
+    return /"Product"/.test(itemsBlock) && /"How It Works"/.test(itemsBlock) && /"Examples"/.test(itemsBlock) && /"Plans"/.test(itemsBlock) && !/who-its-for/.test(itemsBlock);
+  })());
   check("Examples links to the real /gallery route, active on both /gallery and /samples", /href: "\/gallery"/.test(navSrc) && /matchAlso: \["\/samples"\]/.test(navSrc));
   check("PublicNav reads the real current pathname (usePathname), not a hardcoded value", /usePathname\(\)/.test(navSrc));
 
@@ -52,10 +57,14 @@ console.log("1. Public navigation -- credible SaaS header, guest-only, current-p
   })());
 }
 
-console.log("\n2. Homepage section structure -- all eleven sections (A-K) present, in order, connected not a card pile");
+console.log("\n2. Homepage section structure -- all nine sections present, in order, connected not a card pile");
 {
   const s = src("src/app/page.tsx");
-  const order = ["<Hero", "<TrustStrip", "<CoreProblem", "<ProductWorkflow", "<ProductProof", "<Differentiation", "<WhoItsFor", "<Examples", "<Plans", "<Faq", "<FinalCta"];
+  // Composition pass: TrustStrip (pure repetition of claims made elsewhere)
+  // and the standalone WhoItsFor section (folded into CoreProblem's own
+  // copy) are both intentionally removed -- see section 18 below for the
+  // dedicated checks on that removal.
+  const order = ["<Hero", "<CoreProblem", "<ProductWorkflow", "<ProductProof", "<Differentiation", "<Examples", "<Plans", "<Faq", "<FinalCta"];
   let lastIndex = -1;
   let inOrder = true;
   for (const tag of order) {
@@ -63,13 +72,12 @@ console.log("\n2. Homepage section structure -- all eleven sections (A-K) presen
     if (idx === -1 || idx < lastIndex) inOrder = false;
     lastIndex = idx;
   }
-  check("all eleven sections are rendered inside <PageShell>, in spec order", inOrder);
+  check("all nine sections are rendered inside <PageShell>, in spec order", inOrder);
   check('nav anchor id="product" exists on the Product Workflow section', /id="product"/.test(s));
   check('nav anchor id="how-it-works" exists on the Product Proof section', /id="how-it-works"/.test(s));
-  check('nav anchor id="who-its-for" exists on the Who It\'s For section', /id="who-its-for"/.test(s));
   check('nav anchor id="plans" exists on the Plans section', /id="plans"/.test(s));
   check("no giant enclosing hero <Panel> -- Hero is a plain <section>, not wrapped in the Panel/card component", (() => {
-    const heroBlock = s.slice(s.indexOf("function Hero()"), s.indexOf("function HeroProductPeek"));
+    const heroBlock = s.slice(s.indexOf("function Hero()"), s.indexOf("function HeroProductScreenshot"));
     return /<section /.test(heroBlock) && !/<Panel/.test(heroBlock);
   })());
   check("the six-repeated-question Problem grid and the redundant BeforeAfter/Toolset card grids are gone", !/Who do I even contact\?/.test(s) && !/function BeforeAfter/.test(s) && !/function Toolset/.test(s));
@@ -133,7 +141,7 @@ console.log("\n5. Samples vs Gallery -- distinct purposes, both real, neither ha
 console.log("\n6. Illustrative labeling -- fictional sample businesses never implied to be real prospects");
 {
   for (const [name, file] of [
-    ["homepage HeroProductPeek", "src/app/page.tsx"],
+    ["homepage HeroProductScreenshot", "src/app/page.tsx"],
     ["homepage ProductProof", "src/app/page.tsx"],
     ["homepage Examples", "src/app/page.tsx"],
     ["/samples", "src/app/samples/page.tsx"],
@@ -279,7 +287,11 @@ console.log("\n9. Authenticated component isolation -- AppShell/nav/operational 
 
 console.log("\n10. Mobile layout classes -- responsive grids/columns present on every rebuilt public page");
 {
-  check("homepage sections use responsive sm:/lg: grid classes, not fixed desktop-only widths", /grid-cols-1[^"]*sm:grid-cols-3[^"]*lg:grid-cols-6/.test(src("src/app/page.tsx")) && /sm:grid-cols-2/.test(src("src/app/page.tsx")));
+  // Composition pass: the workflow section went from 6 small columns
+  // (sm:grid-cols-3 lg:grid-cols-6) to 4 substantial ones -- one column on
+  // mobile, two-by-two at tablet, four across at large desktop, per the
+  // owner's explicit layout requirement.
+  check("homepage's four-phase workflow is one column on mobile, two-by-two at tablet, four-up at large desktop", /grid-cols-1[^"]*sm:grid-cols-2[^"]*lg:grid-cols-4/.test(src("src/app/page.tsx")) && /sm:grid-cols-2/.test(src("src/app/page.tsx")));
   check("/samples grid is responsive (sm:/lg:)", /sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/samples/page.tsx")));
   check("/gallery grid collapses to 1 column on mobile", /grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/gallery/gallery-client.tsx")));
   check("AuthShell's value panel is hidden below lg (mobile prioritizes the form)", /hidden overflow-hidden border-l border-hairline bg-canvas\/60 lg:flex/.test(src("src/components/auth-shell.tsx")));
@@ -329,7 +341,7 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
 
   const pageSrc = src("src/app/page.tsx");
   check("Hero is a centered composition (text-center), not left-column/right-card", /function Hero\(\)[\s\S]{0,120}text-center/.test(pageSrc));
-  check("Hero headline uses the P0-directed copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Find the right business\.[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductWalkthrough"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
+  check("Hero headline uses the P0-directed copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Find the right business\.[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductScreenshot"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
   // Superseded by the owner's screenshot-gate approval (see section 17):
   // the four-stage illustrative walkthrough this check used to assert on
   // was replaced with a real, substantial, centered screenshot panel at
@@ -339,7 +351,7 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
   check("every major SectionIntro is centered (mx-auto ... text-center), not left-aligned with a right-side action slot", /function SectionIntro[\s\S]{0,200}text-center/.test(pageSrc) && !/function SectionIntro\(\{ title, description, action/.test(pageSrc));
   check("a reusable full-width Band component exists for alternating section backgrounds", /function Band\(/.test(pageSrc) && /-mx-\[50vw\] w-screen/.test(pageSrc));
   check("Band re-centers its children at the same max-width/padding as the rest of the shell", /max-w-\[1280px\] px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12/.test(pageSrc));
-  check("comparison-table contents and FAQ answers stay left-aligned inside their centered containers (text-left present, not centered prose)", /max-w-4xl overflow-x-auto rounded-card border border-hairline/.test(pageSrc) && /max-w-2xl divide-y divide-hairline border-t border-hairline text-left/.test(pageSrc));
+  check("comparison-table contents and FAQ answers stay left-aligned inside their centered containers (text-left present, not centered prose)", /max-w-3xl overflow-x-auto rounded-card border border-hairline/.test(pageSrc) && /max-w-2xl divide-y divide-hairline border-t border-hairline text-left/.test(pageSrc));
 
   const navSrc = src("src/components/public-nav.tsx");
   check("public nav switches to desktop at lg (1024px), not md (768px), so the 5 flat items never wrap against the logo/CTAs", /lg:flex/.test(navSrc) && !/md:flex/.test(navSrc));
@@ -404,7 +416,12 @@ console.log("\n17. Owner-review finding -- real, sanitized product screenshots r
     return !/<RedactedScreenshotCaption/.test(finderBlock);
   })());
   check("Prospect Detail is never used anywhere on the public page (rejected by the owner even after redaction)", !/prospect-detail/i.test(pageSrc3));
-  check("the one remaining constructed (non-screenshot) representation -- the audit ScoreRing -- is labeled exactly \"Illustrative workflow\", not \"Illustrative example\"", /sublabel="Illustrative workflow"/.test(pageSrc3) && /Illustrative workflow — every real audit runs/.test(pageSrc3));
+  // Composition pass: the illustrative Website Health score moved from a
+  // full-size ScoreRing product-proof card to a small ScoreBar supporting
+  // element inside the Verify workflow phase, specifically so it can't
+  // visually compete with the real screenshots -- still labeled exactly
+  // "Illustrative workflow", never "Illustrative example".
+  check("the one remaining constructed (non-screenshot) representation -- the illustrative Website Health score -- is a compact ScoreBar labeled exactly \"Illustrative workflow\", not a full-size ScoreRing", /<ScoreBar score=\{46\}/.test(pageSrc3) && /Illustrative workflow/.test(pageSrc3) && !/<ScoreRing/.test(pageSrc3));
   check("ProductScreenshot renders next/image with explicit width+height (the source file's own intrinsic pixels, so it scales responsively without stretching or cropping)", /function ProductScreenshot\(/.test(pageSrc3) && /width=\{1200\}|width=\{1400\}/.test(pageSrc3) && /height=\{633\}|height=\{708\}|height=\{827\}/.test(pageSrc3));
 
   check("all 3 approved product-proof images exist on disk", ["finder.jpg", "daily-queue.jpg", "playbook.jpg"].every((f) => fs.existsSync(path.join(__dirname, "..", "public", "product-proof", f))));
@@ -424,6 +441,41 @@ console.log("\n17. Owner-review finding -- real, sanitized product screenshots r
       return true;
     });
   })(), "an APP1 (EXIF) or APP2 (ICC) marker was found in a product-proof JPEG");
+}
+
+console.log("\n18. Owner-review finding -- final composition pass (page length, four-phase workflow, alternating feature sections)");
+{
+  const s4 = src("src/app/page.tsx");
+
+  check("the standalone TrustStrip section is gone (its claims were pure repetition of the hero's own trailing line and the FAQ)", !/function TrustStrip\(/.test(s4));
+  check("the standalone WhoItsFor section is gone; its two audiences are folded into CoreProblem's own paragraph instead", !/function WhoItsFor\(/.test(s4) && !/id="who-its-for"/.test(s4) && /just starting an agency or already running one/.test(s4));
+  check("CoreProblem is tightened to one headline, one paragraph, three failure points, and one transition sentence into the workflow", /Good work isn&apos;t the hard part\. Finding who to do it for is\./.test(s4) && /replaces the guessing with one connected process/.test(s4));
+
+  check("the workflow is four marketing phases (Find/Verify/Prepare/Act), not the old six (Find/Verify/Prepare/Contact/Follow up/Win & hand off)", /const WORKFLOW_PHASES = \[/.test(s4) && !/const WORKFLOW_STAGES = \[/.test(s4) && !/title: "Contact"/.test(s4) && !/title: "Follow up"/.test(s4) && !/title: "Win & hand off"/.test(s4));
+  check("each workflow phase renders as a substantial `.card` (border+surface+padding), not bare icon+text in a thin row", /WORKFLOW_PHASES\.map\(\(phase, i\) => \(\s*<li key=\{phase\.title\} className="card/.test(s4));
+
+  check("product proof no longer puts three equal-weight cards in one row -- it's alternating full-width feature sections", !/mt-10 grid gap-4 text-left lg:grid-cols-3/.test(s4) && /Feature 1 -- Daily Queue/.test(s4) && /Feature 2 -- Finder/.test(s4) && /Feature 3 -- Live Outreach Playbook/.test(s4));
+  check("Finder's screenshot column is capped narrower than Daily Queue's/Playbook's (deliberately secondary, not equal prominence)", (() => {
+    const finderCap = /Finder[\s\S]{0,200}?max-w-\[(\d+)px\]/.exec(s4)?.[1];
+    const dqCap = /daily-queue\.jpg[\s\S]{0,400}/.exec(s4) ? /max-w-\[(\d+)px\][\s\S]{0,600}daily-queue\.jpg/.exec(s4)?.[1] : undefined;
+    return Boolean(finderCap && dqCap && Number(finderCap) < Number(dqCap));
+  })());
+  check("no product-proof feature block nests a screenshot border inside another bordered surface (ProductScreenshot's own border/shadow is the only frame)", !/panel mx-auto max-w-\[1100px\] overflow-hidden/.test(s4));
+
+  check("the homepage's own top-level H1/H2 headings show real alternating rhythm, not the same centered treatment repeated verbatim for every section (left/right feature copy exists alongside centered section intros)", /lg:order-1/.test(s4) && /lg:order-2/.test(s4));
+
+  check("the generated-site Examples section is unchanged in count (still exactly 4), keeps its Illustrative example labeling, and its sample-preview images stay default-lazy (no priority prop)", (() => {
+    const idsOk = /const EXAMPLE_IDS = \["sample-roofer", "sample-hvac", "sample-plumber", "sample-dentist"\]/.test(s4);
+    const labelOk = /Illustrative example/.test(s4);
+    const exampleFnBlock = s4.slice(s4.indexOf("function Examples()"), s4.indexOf("function Plans()"));
+    const imageBlock = exampleFnBlock.slice(exampleFnBlock.indexOf("<Image"), exampleFnBlock.indexOf("<Image") + 400);
+    const noPriority = !/\bpriority\b/.test(imageBlock);
+    return idsOk && labelOk && noPriority;
+  })());
+
+  check("the comparison table still distinguishes positive/negative by icon shape (X vs Check), not color alone", /<X className="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-signal-bad"/.test(s4) && /<Check className="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-signal-good"/.test(s4));
+
+  check("no gradient-text headline, floating pill, or decorative blob was introduced by this pass", !/gradient-text/.test(s4) && !/rounded-full.*floating/.test(s4) && !/\bblob\b/i.test(s4));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
