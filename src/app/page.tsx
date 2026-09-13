@@ -29,7 +29,7 @@ import { getAccessContext } from "@/lib/auth/access";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
-import { GALLERY_INDUSTRIES } from "@/lib/sitegen/gallery-industries";
+import { industryList as GALLERY_TEMPLATE_LIST } from "@/data/gallery/industries";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,11 @@ export const metadata: Metadata = {
  * docs/history.md and CLAUDE.md §2 for what's actually shipped.
  */
 const REAL_INDUSTRY_COUNT = Object.keys(INDUSTRIES).length;
-const GALLERY_TEMPLATE_COUNT = Object.keys(GALLERY_INDUSTRIES).length;
+// Same canonical source /gallery itself renders from (GALLERY_INDUSTRIES in
+// lib/sitegen/gallery-industries.ts is a deliberately narrower, picker-only
+// subset that excludes industries with a richer SiteGenIndustryKey
+// equivalent -- not what a visitor sees when browsing /gallery).
+const GALLERY_TEMPLATE_COUNT = GALLERY_TEMPLATE_LIST.length;
 
 export default async function HomePage() {
   const { user, role, trialExpired } = await getAccessContext();
