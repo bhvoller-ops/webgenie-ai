@@ -176,7 +176,7 @@ const RESOURCES_ITEMS: NavGroupItem[] = [
 ];
 
 export function TopBar({ role = "guest" }: { role?: AccessRole }) {
-  const contentWidth = role === "guest" ? "max-w-[1400px]" : "max-w-[1280px]";
+  const contentWidth = "max-w-[1280px]";
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
       <div className={cn("relative mx-auto flex h-16 items-center gap-6 px-6", contentWidth)}>
@@ -284,7 +284,7 @@ const FOOTER_LINKS = [
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto max-w-[1400px] px-6 py-12">
+      <div className="mx-auto max-w-[1280px] px-6 py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-sm">
             <Logo compact />
@@ -333,11 +333,13 @@ function AuthenticatedFooter() {
 }
 
 export function PageShell({ children, role = "guest" }: { children: ReactNode; role?: AccessRole }) {
-  // UI clarity correction: authenticated workspace pages get a tighter
-  // 1280px content column and less vertical padding than the public
-  // marketing site's 1400px/py-10 (unchanged for role="guest") — an
-  // operational page reads as a workspace, not a landing page.
-  const contentWidth = role === "guest" ? "max-w-[1400px] py-10" : "max-w-[1280px] py-8";
+  // Public SaaS Impeccable rebuild (Phase 9): the guest content column was
+  // tightened from 1400px to 1280px to match the spec'd max content width
+  // (~1200-1280px) for the public site. Authenticated workspace pages keep
+  // their own unchanged 1280px/py-8 — same number, but a separate literal,
+  // deliberately not shared, so a future public-only width change can't
+  // silently touch the authenticated app.
+  const contentWidth = role === "guest" ? "max-w-[1280px] py-10" : "max-w-[1280px] py-8";
   return (
     <div className="min-h-screen">
       <TopBar role={role} />

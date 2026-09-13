@@ -3,23 +3,24 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
+  BookOpen,
   Bot,
-  Building2,
-  CheckCircle2,
+  Check,
+  CheckCheck,
+  ChevronDown,
   Clock,
-  Compass,
-  FileCode2,
   Handshake,
   Minus,
   Phone,
   Plus,
   Radar,
+  Repeat,
   Rocket,
   ScanLine,
   Sparkles,
   Star,
   TrendingUp,
-  XCircle,
+  X,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, Panel, Pill } from "@/components/ui";
@@ -27,30 +28,34 @@ import { ScoreRing } from "@/components/score-ring";
 import { getAccessContext } from "@/lib/auth/access";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
+import { INDUSTRIES } from "@/lib/sitegen/industries";
+import { GALLERY_INDUSTRIES } from "@/lib/sitegen/gallery-industries";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "WebGenie AI — The Client-Acquisition Workspace for Agencies",
   description:
-    "Find businesses worth contacting, build something worth showing them, and start better sales conversations. The client-acquisition workspace for agencies, freelancers, and consultants — free for 7 days.",
+    "Find the right local business, verify the opportunity with real evidence, and prepare something worth showing before you ever call. The client-acquisition workspace for agencies — 7-day full-access trial, no credit card required.",
 };
 
 /**
- * / used to be the signed-in Dashboard for every role. It's now the public
- * marketing funnel — the page a stranger who's never heard of WebGenie
- * lands on — with the actual Dashboard content moved to /projects/new
- * (see CLAUDE.md §2q). A signed-in visitor never sees the funnel: this
- * redirects them to their real home before rendering anything below.
+ * Public SaaS Impeccable rebuild (this build): / is the public marketing
+ * funnel for a stranger who's never heard of WebGenie. A signed-in visitor
+ * never sees it — the redirect below sends them to their real home first.
  *
- * Rebuilt 9 Sep 2026 (the "Homepage Conversion Build") around a single
- * story — WebGenie is the *client-acquisition* workspace, not a lead
- * scraper/site generator/audit tool in isolation. See docs/history.md for
- * the entry this build adds. Every "real product" visual below is either
- * the actual component the authenticated app uses (ScoreRing) or an
- * actually-live render of the real generator (the embedded demo-site
- * iframe) — not a screenshot, not invented UI.
+ * Positioning: WebGenie is the client-acquisition *workspace* for agencies
+ * -- not a CRM, not a lead database, not an autonomous outreach system, and
+ * not a promise that clients close themselves. The human performs every
+ * outreach step; WebGenie finds the opportunity, verifies it with evidence,
+ * and prepares the material for the call. Every count and claim below is
+ * derived from real product state (INDUSTRIES / GALLERY_INDUSTRIES, the
+ * actual generator) or explicitly labeled illustrative -- see
+ * docs/history.md and CLAUDE.md §2 for what's actually shipped.
  */
+const REAL_INDUSTRY_COUNT = Object.keys(INDUSTRIES).length;
+const GALLERY_TEMPLATE_COUNT = Object.keys(GALLERY_INDUSTRIES).length;
+
 export default async function HomePage() {
   const { user, role, trialExpired } = await getAccessContext();
 
@@ -74,76 +79,72 @@ export default async function HomePage() {
   return (
     <PageShell role="guest">
       <Hero />
-      <Problem />
-      <BeforeAfter />
-      <ProductShowcase />
-      <Workflow />
-      <Audience />
-      <Toolset />
-      <ClosingCta />
+      <TrustStrip />
+      <CoreProblem />
+      <ProductWorkflow />
+      <ProductProof />
+      <Differentiation />
+      <WhoItsFor />
+      <Examples />
+      <Plans />
+      <Faq />
+      <FinalCta />
     </PageShell>
   );
 }
 
+/** Shared vertical rhythm between sections -- ~56-72px mobile, ~96-128px desktop. */
+const SECTION = "mt-14 sm:mt-24 lg:mt-32";
+
+/* ------------------------------------------------------------------ */
+/* A. Hero                                                              */
+/* ------------------------------------------------------------------ */
+
 function Hero() {
   return (
-    <Panel className="relative overflow-hidden" padded={false}>
+    <section className="relative overflow-hidden pt-2">
       <div
-        className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.35]"
-        style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(700px 300px at 25% 0%, #000, transparent)" }}
+        className="pointer-events-none absolute inset-0 -z-10 bg-grid-fade opacity-[0.3]"
+        style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(760px 380px at 20% -10%, #000, transparent)" }}
         aria-hidden
       />
-      <div className="relative px-6 py-14 sm:px-12 sm:py-20 lg:grid lg:grid-cols-[1fr_320px] lg:items-center lg:gap-12">
+      <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-center lg:gap-16">
         <div>
-          <h1 className="max-w-3xl text-display-lg font-semibold">
-            <span className="gradient-text">Stop wondering</span>
-            <br />
-            <span className="text-ink">where your next client is coming from.</span>
+          <h1 className="max-w-2xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
+            Find the right local business. <span className="gradient-text">Know exactly why they need you.</span>
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink/80">
-            WebGenie finds local businesses worth contacting, diagnoses what&apos;s actually wrong with
-            their web presence, and builds something real to show them — a demo site or an
-            evidence-backed audit — before you ever pick up the phone.
+          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink/80 sm:text-lg">
+            WebGenie finds local businesses worth contacting, verifies the opportunity with real
+            evidence, and prepares something concrete to bring to the call — a demo site or an
+            audit — before you ever pick up the phone. You make the call. WebGenie does the
+            preparation.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button href="/signup">
-              Start finding clients free
+              Start Free
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
-            <Button href="#product" variant="secondary">
-              See how it works
+            <Button href="#how-it-works" variant="secondary">
+              See WebGenie in Action
             </Button>
           </div>
-          <p className="mt-3 text-xs text-faint">Free for 7 days, full access, no credit card required.</p>
-
-          <div className="mt-12 flex flex-wrap items-center gap-2">
-            {["Find", "Diagnose", "Show", "Pitch"].map((stage, i) => (
-              <div key={stage} className="flex items-center gap-2">
-                <Pill tone={i === 0 ? "iris" : "neutral"}>{stage}</Pill>
-                {i < 3 ? <ArrowRight className="h-3 w-3 text-faint" aria-hidden /> : null}
-              </div>
-            ))}
-          </div>
+          <p className="mt-3 text-sm text-faint">7-day full-access trial. No credit card required.</p>
         </div>
 
         <HeroProductPeek />
       </div>
-    </Panel>
+    </section>
   );
 }
 
 /**
- * A compact, real-data "what happens inside" preview for the hero's right
- * column (desktop) — added in the 9 Sep polish pass so the visitor sees the
- * product before scrolling, instead of empty space. Same sample business
- * (Cornerstone Plumbing Co.) and the same illustrative score (46, Weak) used
- * later in ProductShowcase, so the two moments read as one continuous
- * example rather than two different invented numbers. On mobile this
- * component's own DOM position (after the CTAs and workflow pills, both
- * still above it here) is what keeps it stacked below them — see Hero's
- * `lg:grid` above, which only turns on the side-by-side layout at the lg
- * breakpoint.
+ * A compact, honestly-labeled narrative strip for the hero's second column
+ * -- the real Finder -> verified opportunity -> Daily Queue -> Playbook
+ * connection, using the app's real terminology and a real sample business
+ * (not a screenshot, not fabricated metrics). Marked "Illustrative example"
+ * throughout, same fixture business ProductProof uses below, so the two
+ * moments read as one continuous example rather than two invented numbers.
  */
 function HeroProductPeek() {
   const biz = SAMPLE_BUSINESSES.find((b) => b.id === "sample-plumber")!;
@@ -152,11 +153,11 @@ function HeroProductPeek() {
       icon: ScanLine,
       tone: "iris",
       title: biz.name,
-      detail: `${biz.city}, ${biz.state} · ${biz.rating}★ (${biz.reviewCount})`,
+      detail: `Found in Finder — ${biz.city}, ${biz.state} · ${biz.rating}★ (${biz.reviewCount})`,
     },
-    { icon: Bot, tone: "warn", title: "Opportunity identified", detail: "No AI receptionist, no 24/7 coverage" },
-    { icon: Radar, tone: "warn", title: "Website Health: 46", detail: "Weak — 3 evidence-traced findings" },
-    { icon: CheckCircle2, tone: "good", title: "Demo site ready", detail: "Generated automatically, before the call" },
+    { icon: Radar, tone: "warn", title: "Verified opportunity", detail: "No AI receptionist, no 24/7 coverage — evidence-traced" },
+    { icon: CheckCheck, tone: "iris", title: "Added to Daily Queue", detail: "Prioritized above lower-value prospects" },
+    { icon: BookOpen, tone: "good", title: "Playbook ready", detail: "Suggested script and next action prepared" },
   ];
   const toneClasses = {
     iris: "border-iris/30 text-iris-soft",
@@ -166,7 +167,7 @@ function HeroProductPeek() {
 
   return (
     <div className="mt-12 w-full max-w-sm rounded-panel border border-hairline bg-canvas/60 p-5 backdrop-blur-sm lg:mt-0">
-      <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-faint">Illustrative example</div>
+      <div className="mb-3 text-[13px] font-medium uppercase tracking-wide text-faint">Illustrative example</div>
       <ol className="relative space-y-4">
         <div aria-hidden className="absolute bottom-3 left-[15px] top-3 w-px bg-hairline" />
         {steps.map((s) => (
@@ -177,8 +178,8 @@ function HeroProductPeek() {
               <s.icon className="h-3.5 w-3.5" aria-hidden />
             </span>
             <div className="pt-0.5">
-              <div className="text-[13px] font-medium text-ink">{s.title}</div>
-              <div className="mt-0.5 text-[12px] text-muted">{s.detail}</div>
+              <div className="text-sm font-medium text-ink">{s.title}</div>
+              <div className="mt-0.5 text-sm text-muted">{s.detail}</div>
             </div>
           </li>
         ))}
@@ -187,145 +188,135 @@ function HeroProductPeek() {
   );
 }
 
-function Problem() {
+/* ------------------------------------------------------------------ */
+/* B. Trust / positioning strip                                        */
+/* ------------------------------------------------------------------ */
+
+const TRUST_ITEMS = [
+  "Built for agency owners and sales teams",
+  "Human-executed outreach",
+  "Evidence-backed opportunity",
+  "No automatic spam",
+];
+
+function TrustStrip() {
   return (
-    <div className="mt-20 grid gap-6 lg:grid-cols-5">
-      <div className="lg:col-span-2">
-        <h2 className="text-display-md font-semibold text-ink">
-          Starting an agency is easy.
-          <br />
-          Finding clients is the hard part.
-        </h2>
-        <p className="mt-4 text-sm leading-relaxed text-ink/80">
-          You can learn websites. You can learn AI. You can learn automation. You can buy every tool
-          on the market. None of that matters if you don&apos;t have a business to sell it to.
-        </p>
-        <p className="mt-4 text-sm leading-relaxed text-ink/80">
-          Most agency software starts <em className="text-ink">after</em> you already have the
-          client — CRMs, funnels, reporting. WebGenie works on the problem before that one:{" "}
-          <span className="text-ink">finding someone worth talking to</span>, and giving you a real
-          reason to start the conversation.
-        </p>
-        <p className="mt-4 text-sm font-medium text-iris-soft">
-          We built the tool we wish we had when we started.
-        </p>
-      </div>
-      <div className="grid gap-px overflow-hidden rounded-card border border-hairline bg-hairline lg:col-span-3 lg:grid-cols-2">
-        {[
-          "Who do I even contact?",
-          "Which businesses actually need what I sell?",
-          "What should I say when I reach out?",
-          "What can I show them, not just tell them?",
-          "Who should I contact first?",
-          "How do I do this every week, not just once?",
-        ].map((q) => (
-          <div key={q} className="bg-surface p-5">
-            <p className="text-sm leading-relaxed text-ink">&ldquo;{q}&rdquo;</p>
-          </div>
+    <div className={SECTION}>
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-y border-hairline py-5 text-center">
+        {TRUST_ITEMS.map((item, i) => (
+          <span key={item} className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted">{item}</span>
+            {i < TRUST_ITEMS.length - 1 ? <span className="h-1 w-1 rounded-full bg-hairline" aria-hidden /> : null}
+          </span>
         ))}
       </div>
     </div>
   );
 }
 
-const WITHOUT = [
-  "Manually searching Google Maps, one city at a time",
-  "Opening every business's site individually to check it",
-  "Guessing whether they'd even want your help",
-  "Writing the same generic pitch to everyone",
-  "Building a demo by hand, if you build one at all",
-  "Tracking it all in a spreadsheet, or not tracking it",
-];
+/* ------------------------------------------------------------------ */
+/* C. Core problem — one argument, not six questions                   */
+/* ------------------------------------------------------------------ */
 
-const WITH = [
-  "Choose a market, get a sorted list of real opportunities",
-  "Every result already checked for a website — or the lack of one",
-  "A real, evidence-traced reason to reach out to this one",
-  "Something concrete to show them in the first message",
-  "A finished demo site, generated before you call",
-  "One tracker for every prospect, call, and follow-up",
-];
-
-function BeforeAfter() {
+function CoreProblem() {
   return (
-    <div className="mt-20">
-      <SectionIntro
-        title="The work doesn't disappear. It gets a lot shorter."
-        description="WebGenie doesn't magically close clients for you. It gives you a better reason to start the conversation — and it does the part that used to eat your whole afternoon."
-      />
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="card p-6">
-          <div className="flex items-center gap-2 text-signal-bad">
-            <XCircle className="h-4 w-4" aria-hidden />
-            <h3 className="text-sm font-semibold">Without WebGenie</h3>
-          </div>
-          <ul className="mt-4 space-y-3">
-            {WITHOUT.map((item) => (
-              <li key={item} className="flex gap-2.5 text-[13px] leading-relaxed text-ink/80">
-                <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-signal-bad" aria-hidden />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="card p-6">
-          <div className="flex items-center gap-2 text-signal-good">
-            <CheckCircle2 className="h-4 w-4" aria-hidden />
-            <h3 className="text-sm font-semibold">With WebGenie</h3>
-          </div>
-          <ul className="mt-4 space-y-3">
-            {WITH.map((item) => (
-              <li key={item} className="flex gap-2.5 text-[13px] leading-relaxed text-ink/80">
-                <Plus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-signal-good" aria-hidden />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
+    <div className={SECTION}>
+      <div className="mx-auto max-w-[68ch]">
+        <h2 className="text-display-md font-semibold text-ink">
+          Building services is not the hard part. Building a repeatable client-acquisition
+          process is.
+        </h2>
+        <p className="mt-5 text-base leading-relaxed text-ink/80">
+          Most agencies can deliver good work. What they don&apos;t have is a dependable way to
+          find the next business worth calling — one that&apos;s actually a fit, not a guess from
+          a spreadsheet. WebGenie doesn&apos;t replace outreach; it replaces the guessing that
+          comes before it. It finds businesses with a real, evidence-backed reason to talk to
+          you, then prepares the exact thing you&apos;d want in hand before that call — a working
+          demo site or an audit that shows, not tells. You still make the call. You just stop
+          wondering who to call and what to say.
+        </p>
       </div>
     </div>
   );
 }
 
-/** Real, curated fixture businesses — same ones /samples uses. Nothing here is a real business or a real customer result; see lib/sitegen/samples.ts. */
-const FINDER_PREVIEW = SAMPLE_BUSINESSES.filter((b) =>
-  ["sample-plumber", "sample-hvac", "sample-electrician"].includes(b.id)
-);
-const DEMO_PREVIEW_BUSINESS = SAMPLE_BUSINESSES.find((b) => b.id === "sample-dentist")!;
+/* ------------------------------------------------------------------ */
+/* D. Product workflow — nav anchor "Product"                          */
+/* ------------------------------------------------------------------ */
 
-function ProductShowcase() {
+const WORKFLOW_STAGES = [
+  { icon: ScanLine, title: "Find", body: "Search a market with Finder — every result is scored, not just no-website businesses." },
+  { icon: Radar, title: "Verify", body: "Confirm the opportunity with real evidence, traced to a specific audit finding — never a guess." },
+  { icon: Sparkles, title: "Prepare", body: "Generate a demo site or an audit, plus a script from the Playbook — before you ever dial." },
+  { icon: Phone, title: "Contact", body: "Reach out yourself, with something specific to show — WebGenie never contacts anyone for you." },
+  { icon: Repeat, title: "Follow up", body: "Every call, outcome, and next step logged in the Daily Queue, so nothing falls through." },
+  { icon: Handshake, title: "Win & hand off", body: "Close the deal, then onboard the client in the same workspace." },
+];
+
+function ProductWorkflow() {
   return (
-    <div id="product" className="mt-20 scroll-mt-20">
-      <Panel className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.3]"
-          style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(800px 320px at 50% 0%, #000, transparent)" }}
-          aria-hidden
-        />
-        <div className="relative">
-          <SectionIntro
-            title="Open WebGenie. Pick a market. Find an opportunity."
-            description="Three real pieces of the actual product — not mockups. This is what opens the moment you sign in."
-          />
+    <div id="product" className={`${SECTION} scroll-mt-24`}>
+      <SectionIntro
+        title="One connected process, not six separate tools"
+        description="Every stage below ships today — the same workflow a signed-in account actually runs, not a roadmap."
+      />
+      <ol className="relative mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3 lg:grid-cols-6">
+        <div aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-hairline lg:block" />
+        {WORKFLOW_STAGES.map((stage, i) => (
+          <li key={stage.title} className="relative flex flex-col items-start">
+            <span className="relative z-10 grid h-10 w-10 place-items-center rounded-full border border-iris/30 bg-void">
+              <stage.icon className="h-4 w-4 text-iris-soft" aria-hidden />
+            </span>
+            <span className="mt-4 font-mono text-[13px] tracking-wide text-faint">{String(i + 1).padStart(2, "0")}</span>
+            <h3 className="mt-1 text-sm font-semibold text-ink">{stage.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-ink/80">{stage.body}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
-        {/* FIND */}
+/* ------------------------------------------------------------------ */
+/* E. Product proof — nav anchor "How It Works"                        */
+/* ------------------------------------------------------------------ */
+
+/** Same curated fixture businesses /samples uses — nothing here is a real business. See lib/sitegen/samples.ts. */
+const FINDER_PREVIEW = SAMPLE_BUSINESSES.filter((b) => ["sample-plumber", "sample-hvac", "sample-electrician"].includes(b.id));
+
+const QUEUE_PREVIEW: Array<{ name: string; priority: "warn" | "good" | "neutral"; note: string }> = [
+  { name: "Cornerstone Plumbing Co.", priority: "warn", note: "No website — demo ready" },
+  { name: "Southern Comfort Heating & Air", priority: "good", note: "Follow-up due today" },
+  { name: "Bright Line Electric", priority: "neutral", note: "Audit complete, awaiting call" },
+];
+
+function ProductProof() {
+  return (
+    <div id="how-it-works" className={`${SECTION} scroll-mt-24`}>
+      <SectionIntro
+        title="See it work, not just hear about it"
+        description="Three real moments from the actual product — illustrative businesses throughout, real product behavior."
+      />
+
+      <div className="mt-10 grid gap-4 lg:grid-cols-3">
+        {/* Finder */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
               <ScanLine className="h-4 w-4 text-iris-soft" aria-hidden />
-              <h3 className="text-sm font-semibold text-ink">Find better prospects</h3>
+              <h3 className="text-sm font-semibold text-ink">A prioritized list, not a pile of leads</h3>
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink/80">
-              Real Finder results, sorted by review count so you call the easiest yes first.
+            <p className="mt-2 text-sm leading-relaxed text-ink/80">
+              Illustrative Finder results — every real search returns a list shaped like this,
+              sorted so you call the easiest yes first.
             </p>
           </div>
           <div className="space-y-2 p-4">
             {FINDER_PREVIEW.map((b) => (
               <div key={b.id} className="rounded-lg border border-hairline bg-canvas/60 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium text-ink">{b.name}</span>
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px]">
+                  <span className="text-sm font-medium text-ink">{b.name}</span>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px]">
                     <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
                     <span className="font-mono text-faint">
                       {b.rating} ({b.reviewCount})
@@ -333,11 +324,11 @@ function ProductShowcase() {
                   </span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[10px] font-medium text-signal-warn">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[13px] font-medium text-signal-warn">
                     <Bot className="h-2.5 w-2.5" aria-hidden />
                     No AI Receptionist
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[10px] font-medium text-signal-warn">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[13px] font-medium text-signal-warn">
                     <Clock className="h-2.5 w-2.5" aria-hidden />
                     No 24/7 Coverage
                   </span>
@@ -347,14 +338,14 @@ function ProductShowcase() {
           </div>
         </div>
 
-        {/* DIAGNOSE */}
+        {/* Verified opportunity */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
               <Radar className="h-4 w-4 text-iris-soft" aria-hidden />
-              <h3 className="text-sm font-semibold text-ink">Don&apos;t tell them it&apos;s bad. Show them why.</h3>
+              <h3 className="text-sm font-semibold text-ink">Don&apos;t tell them it&apos;s weak. Show them why.</h3>
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink/80">
+            <p className="mt-2 text-sm leading-relaxed text-ink/80">
               Illustrative example — every real audit runs the same 11-module engine and traces
               each finding back to real evidence, never a guess.
             </p>
@@ -362,15 +353,15 @@ function ProductShowcase() {
           <div className="flex flex-col items-center gap-4 p-5">
             <ScoreRing score={46} size={140} stroke={9} label="Website Health" sublabel="Illustrative example" />
             <ul className="w-full space-y-2">
-              <li className="flex gap-2 text-[12.5px] leading-relaxed text-muted">
+              <li className="flex gap-2 text-sm leading-relaxed text-muted">
                 <Minus className="mt-0.5 h-3 w-3 shrink-0 text-signal-bad" aria-hidden />
                 No way to text or chat — every lead has to call during business hours
               </li>
-              <li className="flex gap-2 text-[12.5px] leading-relaxed text-muted">
+              <li className="flex gap-2 text-sm leading-relaxed text-muted">
                 <Minus className="mt-0.5 h-3 w-3 shrink-0 text-signal-bad" aria-hidden />
                 Nothing on the homepage says why to pick them over a competitor
               </li>
-              <li className="flex gap-2 text-[12.5px] leading-relaxed text-muted">
+              <li className="flex gap-2 text-sm leading-relaxed text-muted">
                 <Plus className="mt-0.5 h-3 w-3 shrink-0 text-signal-good" aria-hidden />
                 Loads fast on mobile
               </li>
@@ -378,193 +369,319 @@ function ProductShowcase() {
           </div>
         </div>
 
-        {/* SHOW */}
+        {/* Daily Queue + Playbook */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-iris-soft" aria-hidden />
-              <h3 className="text-sm font-semibold text-ink">The best pitch is the website you already built</h3>
+              <CheckCheck className="h-4 w-4 text-iris-soft" aria-hidden />
+              <h3 className="text-sm font-semibold text-ink">One queue, always telling you what&apos;s next</h3>
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink/80">
-              A real, live demo site — generated by the actual product for a sample business, not a
-              screenshot.
+            <p className="mt-2 text-sm leading-relaxed text-ink/80">
+              Illustrative example — the Daily Queue orders every prospect and follow-up by
+              priority, and the Playbook prepares what to say.
             </p>
           </div>
-          <div className="relative h-52 w-full overflow-hidden bg-white">
-            <iframe
-              src={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", sample: true })}
-              title={`Live preview of a generated demo site for ${DEMO_PREVIEW_BUSINESS.name}`}
-              loading="lazy"
-              tabIndex={-1}
-              aria-hidden
-              className="pointer-events-none origin-top-left"
-              style={{ width: "400%", height: "400%", transform: "scale(0.25)", border: "none" }}
-            />
-          </div>
-          <div className="p-4">
-            <a
-              href={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", sample: true })}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="focus-ring text-[13px] font-medium text-iris-soft transition-colors hover:text-iris"
-            >
-              Open the live preview <ArrowRight className="inline h-3 w-3" aria-hidden />
-            </a>
+          <div className="space-y-2 p-4">
+            {QUEUE_PREVIEW.map((q) => (
+              <div key={q.name} className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/60 p-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-ink">{q.name}</div>
+                  <div className="mt-0.5 text-sm text-muted">{q.note}</div>
+                </div>
+                <Pill tone={q.priority === "warn" ? "warn" : q.priority === "good" ? "good" : "neutral"}>
+                  {q.priority === "warn" ? "High" : q.priority === "good" ? "Due" : "Queued"}
+                </Pill>
+              </div>
+            ))}
           </div>
         </div>
       </div>
-
-          <p className="mt-4 text-center text-xs text-faint">
-            73 industries covered.{" "}
-            <Link href="/samples" className="focus-ring underline decoration-dotted underline-offset-4 hover:text-muted">
-              See a real sample site for every one
-            </Link>
-            .
-          </p>
-        </div>
-      </Panel>
     </div>
   );
 }
 
-const WORKFLOW_STAGES = [
-  { icon: ScanLine, title: "Find", body: "Scan a market for businesses worth contacting." },
-  { icon: Radar, title: "Audit", body: "Diagnose exactly what's wrong, with real evidence." },
-  { icon: Sparkles, title: "Build", body: "Generate a real demo site or rebuild blueprint." },
-  { icon: Phone, title: "Pitch", body: "Call with something specific to show, not a guess." },
-  { icon: Compass, title: "Track", body: "Log every call, follow-up, and outcome in one place." },
-  { icon: Handshake, title: "Close", body: "Collect payment on the spot or send a payment link." },
+/* ------------------------------------------------------------------ */
+/* F. Differentiation — not a CRM, not a lead list                     */
+/* ------------------------------------------------------------------ */
+
+const COMPARISON_ROWS: Array<{ traditional: string; webgenie: string }> = [
+  { traditional: "Guessing who to contact", webgenie: "A prioritized list of real opportunities" },
+  { traditional: "A claim with no evidence", webgenie: "A verified, evidence-backed reason to reach out" },
+  { traditional: "Just a name and a phone number", webgenie: "Something concrete to show — a real demo site or audit" },
+  { traditional: "Figuring out what to say yourself", webgenie: "A guided script and next action from the Playbook" },
+  { traditional: "A spreadsheet you maintain by hand", webgenie: "One canonical queue that tracks itself" },
 ];
 
-function Workflow() {
+function Differentiation() {
   return (
-    <div className="mt-20">
+    <div className={SECTION}>
       <SectionIntro
-        title="One prospect. One workspace. One path to the sale."
-        description="Every stage below is real, built, and already what a signed-in session does — this isn't a roadmap slide."
+        title="This isn't a CRM, and it isn't a lead list"
+        description="A CRM organizes clients you already have. A lead list gives you names with no context. WebGenie does the work in between."
       />
-      <ol className="relative mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3 lg:grid-cols-6">
-        <div aria-hidden className="absolute left-5 right-5 top-5 hidden h-px bg-hairline lg:block" />
-        {WORKFLOW_STAGES.map((stage, i) => (
-          <li key={stage.title} className="relative flex flex-col items-start">
-            <span className="relative z-10 grid h-10 w-10 place-items-center rounded-full border border-iris/30 bg-void">
-              <stage.icon className="h-4 w-4 text-iris-soft" aria-hidden />
-            </span>
-            <span className="mt-4 font-mono text-[11px] tracking-wide text-faint">{String(i + 1).padStart(2, "0")}</span>
-            <h3 className="mt-1 text-sm font-semibold text-ink">{stage.title}</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink/80">{stage.body}</p>
-          </li>
-        ))}
-      </ol>
+      <div className="mt-8 overflow-x-auto rounded-card border border-hairline">
+        <table className="w-full min-w-[560px] border-collapse text-left">
+          <caption className="sr-only">Traditional prospecting compared with WebGenie</caption>
+          <thead>
+            <tr className="border-b border-hairline">
+              <th scope="col" className="p-4 text-sm font-semibold text-faint">
+                Without a real process
+              </th>
+              <th scope="col" className="p-4 text-sm font-semibold text-iris-soft">
+                With WebGenie
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {COMPARISON_ROWS.map((row) => (
+              <tr key={row.traditional} className="border-b border-hairline last:border-b-0">
+                <td className="p-4 align-top text-sm text-ink/80">
+                  <span className="flex items-start gap-2.5">
+                    <X className="mt-0.5 h-4 w-4 shrink-0 text-signal-bad" aria-hidden />
+                    {row.traditional}
+                  </span>
+                </td>
+                <td className="p-4 align-top text-sm text-ink">
+                  <span className="flex items-start gap-2.5">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-signal-good" aria-hidden />
+                    {row.webgenie}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-function Audience() {
+/* ------------------------------------------------------------------ */
+/* G. Who it's for — nav anchor "Who It's For"                         */
+/* ------------------------------------------------------------------ */
+
+function WhoItsFor() {
   return (
-    <div className="mt-20 grid gap-4 lg:grid-cols-2">
-      <div className="card p-6">
-        <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris/30 bg-iris/10">
-          <Rocket className="h-4 w-4 text-iris-soft" aria-hidden />
-        </span>
-        <h3 className="mt-4 text-sm font-semibold text-ink">New to agency ownership?</h3>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink/80">
-          WebGenie gives you the process — where to look, what to say, and something real to show on
-          your very first call.
-        </p>
-      </div>
-      <div className="card p-6">
-        <span className="grid h-9 w-9 place-items-center rounded-lg border border-neon/30 bg-neon/10">
-          <TrendingUp className="h-4 w-4 text-neon-soft" aria-hidden />
-        </span>
-        <h3 className="mt-4 text-sm font-semibold text-ink">Already have an agency?</h3>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink/80">
-          WebGenie helps you execute the process you already know faster — and hand it to a sales
-          hire without losing quality.
-        </p>
+    <div id="who-its-for" className={`${SECTION} scroll-mt-24`}>
+      <SectionIntro title="Who WebGenie is built for" />
+      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+        <div className="card p-6">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-iris/30 bg-iris/10">
+            <Rocket className="h-4 w-4 text-iris-soft" aria-hidden />
+          </span>
+          <h3 className="mt-4 text-sm font-semibold text-ink">New to agency ownership?</h3>
+          <p className="mt-2 text-sm leading-relaxed text-ink/80">
+            WebGenie gives you the process — where to look, what to say, and something real to
+            show on your very first call. It won&apos;t promise you clients; it will make sure
+            you never start a call empty-handed.
+          </p>
+        </div>
+        <div className="card p-6">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-neon/30 bg-neon/10">
+            <TrendingUp className="h-4 w-4 text-neon-soft" aria-hidden />
+          </span>
+          <h3 className="mt-4 text-sm font-semibold text-ink">Already have an agency?</h3>
+          <p className="mt-2 text-sm leading-relaxed text-ink/80">
+            WebGenie helps you and your team run the process you already know, faster and more
+            consistently — with a queue a sales hire can pick up without losing quality.
+          </p>
+        </div>
       </div>
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* H. Examples                                                         */
+/* ------------------------------------------------------------------ */
 
 /**
- * The buyer-facing client-acquisition capability set. Partner Program was
- * deliberately dropped from this homepage list in the 9 Sep polish pass —
- * it's a referral-recruitment feature for other agencies, not a capability
- * this page's own buyer uses to acquire clients, and PRODUCT.md gives no
- * buyer-facing reason to feature it here. The page/feature itself is
- * untouched — this only removes it from this marketing list.
+ * Curated per PRODUCT.md's Motion A verticals — Roofing/HVAC/Plumbing/
+ * Dental, matching the four labels the task named. Real, live-rendered
+ * previews from the actual generator (isSample: true — see
+ * lib/sitegen/types.ts), never a screenshot or a static mock.
  */
-const CAPABILITIES = [
-  { icon: Building2, title: "Prospect Finder", body: "Search by industry and city — every result already has a demo site built for it." },
-  { icon: Sparkles, title: "Site Generator", body: "73 industries, real lead capture, an AI intake chat, and full LocalBusiness schema on every page." },
-  { icon: Radar, title: "Audit Funnel", body: "Real evidence-traced audits for businesses with an existing, underperforming site." },
-  { icon: FileCode2, title: "Blueprints & Prompts", body: "An original rebuild plan and a ready-to-run prompt package for the AI builder you already use." },
-  { icon: Phone, title: "Call Tracker", body: "Log every dial, follow-up, and outcome — then collect payment on the spot." },
+const EXAMPLE_IDS = ["sample-roofer", "sample-hvac", "sample-plumber", "sample-dentist"];
+const EXAMPLE_BUSINESSES = EXAMPLE_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
+
+function Examples() {
+  return (
+    <div className={SECTION}>
+      <SectionIntro
+        title="See the kind of site WebGenie builds"
+        description={`Four real, live-rendered demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
+        action={
+          <Button href="/gallery" variant="secondary">
+            Explore All Examples
+          </Button>
+        }
+      />
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        {EXAMPLE_BUSINESSES.map((biz) => {
+          const url = demoSiteUrl(biz, { by: "WebGenie AI", sample: true });
+          const label = INDUSTRIES[biz.industry as keyof typeof INDUSTRIES]?.label ?? biz.industry;
+          return (
+            <div key={biz.id} className="card overflow-hidden p-0">
+              <div className="relative h-48 w-full overflow-hidden bg-white">
+                <iframe
+                  src={url}
+                  title={`Live preview of a generated demo site for ${biz.name}`}
+                  loading="lazy"
+                  tabIndex={-1}
+                  aria-hidden
+                  className="pointer-events-none origin-top-left"
+                  style={{ width: "400%", height: "400%", transform: "scale(0.25)", border: "none" }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 p-4">
+                <div>
+                  <div className="text-sm font-medium text-ink">{biz.name}</div>
+                  <div className="mt-0.5 text-sm text-faint">
+                    {label} · Illustrative example
+                  </div>
+                </div>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="focus-ring shrink-0 rounded-lg border border-hairline px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-iris/50"
+                >
+                  View full demo
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-5 text-sm text-faint">
+        Want more? The example gallery has {GALLERY_TEMPLATE_COUNT} illustrative templates across
+        dozens of additional business types.{" "}
+        <Link href="/samples" className="focus-ring underline decoration-dotted underline-offset-4 hover:text-muted">
+          Or browse the curated sample set
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* I. Plans / trial — nav anchor "Plans"                                */
+/* ------------------------------------------------------------------ */
+
+const PLAN_FACTS: Array<{ q: string; a: string }> = [
+  { q: "What's included in the trial?", a: "Full access to Finder, evidence-based audits, the site generator, Daily Queue, and Playbook — the same product, not a limited demo." },
+  { q: "Is a card required to start?", a: "No. Start free, no credit card." },
+  { q: "What happens after 7 days?", a: "We'll reach out about the right plan for your agency. There's no automatic charge." },
+  { q: "Is outreach automatic?", a: "No. You make every call and send every message — WebGenie prepares the work, it never contacts anyone on your behalf." },
 ];
 
-function Toolset() {
+function Plans() {
   return (
-    <div className="mt-20">
+    <div id="plans" className={`${SECTION} scroll-mt-24`}>
       <SectionIntro
-        title="Everything the workflow needs, in one workspace"
-        description="Everything you need to turn an opportunity into a sales conversation — without stitching together five different tools."
+        title="Plans"
+        description="Pricing for WebGenie isn't finalized yet, so here's exactly what to expect instead of a number we'd have to walk back."
       />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CAPABILITIES.map((c) => (
-          <div key={c.title} className="card p-6">
-            <span className="grid h-9 w-9 place-items-center rounded-lg border border-neon/30 bg-neon/10">
-              <c.icon className="h-4 w-4 text-neon-soft" aria-hidden />
-            </span>
-            <h3 className="mt-4 text-sm font-semibold text-ink">{c.title}</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink/80">{c.body}</p>
+      <dl className="mt-8 grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        {PLAN_FACTS.map((fact) => (
+          <div key={fact.q} className="border-t border-hairline pt-4">
+            <dt className="text-sm font-semibold text-ink">{fact.q}</dt>
+            <dd className="mt-1.5 text-sm leading-relaxed text-ink/80">{fact.a}</dd>
           </div>
+        ))}
+      </dl>
+      <div className="mt-8">
+        <Button href="/signup">
+          Start Free
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* J. FAQ                                                              */
+/* ------------------------------------------------------------------ */
+
+const FAQ_ITEMS: Array<{ q: string; a: string }> = [
+  {
+    q: "Does WebGenie contact anyone automatically?",
+    a: "No. WebGenie never sends a message, calls, or emails a prospect on your behalf. You always initiate contact — WebGenie prepares what you need to make that call worth making.",
+  },
+  {
+    q: "Where does the business data come from?",
+    a: "From public business-listing sources — the same information a manual search would surface, gathered and organized so you don't have to do it one tab at a time.",
+  },
+  {
+    q: "What counts as “verified evidence”?",
+    a: "A specific, checkable fact about a business's web presence — no online chat, no booking widget, a broken contact form — traced back to a real audit module, never a generic guess.",
+  },
+  {
+    q: "Does every prospect get a demo site?",
+    a: `Only businesses with no existing website get an instant demo site, across ${REAL_INDUSTRY_COUNT} supported industries today. Businesses that already have a site get a real, evidence-based audit instead — WebGenie never rebuilds something that doesn't need it.`,
+  },
+  {
+    q: "Can I use my own offer, pricing, and scripts?",
+    a: "Yes. The Playbook gives you a starting script and a suggested next action, but every price, offer, and word you say on the call is yours.",
+  },
+  {
+    q: "What happens after my trial?",
+    a: "We'll reach out about the right plan for your agency. There's no automatic charge and no obligation to continue.",
+  },
+];
+
+function Faq() {
+  return (
+    <div className={SECTION}>
+      <SectionIntro title="Frequently asked" />
+      <div className="mt-8 divide-y divide-hairline border-t border-hairline">
+        {FAQ_ITEMS.map((item) => (
+          <details key={item.q} className="group py-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-ink marker:hidden">
+              {item.q}
+              <ChevronDown className="h-4 w-4 shrink-0 text-faint transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-ink/80">{item.a}</p>
+          </details>
         ))}
       </div>
     </div>
   );
 }
 
-function ClosingCta() {
+/* ------------------------------------------------------------------ */
+/* K. Final CTA                                                        */
+/* ------------------------------------------------------------------ */
+
+function FinalCta() {
   return (
-    <div className="mt-20 mb-8">
-      <Panel className="relative overflow-hidden text-center">
-        <div
-          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.25]"
-          style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(600px 260px at 50% 0%, #000, transparent)" }}
-          aria-hidden
-        />
-        <div className="relative">
-          <h2 className="text-display-md font-semibold text-ink">Your next client is already out there.</h2>
-          <p className="mx-auto mt-3 max-w-lg text-sm text-ink/80">
-            Agencies don&apos;t fail because they can&apos;t build. They fail because they never build a
-            reliable way to get clients. You need a better way to find the opportunity — and a
-            better reason to start the conversation. That&apos;s WebGenie.
-          </p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-faint">
-            Free for 7 days, full access, no credit card. After your trial, we&apos;ll reach out about
-            the right plan for your agency.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <Button href="/signup">
-              Start finding clients free
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Button>
-            <Link href="/login" className="focus-ring text-sm font-medium text-muted transition-colors hover:text-ink">
-              Already have an account? Sign in
-            </Link>
-          </div>
-        </div>
-      </Panel>
+    <div className={`${SECTION} mb-8 text-center`}>
+      <h2 className="mx-auto max-w-xl text-display-md font-semibold text-ink">
+        Your next client conversation should start with something real.
+      </h2>
+      <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+        <Button href="/signup">
+          Start Free
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Button>
+        <Link href="/login" className="focus-ring text-sm font-medium text-muted transition-colors hover:text-ink">
+          Already have an account? Sign in
+        </Link>
+      </div>
     </div>
   );
 }
 
-function SectionIntro({ title, description }: { title: string; description: string }) {
+function SectionIntro({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
-    <div className="max-w-2xl">
-      <h2 className="text-display-md font-semibold text-ink">{title}</h2>
-      <p className="mt-2.5 text-sm leading-relaxed text-ink/80">{description}</p>
+    <div className="flex flex-wrap items-end justify-between gap-6">
+      <div className="max-w-2xl">
+        <h2 className="text-display-md font-semibold text-ink">{title}</h2>
+        {description ? <p className="mt-2.5 text-sm leading-relaxed text-ink/80">{description}</p> : null}
+      </div>
+      {action}
     </div>
   );
 }
