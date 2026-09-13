@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "WebGenie AI — The Client-Acquisition Workspace for Agencies",
   description:
-    "Find the right local business, verify the opportunity with real evidence, and prepare something worth showing before you ever call. The client-acquisition workspace for agencies — 7-day full-access trial, no credit card required.",
+    "Find the right local business, verify the opportunity with real evidence, and prepare something worth showing before you ever call. The client-acquisition workspace for agencies — start free, no credit card required.",
 };
 
 /**
@@ -163,7 +163,7 @@ function Hero() {
         </Button>
       </div>
       <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-faint">
-        <span>7-day full-access trial</span>
+        <span>Start free</span>
         <span aria-hidden>·</span>
         <span>No credit card required</span>
         <span aria-hidden>·</span>
@@ -661,7 +661,7 @@ function Examples() {
 const PLAN_FACTS: Array<{ q: string; a: string }> = [
   { q: "What's included in the trial?", a: "Full access to Finder, evidence-based audits, the site generator, Daily Queue, and Playbook — the same product, not a limited demo." },
   { q: "Is a card required to start?", a: "No. Start free, no credit card." },
-  { q: "What happens after 7 days?", a: "We'll reach out about the right plan for your agency. There's no automatic charge." },
+  { q: "What happens when the trial ends?", a: "We'll contact you about the right plan for your agency. There is no automatic charge." },
   { q: "Is outreach automatic?", a: "No. You make every call and send every message — WebGenie prepares the work, it never contacts anyone on your behalf." },
 ];
 

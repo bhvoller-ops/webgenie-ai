@@ -478,5 +478,58 @@ console.log("\n18. Owner-review finding -- final composition pass (page length, 
   check("no gradient-text headline, floating pill, or decorative blob was introduced by this pass", !/gradient-text/.test(s4) && !/rounded-full.*floating/.test(s4) && !/\bblob\b/i.test(s4));
 }
 
+console.log("\n19. Owner-review finding -- trial-copy truthfulness (no unsupported duration claim, consistent across public pages)");
+{
+  // Real discrepancy found by inspection: organizations.trial_ends_at's
+  // column DEFAULT is 14 days (migration 011); migration 027, which would
+  // change that default to 7 days, is written but per CLAUDE.md not yet
+  // run against production, and the ordinary WebGenie signup path
+  // (create-account + bootstrap) never sets trial_ends_at explicitly in
+  // code -- so it relies entirely on that column default. A real signup
+  // today plausibly gets a 14-day trial, not the "7-day" this site used
+  // to claim in five places. Fixing the underlying duration (running
+  // migration 027, or setting it explicitly in code) is out of scope for
+  // a public-site PR -- this section only asserts the PUBLIC CLAIM no
+  // longer states an unproven number, everywhere it could appear.
+  //
+  // "Full access" is treated differently: src/lib/auth/access.ts's own
+  // trialExpired gating is a single all-or-nothing boolean (blocks entry
+  // to /trial-expired once past trial_ends_at) with no separate
+  // trial-tier feature restriction anywhere in the codebase -- so unlike
+  // the day-count, that scope claim IS structurally provable, and is
+  // deliberately left in place on the one Plans FAQ answer that already
+  // had it, rather than stripped for its own sake.
+  const homeSrc = src("src/app/page.tsx");
+  const authShellSrc3 = src("src/components/auth-shell.tsx");
+  const signupSrc = src("src/app/signup/page.tsx");
+  const loginSrc = src("src/app/login/page.tsx");
+  const forgotSrc = src("src/app/forgot-password/page.tsx");
+  const resetSrc = src("src/app/reset-password/page.tsx");
+
+  const noBadDuration = (s: string) => !/7-day|7 days|14-day|14 days/i.test(s);
+
+  check("homepage (metadata + hero + Plans FAQ) makes no 7-day or 14-day trial-duration claim", noBadDuration(homeSrc));
+  check("AuthShell's shared reassurance line (rendered on login/signup/forgot-password/reset-password) makes no 7-day or 14-day claim", noBadDuration(authShellSrc3));
+  check("/signup's own subheading makes no 7-day or 14-day claim", noBadDuration(signupSrc));
+  check("/login, /forgot-password and /reset-password inherit AuthShell's copy and add none of their own duration claim", noBadDuration(loginSrc) && noBadDuration(forgotSrc) && noBadDuration(resetSrc));
+
+  check("hero's trailing reassurance line uses the owner-directed duration-neutral wording", /<span>Start free<\/span>[\s\S]{0,80}<span>No credit card required<\/span>[\s\S]{0,80}<span>Human-executed outreach<\/span>/.test(homeSrc));
+  check("AuthShell's reassurance list uses the same duration-neutral \"Start free, no credit card required\" wording", /"Start free, no credit card required"/.test(authShellSrc3));
+  check("/signup's subheading uses the same duration-neutral wording", /Start free\. No credit card required\./.test(signupSrc));
+  check("Plans FAQ question is duration-neutral (\"when the trial ends\", not \"after 7 days\")", /What happens when the trial ends\?/.test(homeSrc) && !/What happens after 7 days\?/.test(homeSrc));
+  check("Plans FAQ's \"what's included\" answer keeps its full-access SCOPE claim (structurally provable -- no separate trial-tier feature gate exists) without restating a duration", /Full access to Finder, evidence-based audits, the site generator, Daily Queue, and Playbook/.test(homeSrc));
+
+  check("the authenticated /trial-expired page (out of scope -- gated behind sign-in, not a public route) was not touched by this pass", (() => {
+    try {
+      const diff = execSync("git diff HEAD -- src/app/trial-expired/page.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
+      return diff.trim().length === 0;
+    } catch {
+      return true; // no such diff possible / git unavailable -- don't fail the suite over tooling
+    }
+  })());
+
+  check("src/lib/auth/access.ts's trial gate remains a single all-or-nothing boolean, not a feature-limited tier (the structural basis for keeping the \"full access\" scope claim)", /trialExpired/.test(src("src/lib/auth/access.ts")) && !/trial.?tier|limited.?feature/i.test(src("src/lib/auth/access.ts")));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -31,7 +31,7 @@ import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 const REASSURANCE = [
   "Evidence-backed opportunity, not a guess",
   "Human-executed outreach — WebGenie never contacts anyone for you",
-  "7-day full-access trial, no credit card required",
+  "Start free, no credit card required",
 ];
 
 export function AuthShell({ children }: { children: ReactNode }) {

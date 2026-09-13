@@ -70,7 +70,7 @@ export default function SignupPage() {
       <div className="mt-6 w-full">
         <h1 className="text-display-md font-semibold text-ink">Create your account</h1>
         <p className="mt-2 text-sm text-muted">
-          7-day full-access trial. No credit card required.
+          Start free. No credit card required.
         </p>
 
         <div className="mt-7">
