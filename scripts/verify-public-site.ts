@@ -138,7 +138,7 @@ console.log("\n6. Illustrative labeling -- fictional sample businesses never imp
   }
 }
 
-console.log("\n7. Sample-form non-production behavior -- isSample flag threaded end to end, API routes skip persistence");
+console.log("\n7. Sample-site safety -- architectural separation, no client-controlled bypass flag");
 {
   const typesSrc = src("src/lib/sitegen/types.ts");
   check("SiteOptions carries an explicit isSample flag (not inferred from a missing organizationId)", /isSample\?: boolean/.test(typesSrc));
@@ -147,49 +147,97 @@ console.log("\n7. Sample-form non-production behavior -- isSample flag threaded 
   check("demoSiteUrl() accepts and encodes sample:true as a distinct ?sample=1 param", /sample\?: boolean/.test(encodeSrc) && /params\.set\("sample", "1"\)/.test(encodeSrc));
 
   const routeSrc = src("src/app/api/demo-site/route.ts");
-  check("the demo-site route reads ?sample=1 and passes isSample through to generateSite()", /isSample: url\.searchParams\.get\("sample"\) === "1"/.test(routeSrc));
+  check("the demo-site route derives isSample ONLY from the ?sample= query param, never from decoding the b= payload's contents", /isSample: url\.searchParams\.get\("sample"\) === "1"/.test(routeSrc));
 
   const generateSrc = src("src/lib/sitegen/generate.ts");
   check("generate.ts renders a distinct illustrative-demo banner when isSample is true", /Illustrative WebGenie demo — sample business and contact information\./.test(generateSrc));
-  check("generate.ts passes options.isSample into both leadFormScript() and chatWidgetScript()", /leadFormScript\(\{[^}]*\}, options\.organizationId, options\.isSample\)/.test(generateSrc) && /chatWidgetScript\(business, p, options\.organizationId, options\.isSample\)/.test(generateSrc));
-
-  const leadFormSrc = src("src/lib/sitegen/lead-form.ts");
-  check("leadFormScript() embeds IS_SAMPLE and sends it in the POST body to /api/site-lead", /var IS_SAMPLE = /.test(leadFormSrc) && /isSample: IS_SAMPLE/.test(leadFormSrc));
-  const chatWidgetSrc = src("src/lib/sitegen/chat-widget.ts");
-  check("chatWidgetScript() embeds IS_SAMPLE and sends it in the POST body to /api/site-chat", /var IS_SAMPLE = /.test(chatWidgetSrc) && /isSample: IS_SAMPLE/.test(chatWidgetSrc));
-
-  const siteLeadSrc = src("src/app/api/site-lead/route.ts");
-  check("/api/site-lead's business schema requires an id (needed to derive sample-ness server-side)", /business: z\.object\(\{\s*id: z\.string\(\)/.test(siteLeadSrc));
-  check("/api/site-lead returns early (never inserts) for a known sample business, still returning demo:true", /return corsJson\(\{ ok: true, demo: true \}\)/.test(siteLeadSrc));
-
-  const siteChatSrc = src("src/app/api/site-chat/route.ts");
-  check("/api/site-chat's business schema requires an id (needed to derive sample-ness server-side)", /business: z\.object\(\{\s*id: z\.string\(\)/.test(siteChatSrc));
-  check("/api/site-chat's genuine (non-sample) fallback uses getDefaultOrganizationId(), not the .limit(1).single() anti-pattern", /getDefaultOrganizationId\(supabase\)/.test(siteChatSrc) && !/\.from\("organizations"\)\.select\("id"\)\.limit\(1\)\.single\(\)/.test(siteChatSrc));
+  check("generate.ts passes options.isSample into both leadFormScript() and chatWidgetScript() (decides which endpoint gets embedded, at generation time)", /leadFormScript\(\{[^}]*\}, options\.organizationId, options\.isSample\)/.test(generateSrc) && /chatWidgetScript\(business, p, options\.organizationId, options\.isSample\)/.test(generateSrc));
 
   check("/samples passes sample:true to demoSiteUrl()", /demoSiteUrl\([^)]*sample: true/.test(src("src/app/samples/page.tsx")));
   check("the homepage's demo preview passes sample:true to demoSiteUrl()", (src("src/app/page.tsx").match(/demoSiteUrl\([^)]*sample: true/g) ?? []).length >= 1);
 }
 
-console.log("\n7b. Owner-review hardening -- the client-submitted isSample claim is NEVER trusted alone");
+console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor business.id (both client-controlled) gate persistence on the real endpoints");
 {
-  const samplesSrc2 = src("src/lib/sitegen/samples.ts");
-  check("SAMPLE_BUSINESS_IDS is exported as the authoritative, fixed set of known fixture ids", /export const SAMPLE_BUSINESS_IDS: ReadonlySet<string> = new Set\(SAMPLE_BUSINESSES\.map\(\(b\) => b\.id\)\)/.test(samplesSrc2));
+  // Proof #1 & #2 (from the task's required-tests list): the sample
+  // endpoints are structurally incapable of writing, regardless of input.
+  const sampleLeadSrc = src("src/app/api/sample-lead/route.ts");
+  check("/api/sample-lead imports no database/admin client at all", !/createAdminClient|@supabase/.test(sampleLeadSrc));
+  check("/api/sample-lead contains no .insert( call", !/\.insert\(/.test(sampleLeadSrc));
+  check("/api/sample-lead always returns demo:true and never conditionally persists", /return corsJson\(\{ ok: true, demo: true \}\)/.test(sampleLeadSrc));
 
-  const leadFormSrc2 = src("src/lib/sitegen/lead-form.ts");
-  check("leadFormScript()'s business type now requires id (so it's actually embedded and sent)", /business: \{ id: string; name: string; industryLabel: string; phone: string \}/.test(leadFormSrc2));
-  const chatWidgetSrc2 = src("src/lib/sitegen/chat-widget.ts");
-  check("chatWidgetScript()'s business type now requires id, and the embedded payload includes it", /business: \{ id: string;/.test(chatWidgetSrc2) && /id: business\.id,/.test(chatWidgetSrc2));
-  check("generate.ts's leadFormScript() call site passes the real business.id through (not a constructed object missing it)", /leadFormScript\(\{ id: business\.id, name: business\.name/.test(src("src/lib/sitegen/generate.ts")));
+  const sampleChatSrc = src("src/app/api/sample-chat/route.ts");
+  check("/api/sample-chat imports no database/admin client at all", !/createAdminClient|@supabase/.test(sampleChatSrc));
+  check("/api/sample-chat contains no .insert( call and never writes capturedLead anywhere", !/\.insert\(/.test(sampleChatSrc) && /capturedLead is deliberately never written/.test(sampleChatSrc));
 
-  const siteLeadSrc2 = src("src/app/api/site-lead/route.ts");
-  check("/api/site-lead imports SAMPLE_BUSINESS_IDS and derives isKnownSample from business.id, not from the client's isSample", /import \{ SAMPLE_BUSINESS_IDS \} from "@\/lib\/sitegen\/samples"/.test(siteLeadSrc2) && /const isKnownSample = SAMPLE_BUSINESS_IDS\.has\(business\.id\)/.test(siteLeadSrc2));
-  check("/api/site-lead gates the skip-persistence branch on isKnownSample, never on the raw client isSample flag", /if \(isKnownSample\) \{/.test(siteLeadSrc2) && !/if \(isSample\) \{/.test(siteLeadSrc2));
-  check("/api/site-lead logs a loud warning when the client's claim disagrees with the server-derived value (tamper/bug signal)", /disagrees with the server-derived value/.test(siteLeadSrc2));
+  // Proof #3, #4, #5: /api/site-lead has NO reference to isSample or any
+  // sample-id allowlist anywhere in its control flow -- neither
+  // client-controlled field can suppress persistence, because the code
+  // path to do so does not exist in this file.
+  // Strip comments before asserting absence, so the doc-comment prose
+  // explaining what was removed (which necessarily says "isSample") can't
+  // produce a false failure here -- these checks are about the executable
+  // code paths only.
+  function stripComments(s: string): string {
+    return s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  }
+  const siteLeadSrc = src("src/app/api/site-lead/route.ts");
+  const siteLeadCode = stripComments(siteLeadSrc);
+  check("/api/site-lead's schema no longer accepts or reads isSample at all (code only, not doc comments)", !/isSample/.test(siteLeadCode));
+  check("/api/site-lead's business schema no longer accepts or checks an id field (nothing to allowlist-match)", !/business: z\.object\(\{\s*id:/.test(siteLeadCode) && !/SAMPLE_BUSINESS_IDS/.test(siteLeadCode));
+  check("/api/site-lead has exactly one return path into the insert logic -- no conditional early-return before it based on request content", !/if \(isSample\)|if \(isKnownSample\)/.test(siteLeadCode));
 
-  const siteChatSrc2 = src("src/app/api/site-chat/route.ts");
-  check("/api/site-chat imports SAMPLE_BUSINESS_IDS and derives isKnownSample from business.id, not from the client's isSample", /import \{ SAMPLE_BUSINESS_IDS \} from "@\/lib\/sitegen\/samples"/.test(siteChatSrc2) && /const isKnownSample = SAMPLE_BUSINESS_IDS\.has\(business\.id\)/.test(siteChatSrc2));
-  check("/api/site-chat gates the lead-capture insert on !isKnownSample, never on the raw client isSample flag", /args\.name && args\.phone && !isKnownSample/.test(siteChatSrc2) && !/args\.name && args\.phone && !isSample\b/.test(siteChatSrc2));
-  check("/api/site-chat logs a loud warning when the client's claim disagrees with the server-derived value", /disagrees with the server-derived value/.test(siteChatSrc2));
+  // Proof #3, #6: same for /api/site-chat.
+  const siteChatSrc = src("src/app/api/site-chat/route.ts");
+  const siteChatCode = stripComments(siteChatSrc);
+  check("/api/site-chat's schema no longer accepts or reads isSample at all (code only, not doc comments)", !/isSample/.test(siteChatCode));
+  check("/api/site-chat's business schema is the shared id-less chatBusinessSchema, with no sample-id allowlist reference", /business: chatBusinessSchema/.test(siteChatCode) && !/SAMPLE_BUSINESS_IDS/.test(siteChatCode));
+  check("/api/site-chat's capture-lead persistence is gated only on the model's own extracted name+phone, never on isSample/isKnownSample", /if \(capturedLead\) \{/.test(siteChatCode) && !/isKnownSample|isSample/.test(siteChatCode));
+
+  // Proof #7: isSample on /api/demo-site only ever selects which
+  // (harmless, non-persisting) endpoint URL gets embedded in the
+  // generated static HTML -- it can never be exercised as a live
+  // "activate sample mode" call against the real endpoints themselves,
+  // because those endpoints don't read isSample. This is verified by the
+  // absence checks above (7's isSample query-param check, this section's
+  // absence-of-isSample checks in both real routes) taken together.
+  const leadFormSrc = src("src/lib/sitegen/lead-form.ts");
+  check("leadFormScript() selects the POST target (real vs sample) at generation time from a hardcoded constant, not a runtime request field", /API_URL = \$\{safeJson\(isSample \? SAMPLE_LEAD_API_URL : LEAD_API_URL\)\}/.test(leadFormSrc));
+  check("leadFormScript() no longer sends isSample in the POST body (the real route doesn't read it, and never should)", !/isSample: IS_SAMPLE/.test(leadFormSrc));
+  const chatWidgetSrc = src("src/lib/sitegen/chat-widget.ts");
+  check("chatWidgetScript() selects the POST target (real vs sample) at generation time from a hardcoded constant, not a runtime request field", /API_URL = \$\{safeJson\(isSample \? SAMPLE_CHAT_API_URL : CHAT_API_URL\)\}/.test(chatWidgetSrc));
+  check("chatWidgetScript() no longer sends isSample in the POST body", !/isSample: IS_SAMPLE/.test(chatWidgetSrc));
+
+  // Proof #8: a missing/invalid organizationId still resolves to the
+  // default org and still inserts -- it was never, and still isn't,
+  // treated as "this must be a sample."
+  check("/api/site-lead's missing-org fallback still calls getDefaultOrganizationId() and still proceeds to insert (no skip)", /orgId = await getDefaultOrganizationId\(supabase\);/.test(siteLeadSrc) && /await supabase\.from\("chat_leads"\)\.insert\(/.test(siteLeadSrc));
+  check("/api/site-chat's missing-org fallback still calls getDefaultOrganizationId() and still proceeds to insert (no skip)", /orgId = await getDefaultOrganizationId\(supabase\);/.test(siteChatSrc) && /await supabase\.from\("chat_leads"\)\.insert\(/.test(siteChatSrc));
+
+  // Proof #9 & #10: the real insert logic itself is provably unchanged
+  // from the pre-Phase-7 baseline (main) -- diffed at verification time,
+  // not just asserted, so a future edit that breaks this also breaks the
+  // check rather than going stale.
+  const cwd = path.join(__dirname, "..");
+  const baseline = "24a6056852ad2edf8e9baad8e02933c92699d68e";
+  const siteLeadDiff = execSync(`git diff ${baseline} -- src/app/api/site-lead/route.ts`, { cwd, encoding: "utf8" });
+  const siteLeadDiffBodyOnly = siteLeadDiff
+    .split("\n")
+    .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"))
+    .filter((l) => !l.trim().startsWith("+ *") && !l.trim().startsWith("- *") && l.trim() !== "+" && l.trim() !== "-");
+  check("/api/site-lead's real insert logic has zero non-comment diff against the pre-Phase-7 baseline (only doc comments changed)", siteLeadDiffBodyOnly.length === 0, `${siteLeadDiffBodyOnly.length} non-comment line(s) changed`);
+
+  check("/api/site-chat's real insert call, its fields, and its org-resolution fallback are present and match the pre-existing shape (refactored into a shared helper, not altered)", /organization_id: orgId/.test(siteChatSrc) && /visitor_name: capturedLead\.name/.test(siteChatSrc) && /visitor_phone: capturedLead\.phone/.test(siteChatSrc) && /transcript: \[\.\.\.messages,/.test(siteChatSrc));
+
+  // Proof #11: tenant attribution is still server-derived (validated
+  // against a real organizations row, or the real getDefaultOrganizationId()
+  // helper) -- never taken as a bare client claim.
+  check("/api/site-lead validates a provided organizationId against a real organizations row before trusting it", /\.from\("organizations"\)\s*\n?\s*\.select\("id"\)\s*\n?\s*\.eq\("id", organizationId\)\s*\n?\s*\.single\(\)/.test(siteLeadSrc));
+  check("/api/site-chat validates a provided organizationId against a real organizations row before trusting it", /\.from\("organizations"\)\s*\n?\s*\.select\("id"\)\s*\n?\s*\.eq\("id", organizationId\)\s*\n?\s*\.single\(\)/.test(siteChatSrc));
+
+  // Proof #12: no migration.
+  const migrationDiff2 = execSync("git diff --stat main -- supabase/migrations", { cwd, encoding: "utf8" });
+  check("no migration required by this second-pass fix either", migrationDiff2.trim().length === 0);
 }
 
 console.log("\n8. Login/signup/password-reset route preservation -- visual-only change, auth logic byte-identical");

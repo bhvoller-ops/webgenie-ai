@@ -4,9 +4,15 @@ import type { IndustryProfile } from "@/lib/sitegen/types";
  * Public chat backend lives on the main WebGenie deployment — generated
  * sites are static HTML with no server of their own, so the widget always
  * calls back here regardless of where the site itself ends up hosted.
+ * Real sites call /api/site-chat; illustrative sample sites (isSample:
+ * true) call /api/sample-chat instead -- structurally never persists, see
+ * that route's own comment. Which endpoint gets embedded is decided
+ * server-side, at generation time, never by the resulting page's own
+ * client-side JS.
  */
 import { SITE_ORIGIN } from "@/lib/site-url";
 const CHAT_API_URL = `${SITE_ORIGIN}/api/site-chat`;
+const SAMPLE_CHAT_API_URL = `${SITE_ORIGIN}/api/sample-chat`;
 
 /** Prevents embedded JSON from prematurely closing the surrounding <script> tag. */
 export function safeJson(value: unknown): string {
@@ -70,13 +76,12 @@ export function chatWidgetMarkup(
 }
 
 export function chatWidgetScript(
-  business: { id: string; name: string; phone: string; city: string; state: string; hours?: string },
+  business: { name: string; phone: string; city: string; state: string; hours?: string },
   profile: Pick<IndustryProfile, "label" | "services" | "faq">,
   organizationId?: string,
   isSample?: boolean
 ): string {
   const payload = {
-    id: business.id,
     name: business.name,
     industryLabel: profile.label,
     phone: business.phone,
@@ -91,8 +96,7 @@ export function chatWidgetScript(
 (function(){
   var BUSINESS = ${safeJson(payload)};
   var ORG_ID = ${safeJson(organizationId ?? null)};
-  var IS_SAMPLE = ${safeJson(Boolean(isSample))};
-  var API_URL = ${safeJson(CHAT_API_URL)};
+  var API_URL = ${safeJson(isSample ? SAMPLE_CHAT_API_URL : CHAT_API_URL)};
   var messages = [];
   var launcher = document.getElementById('wg-chat-launcher');
   var panel = document.getElementById('wg-chat-panel');
@@ -130,7 +134,7 @@ export function chatWidgetScript(
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business: BUSINESS, organizationId: ORG_ID, isSample: IS_SAMPLE, messages: messages.slice(-20) })
+      body: JSON.stringify({ business: BUSINESS, organizationId: ORG_ID, messages: messages.slice(-20) })
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

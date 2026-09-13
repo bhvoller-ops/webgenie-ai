@@ -2,7 +2,6 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
 import { getDefaultOrganizationId } from "@/lib/organizations";
-import { SAMPLE_BUSINESS_IDS } from "@/lib/sitegen/samples";
 
 /**
  * Public-facing hero quote-request form on every generated site. No auth --
@@ -19,31 +18,35 @@ import { SAMPLE_BUSINESS_IDS } from "@/lib/sitegen/samples";
  * back first," still loudly logged so a stale/broken embed stays visible
  * instead of silently misattributing a lead.
  *
- * Sample-site safety, hardened (owner-review finding): this route used to
- * skip persistence purely because the request body claimed `isSample:
- * true` -- a value this endpoint has no auth and receives straight from
- * client-side JS, so anyone could craft a raw POST with that flag either
- * way. That's a real hole in both directions: `isSample: true` on a real
- * organization's traffic would silently drop a genuine lead, and
- * `isSample: false` against a sample business would create a real
- * database row (exactly what happened once during manual testing of this
- * fix -- see docs/history.md). The skip decision is now derived ONLY from
- * `business.id` matching SAMPLE_BUSINESS_IDS -- the fixed, literal ids of
- * this app's known fixture businesses ("sample-plumber", etc.), which a
- * real prospect's id (a Google Place ID or a prospects-table UUID) can
- * never coincidentally equal. The client-submitted `isSample` is kept only
- * to log a loud warning when it disagrees with the server-derived value,
- * which would mean either a bug or a tampering attempt.
+ * Sample-site safety, corrected (owner-review finding, second pass): this
+ * route previously tried to detect and skip sample submissions itself --
+ * first via a client-submitted `isSample` flag, then via checking
+ * `business.id` against a fixed sample-id allowlist. BOTH are unsound:
+ * this is an unauthenticated, cross-origin endpoint, and `business.id` is
+ * just another field in the POST body -- `/api/demo-site`'s `b=` param is
+ * base64url of caller-supplied JSON with no validation beyond `name` and
+ * `industry`, so a caller can submit an allowlisted sample id alongside
+ * completely different, real-looking business/visitor data. Checking the
+ * id here would (and, briefly, did) let that request skip persistence for
+ * what could be a genuine lead.
+ *
+ * The fix: this route no longer tries to detect samples at all. It ALWAYS
+ * persists a real lead, unconditionally -- no request-supplied flag, id,
+ * or missing organizationId can suppress that. Illustrative sample sites
+ * (/samples, the homepage preview) are generated with `isSample: true`
+ * (see SiteOptions.isSample), which routes their embedded form to the
+ * separate, structurally non-persisting /api/sample-lead endpoint instead
+ * of this one -- see lib/sitegen/lead-form.ts. The separation is
+ * architectural, not a runtime check: this file contains no code path
+ * that skips the insert below.
  */
 const schema = z.object({
   business: z.object({
-    id: z.string().min(1).max(200),
     name: z.string().max(200),
     industryLabel: z.string().max(100),
     phone: z.string().max(40)
   }),
   organizationId: z.string().uuid().nullish(),
-  isSample: z.boolean().optional(),
   name: z.string().min(1).max(160),
   email: z.string().email().max(200).optional().or(z.literal("")),
   phone: z.string().min(1).max(40),
@@ -61,18 +64,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return corsJson({ error: "Please fill in your name and phone number." }, { status: 400 });
   }
-  const { business, organizationId, isSample, name, email, phone, city, service, message } = parsed.data;
-
-  const isKnownSample = SAMPLE_BUSINESS_IDS.has(business.id);
-  if (Boolean(isSample) !== isKnownSample) {
-    console.error(
-      `site-lead: client-submitted isSample (${isSample}) disagrees with the server-derived value (${isKnownSample}) for business.id "${business.id}" -- possible tampering or a stale embed. Trusting the server-derived value.`
-    );
-  }
-  if (isKnownSample) {
-    // Illustrative demo — never persists a real lead. See file-header note.
-    return corsJson({ ok: true, demo: true });
-  }
+  const { business, organizationId, name, email, phone, city, service, message } = parsed.data;
 
   try {
     const supabase = createAdminClient();

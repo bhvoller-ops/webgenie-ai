@@ -32,14 +32,18 @@ export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenInd
 }));
 
 /**
- * Sample-site safety, hardened: the authoritative, server-only source of
- * truth for "is this business one of our known illustrative fixtures" --
- * a fixed set of literal ids ("sample-plumber", etc.) that a real
- * prospect's business.id (a Google Place ID or a prospect-table UUID, see
- * src/app/api/prospects/[id]/actions/route.ts) can never coincidentally
- * match. /api/site-lead and /api/site-chat use this to decide whether to
- * skip persistence -- NEVER the client-submitted `isSample` boolean alone,
- * which a caller crafting a raw request could set to anything. See those
- * routes' own comments for the full reasoning.
+ * Sample-site safety note: an earlier version of this fix exported a
+ * SAMPLE_BUSINESS_IDS allowlist here and had /api/site-lead / /api/site-chat
+ * check a request's business.id against it before skipping persistence.
+ * That was unsound -- business.id is just another field in an
+ * unauthenticated POST body (see /api/demo-site's `b=` param, which is
+ * base64url of caller-supplied JSON with no validation beyond name/
+ * industry), so a caller could submit an allowlisted id alongside
+ * completely different, real-looking business data and suppress
+ * persistence for what could be a genuine lead. The real fix is
+ * architectural: /api/sample-lead and /api/sample-chat are separate
+ * endpoints that contain no persistence code at all, and only
+ * server-generated sample HTML (isSample: true, decided at generation
+ * time, never by the resulting page's own client-side JS) points at them.
+ * See those routes and lib/sitegen/lead-form.ts / chat-widget.ts.
  */
-export const SAMPLE_BUSINESS_IDS: ReadonlySet<string> = new Set(SAMPLE_BUSINESSES.map((b) => b.id));
