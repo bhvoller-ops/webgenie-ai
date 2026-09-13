@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -155,9 +156,8 @@ function Hero() {
         style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(900px 420px at 50% -10%, #000, transparent)" }}
         aria-hidden
       />
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-iris-soft">Client acquisition for agencies</p>
-      <h1 className="mx-auto mt-4 max-w-3xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
-        Find the right business. <span className="gradient-text">Start with something real.</span>
+      <h1 className="mx-auto max-w-3xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
+        Find the right business. <span className="text-iris-soft">Start with something real.</span>
       </h1>
       <p className="mx-auto mt-6 max-w-[720px] text-base leading-relaxed text-ink/80 sm:text-lg">
         WebGenie helps agencies find local prospects, verify the opportunity, prepare
@@ -604,9 +604,19 @@ function WhoItsFor() {
 
 /**
  * Curated per PRODUCT.md's Motion A verticals — Roofing/HVAC/Plumbing/
- * Dental, matching the four labels the task named. Real, live-rendered
- * previews from the actual generator (isSample: true — see
- * lib/sitegen/types.ts), never a screenshot or a static mock.
+ * Dental, matching the four labels the task named.
+ *
+ * P0 (iframe-overload correction): these were 4 always-loaded live
+ * iframes on initial page load -- 4 full generated-site documents,
+ * running their own lead-form/chat-widget scripts, just to render a
+ * thumbnail. Replaced with static, pre-optimized screenshots
+ * (public/sample-previews/, generated once from the real running
+ * generator via scripts/generate-sample-thumbnails.mjs -- genuine
+ * output, not a mock, just captured ahead of time instead of re-rendered
+ * live on every visit). Zero iframes load on initial render now; "View
+ * full demo" still opens the real, live, fully-interactive generated
+ * site -- as a full top-level page navigation, not an embedded iframe on
+ * this page.
  */
 const EXAMPLE_IDS = ["sample-roofer", "sample-hvac", "sample-plumber", "sample-dentist"];
 const EXAMPLE_BUSINESSES = EXAMPLE_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
@@ -616,23 +626,22 @@ function Examples() {
     <div className={SECTION}>
       <SectionIntro
         title="See the kind of site WebGenie builds"
-        description={`Four real, live-rendered demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
+        description={`Four real demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
       />
       <div className="mx-auto mt-8 grid max-w-4xl gap-4 text-left sm:grid-cols-2">
         {EXAMPLE_BUSINESSES.map((biz) => {
           const url = demoSiteUrl(biz, { by: "WebGenie AI", sample: true });
           const label = INDUSTRIES[biz.industry as keyof typeof INDUSTRIES]?.label ?? biz.industry;
+          const shortId = biz.id.replace("sample-", "");
           return (
             <div key={biz.id} className="card overflow-hidden p-0">
               <div className="relative h-48 w-full overflow-hidden bg-white">
-                <iframe
-                  src={url}
-                  title={`Live preview of a generated demo site for ${biz.name}`}
-                  loading="lazy"
-                  tabIndex={-1}
-                  aria-hidden
-                  className="pointer-events-none origin-top-left"
-                  style={{ width: "400%", height: "400%", transform: "scale(0.25)", border: "none" }}
+                <Image
+                  src={`/sample-previews/${shortId}.jpg`}
+                  alt={`Preview of the generated demo site for ${biz.name}, a ${label.toLowerCase()} in ${biz.city}, ${biz.state}`}
+                  fill
+                  sizes="(min-width: 640px) 400px, 100vw"
+                  className="object-cover object-top"
                 />
               </div>
               <div className="flex items-center justify-between gap-3 p-4">

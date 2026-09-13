@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, SectionHeading } from "@/components/ui";
@@ -22,6 +23,13 @@ export const dynamic = "force-dynamic";
  * the actual site-generation engine, and this page is also the reference
  * material an admin pulls up mid-call (see components/shell.tsx's
  * Resources nav group), so nothing here is hidden, only reordered.
+ *
+ * P0 (iframe-overload correction): all 14 thumbnails were originally
+ * always-loaded live iframes -- 14 full generated-site documents on one
+ * page load. Replaced with static, pre-optimized screenshots
+ * (public/sample-previews/, see scripts/generate-sample-thumbnails.mjs).
+ * "View full demo" still opens the real, live, fully-interactive site --
+ * as a full top-level page navigation, never an embedded iframe here.
  */
 const FEATURED_IDS = ["sample-plumber", "sample-hvac", "sample-electrician", "sample-roofer", "sample-dentist", "sample-med_spa"];
 const FEATURED = FEATURED_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
@@ -29,21 +37,21 @@ const REST = SAMPLE_BUSINESSES.filter((b) => !FEATURED_IDS.includes(b.id));
 
 function SampleThumbnail({ business }: { business: Business }) {
   const url = demoSiteUrl(business, { by: "WebGenie AI", sample: true });
+  const label = industryLabel(business.industry);
+  const shortId = business.id.replace("sample-", "");
   return (
     <div className="card overflow-hidden p-0 transition-colors hover:border-iris/50">
       <div className="relative h-40 w-full overflow-hidden bg-white">
-        <iframe
-          src={url}
-          title={`Live preview of a generated demo site for ${business.name}`}
-          loading="lazy"
-          tabIndex={-1}
-          aria-hidden
-          className="pointer-events-none origin-top-left"
-          style={{ width: "400%", height: "400%", transform: "scale(0.25)", border: "none" }}
+        <Image
+          src={`/sample-previews/${shortId}.jpg`}
+          alt={`Preview of the generated demo site for ${business.name}, a ${label.toLowerCase()} in ${business.city}, ${business.state}`}
+          fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="object-cover object-top"
         />
       </div>
       <div className="p-4">
-        <p className="text-[13px] font-semibold uppercase tracking-wide text-iris-soft">{industryLabel(business.industry)}</p>
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-iris-soft">{label}</p>
         <h3 className="mt-1 text-sm font-semibold text-ink">{business.name}</h3>
         <p className="mt-0.5 text-sm text-faint">
           {business.city}, {business.state} · Illustrative example

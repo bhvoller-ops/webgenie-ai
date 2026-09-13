@@ -116,7 +116,7 @@ console.log("\n5. Samples vs Gallery -- distinct purposes, both real, neither ha
   const samplesSrc = src("src/app/samples/page.tsx");
   check("/samples leads with a curated \"Featured examples\" subset, not a flat 14-card grid", /Featured examples/.test(samplesSrc) && /FEATURED_IDS/.test(samplesSrc));
   check("/samples still keeps every real industry reachable in \"All industries\" (preserves the authenticated pull-up-on-a-call reference use)", /All industries/.test(samplesSrc) && /const REST = SAMPLE_BUSINESSES\.filter/.test(samplesSrc));
-  check("/samples renders live thumbnails (real generator output), not text-only cards", /<iframe/.test(samplesSrc));
+  check("/samples renders real generator-output thumbnails (static images, not text-only cards)", /<Image\b/.test(samplesSrc) && /sample-previews/.test(samplesSrc));
   check("/samples has a closing CTA to start using WebGenie", /Start Free/.test(samplesSrc));
 
   const gallerySrc = src("src/app/gallery/gallery-client.tsx");
@@ -324,7 +324,7 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
 
   const pageSrc = src("src/app/page.tsx");
   check("Hero is a centered composition (text-center), not left-column/right-card", /function Hero\(\)[\s\S]{0,120}text-center/.test(pageSrc));
-  check("Hero headline uses the P0-directed copy without losing WebGenie's own violet accent (gradient-text span, never a VibeLabs cyan literal)", /Find the right business\.[\s\S]{0,40}gradient-text/.test(pageSrc) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
+  check("Hero headline uses the P0-directed copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Find the right business\.[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductWalkthrough"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
   check("Hero has a substantial centered product-walkthrough panel (not a small side card) naming all four real stages", /Find prospect/.test(pageSrc) && /Verify opportunity/.test(pageSrc) && /Prepare outreach/.test(pageSrc) && /Take the next action/.test(pageSrc) && /max-w-\[1100px\]/.test(pageSrc));
   check("every major SectionIntro is centered (mx-auto ... text-center), not left-aligned with a right-side action slot", /function SectionIntro[\s\S]{0,200}text-center/.test(pageSrc) && !/function SectionIntro\(\{ title, description, action/.test(pageSrc));
   check("a reusable full-width Band component exists for alternating section backgrounds", /function Band\(/.test(pageSrc) && /-mx-\[50vw\] w-screen/.test(pageSrc));
@@ -338,6 +338,46 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
 
   const authShellSrc = src("src/components/auth-shell.tsx");
   check("AuthShell is one centered, bounded composition (a capped max-width .panel), not an edge-to-edge full-viewport grid", /max-w-\[1160px\]/.test(authShellSrc) && /\bpanel\b/.test(authShellSrc) && !/grid min-h-screen lg:grid-cols-2/.test(authShellSrc));
+}
+
+console.log("\n16. Owner-review finding -- iframe overload corrected: static optimized thumbnails, zero iframes on initial load");
+{
+  const pageSrc2 = src("src/app/page.tsx");
+  const samplesSrc3 = src("src/app/samples/page.tsx");
+  const authShellSrc2 = src("src/components/auth-shell.tsx");
+
+  check("homepage's Examples section uses next/image against a static /sample-previews/*.jpg file, not a live iframe", /import Image from "next\/image"/.test(pageSrc2) && /src=\{`\/sample-previews\/\$\{shortId\}\.jpg`\}/.test(pageSrc2) && !/<iframe/.test(pageSrc2));
+  check("/samples' thumbnail component uses next/image against a static file, not a live iframe", /import Image from "next\/image"/.test(samplesSrc3) && /src=\{`\/sample-previews\/\$\{shortId\}\.jpg`\}/.test(samplesSrc3) && !/<iframe/.test(samplesSrc3));
+  check("AuthShell's value panel uses next/image against a static file, not a live iframe", /import Image from "next\/image"/.test(authShellSrc2) && /src="\/sample-previews\/dentist\.jpg"/.test(authShellSrc2) && !/<iframe/.test(authShellSrc2));
+  check("gallery's grid still uses plain <img> thumbnails (unchanged) and its live preview stays inside the on-demand modal only", /<img\b/.test(src("src/app/gallery/gallery-client.tsx")) && /<iframe\b/.test(src("src/app/gallery/gallery-client.tsx")));
+
+  check("every static thumbnail has a real, descriptive alt string derived from the actual business/industry/location, not empty or decorative", /alt=\{`Preview of the generated demo site for/.test(pageSrc2) && /alt=\{`Preview of the generated demo site for/.test(samplesSrc3) && /alt=\{`Preview of the generated demo site for/.test(authShellSrc2));
+
+  check("all 14 sample-preview thumbnail files exist on disk (real, optimized JPEGs)", (() => {
+    const dir = path.join(__dirname, "..", "public", "sample-previews");
+    if (!fs.existsSync(dir)) return false;
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jpg"));
+    return files.length === 14;
+  })());
+
+  // Owner-review finding: one thumbnail once shipped a captured Next.js
+  // dev-mode error overlay instead of the real generated site (a mostly-
+  // white page with sparse text compresses far smaller than a real,
+  // photo-heavy business hero). A file-size floor is a crude but real
+  // guard against that exact class of silent failure recurring -- every
+  // real thumbnail generated so far has landed at 40-80KB; anything under
+  // 20KB at this resolution/quality is almost certainly blank or broken.
+  check("every sample-preview thumbnail is above the blank/error-page size floor (guards against shipping a broken capture again)", (() => {
+    const dir = path.join(__dirname, "..", "public", "sample-previews");
+    if (!fs.existsSync(dir)) return false;
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jpg"));
+    const tooSmall = files.filter((f) => fs.statSync(path.join(dir, f)).size < 20 * 1024);
+    return tooSmall.length === 0;
+  })(), "a file under 20KB was found -- likely a blank or error-page capture");
+
+  check("a documented, reusable regeneration script exists for the thumbnails (not a one-off throwaway)", fs.existsSync(path.join(__dirname, "..", "scripts", "generate-sample-thumbnails.mjs")));
+
+  check("\"View full demo\" links still point at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(pageSrc2) && /target="_blank"/.test(pageSrc2));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

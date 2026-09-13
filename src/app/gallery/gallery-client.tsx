@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { Eye, ExternalLink, Search, X } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Pill, SectionHeading, type PillTone } from "@/components/ui";
@@ -9,6 +10,44 @@ import { industryList, type IndustryConfig } from "@/data/gallery/industries";
 import { industryCategories, getIndustryCategory, getCategoryCount } from "@/data/gallery/categories";
 import { renderIndustryPage } from "@/lib/renderIndustryPage";
 import { cn } from "@/lib/format";
+import { SITE_ORIGIN } from "@/lib/site-url";
+
+/**
+ * Owner-review finding: this app's own self-hosted hero photos
+ * (${SITE_ORIGIN}/gallery-photos/*.jpg -- 9 of the 64 industry configs)
+ * were rendering through a plain <img>, same as the other 55 configs'
+ * externally-hosted (Pexels) photos -- but only the external ones have a
+ * structural excuse (next/image requires next.config.ts's
+ * images.remotePatterns to optimize a remote host, which isn't configured
+ * here). The self-hosted subset has no such excuse and is switched to
+ * next/image below; the Pexels-hosted subset is unchanged (still a plain
+ * <img loading="lazy">) rather than widening next.config.ts's allowed
+ * remote hosts as a side effect of this pass.
+ */
+function GalleryThumbImage({ ind }: { ind: IndustryConfig }) {
+  const isSelfHosted = ind.heroImage.startsWith(SITE_ORIGIN);
+  if (isSelfHosted) {
+    // next/image only treats a RELATIVE path as automatically local/
+    // optimizable with zero config -- an absolute URL is checked against
+    // next.config.ts's images.remotePatterns even when the host happens
+    // to equal this deployment's own domain (confirmed: this 400'd
+    // locally against app.vibelabsagency.com's absolute URL). Stripping
+    // back to the relative path sidesteps that entirely, since these
+    // files are genuinely served from this app's own public/ directory
+    // regardless of which domain is currently serving the request.
+    const relativePath = ind.heroImage.slice(SITE_ORIGIN.length);
+    return (
+      <Image
+        src={relativePath}
+        alt={ind.industryName}
+        fill
+        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        className="object-cover transition duration-500 group-hover:scale-105"
+      />
+    );
+  }
+  return <img src={ind.heroImage} alt={ind.industryName} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />;
+}
 
 /**
  * Ported from a Bolt.new "Multi-Industry Website Template" export (28 Aug
@@ -114,7 +153,7 @@ export function GalleryClient({ role }: { role: AccessRole }) {
         {filtered.map((ind) => (
           <button key={ind.id} onClick={() => setPreview(ind)} className="group flex flex-col overflow-hidden rounded-panel border border-hairline bg-canvas text-left transition-colors hover:border-iris/40">
             <div className="relative aspect-video w-full overflow-hidden bg-raised">
-              <img src={ind.heroImage} alt={ind.industryName} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              <GalleryThumbImage ind={ind} />
               <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)" }} />
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                 <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: ind.colors.primary }}>
