@@ -70,6 +70,7 @@ export async function GET(request: Request) {
     demoBadge: url.searchParams.get("badge") !== "0",
     organizationId,
     branding,
+    isSample: url.searchParams.get("sample") === "1",
   });
 
   const filename = `${business.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.html`;

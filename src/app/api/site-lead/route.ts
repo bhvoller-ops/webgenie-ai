@@ -17,6 +17,12 @@ import { getDefaultOrganizationId } from "@/lib/organizations";
  * 033_default_organization.sql) rather than "whichever organization comes
  * back first," still loudly logged so a stale/broken embed stays visible
  * instead of silently misattributing a lead.
+ *
+ * Sample-site safety (Phase 7): `isSample` is an explicit, intentional flag
+ * (see SiteOptions.isSample) set only for /samples' fixture businesses and
+ * the homepage's single demo preview -- never inferred from a missing
+ * organizationId. When true, this route never inserts a chat_leads row,
+ * regardless of whether an organizationId happens to be present.
  */
 const schema = z.object({
   business: z.object({
@@ -25,6 +31,7 @@ const schema = z.object({
     phone: z.string().max(40)
   }),
   organizationId: z.string().uuid().nullish(),
+  isSample: z.boolean().optional(),
   name: z.string().min(1).max(160),
   email: z.string().email().max(200).optional().or(z.literal("")),
   phone: z.string().min(1).max(40),
@@ -42,7 +49,12 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return corsJson({ error: "Please fill in your name and phone number." }, { status: 400 });
   }
-  const { business, organizationId, name, email, phone, city, service, message } = parsed.data;
+  const { business, organizationId, isSample, name, email, phone, city, service, message } = parsed.data;
+
+  if (isSample) {
+    // Illustrative demo — never persists a real lead. See file-header note.
+    return corsJson({ ok: true, demo: true });
+  }
 
   try {
     const supabase = createAdminClient();

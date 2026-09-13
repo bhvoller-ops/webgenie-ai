@@ -392,7 +392,7 @@ function ProductShowcase() {
           </div>
           <div className="relative h-52 w-full overflow-hidden bg-white">
             <iframe
-              src={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", badge: false })}
+              src={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", sample: true })}
               title={`Live preview of a generated demo site for ${DEMO_PREVIEW_BUSINESS.name}`}
               loading="lazy"
               tabIndex={-1}
@@ -403,7 +403,7 @@ function ProductShowcase() {
           </div>
           <div className="p-4">
             <a
-              href={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", badge: false })}
+              href={demoSiteUrl(DEMO_PREVIEW_BUSINESS, { by: "WebGenie AI", sample: true })}
               target="_blank"
               rel="noopener noreferrer"
               className="focus-ring text-[13px] font-medium text-iris-soft transition-colors hover:text-iris"

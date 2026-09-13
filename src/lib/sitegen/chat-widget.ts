@@ -72,7 +72,8 @@ export function chatWidgetMarkup(
 export function chatWidgetScript(
   business: { name: string; phone: string; city: string; state: string; hours?: string },
   profile: Pick<IndustryProfile, "label" | "services" | "faq">,
-  organizationId?: string
+  organizationId?: string,
+  isSample?: boolean
 ): string {
   const payload = {
     name: business.name,
@@ -89,6 +90,7 @@ export function chatWidgetScript(
 (function(){
   var BUSINESS = ${safeJson(payload)};
   var ORG_ID = ${safeJson(organizationId ?? null)};
+  var IS_SAMPLE = ${safeJson(Boolean(isSample))};
   var API_URL = ${safeJson(CHAT_API_URL)};
   var messages = [];
   var launcher = document.getElementById('wg-chat-launcher');
@@ -127,7 +129,7 @@ export function chatWidgetScript(
     fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ business: BUSINESS, organizationId: ORG_ID, messages: messages.slice(-20) })
+      body: JSON.stringify({ business: BUSINESS, organizationId: ORG_ID, isSample: IS_SAMPLE, messages: messages.slice(-20) })
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

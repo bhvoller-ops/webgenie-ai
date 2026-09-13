@@ -1,12 +1,20 @@
 import { corsJson, corsPreflight } from "@/lib/sitegen/cors";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getDefaultOrganizationId } from "@/lib/organizations";
 
 /**
  * Public-facing intake chat for generated sites (demo or client). No auth --
  * any site visitor can reach this. Grounded strictly in the business's own
  * data (services, FAQ, hours) passed in the request; the model is never
  * given anything to hallucinate a price, guarantee, or fact from.
+ *
+ * Sample-site safety (Phase 7): `isSample` is an explicit, intentional flag
+ * (see SiteOptions.isSample) set only for /samples' fixture businesses and
+ * the homepage's single demo preview -- never inferred from a missing
+ * organizationId. When true, a captured lead is never persisted, regardless
+ * of whether an organizationId happens to be present; the chat itself still
+ * answers normally so the widget's behavior stays demonstrable.
  */
 
 const messageSchema = z.object({
@@ -26,6 +34,7 @@ const schema = z.object({
     faq: z.array(z.object({ q: z.string().max(300), a: z.string().max(600) })).max(12)
   }),
   organizationId: z.string().uuid().nullish(),
+  isSample: z.boolean().optional(),
   messages: z.array(messageSchema).max(20)
 });
 
@@ -83,7 +92,7 @@ export async function POST(request: Request) {
     return corsJson({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { business, organizationId, messages } = parsed.data;
+  const { business, organizationId, isSample, messages } = parsed.data;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -119,7 +128,7 @@ export async function POST(request: Request) {
         // fall through with empty args; still acknowledge the visitor
       }
 
-      if (args.name && args.phone) {
+      if (args.name && args.phone && !isSample) {
         try {
           const supabase = createAdminClient();
 
@@ -137,10 +146,9 @@ export async function POST(request: Request) {
           }
           if (!orgId) {
             console.error(
-              `site-chat: no valid organizationId provided for business "${business.name}" — falling back to the first organization. This lead may be misattributed.`
+              `site-chat: no valid organizationId provided for business "${business.name}" — falling back to the default organization. This lead may be misattributed if it actually belongs to a different one.`
             );
-            const { data: fallbackOrg } = await supabase.from("organizations").select("id").limit(1).single();
-            orgId = fallbackOrg?.id ?? null;
+            orgId = await getDefaultOrganizationId(supabase);
           }
 
           if (orgId) {

@@ -56,12 +56,14 @@ export function leadFormMarkup(builtBy?: string): string {
 
 export function leadFormScript(
   business: { name: string; industryLabel: string; phone: string },
-  organizationId?: string
+  organizationId?: string,
+  isSample?: boolean
 ): string {
   return `
 (function(){
   var BUSINESS = ${safeJson(business)};
   var ORG_ID = ${safeJson(organizationId ?? null)};
+  var IS_SAMPLE = ${safeJson(Boolean(isSample))};
   var API_URL = ${safeJson(LEAD_API_URL)};
   var form = document.getElementById('wg-quote-form');
   var submitBtn = document.getElementById('wg-quote-submit');
@@ -91,6 +93,7 @@ export function leadFormScript(
       body: JSON.stringify({
         business: BUSINESS,
         organizationId: ORG_ID,
+        isSample: IS_SAMPLE,
         name: name,
         email: (data.get('email') || '').toString().trim(),
         phone: phone,

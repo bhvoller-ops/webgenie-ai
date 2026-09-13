@@ -313,8 +313,8 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
   ${chatWidgetStyles()}
 
   ${
-    options.demoBadge
-      ? `.demoribbon{position:fixed;top:0;left:0;right:0;z-index:90;background:#0F172A;color:#fff;
+    options.demoBadge || options.isSample
+      ? `.demoribbon{position:fixed;top:0;left:0;right:0;z-index:90;background:${options.isSample ? "#78350F" : "#0F172A"};color:#fff;
     text-align:center;font-size:.78rem;padding:7px 14px;font-weight:600;letter-spacing:.02em}
   header{top:32px} body{padding-top:32px}`
       : ""
@@ -336,7 +336,13 @@ ${branding?.faviconUrl ? `<link rel="icon" href="${esc(branding.faviconUrl)}" />
 </style>
 </head>
 <body>
-${options.demoBadge ? `<div class="demoribbon">Preview site built for ${esc(business.name)}${builtBy ? ` by ${esc(builtBy)}` : ""}</div>` : ""}
+${
+  options.isSample
+    ? `<div class="demoribbon">Illustrative WebGenie demo — sample business and contact information.</div>`
+    : options.demoBadge
+      ? `<div class="demoribbon">Preview site built for ${esc(business.name)}${builtBy ? ` by ${esc(builtBy)}` : ""}</div>`
+      : ""
+}
 
 <header>
   <div class="wrap hd">
@@ -571,8 +577,8 @@ ${
 </div>
 
 ${chatWidgetMarkup(business, builtBy ? esc(builtBy) : undefined, branding?.logoUrl ? esc(branding.logoUrl) : undefined)}
-<script>${chatWidgetScript(business, p, options.organizationId)}</script>
-<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId)}</script>
+<script>${chatWidgetScript(business, p, options.organizationId, options.isSample)}</script>
+<script>${leadFormScript({ name: business.name, industryLabel: p.label, phone: business.phone }, options.organizationId, options.isSample)}</script>
 
 </body>
 </html>`;

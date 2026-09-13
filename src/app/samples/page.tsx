@@ -22,7 +22,7 @@ export default async function SamplesPage() {
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SAMPLE_BUSINESSES.map((business) => {
-          const url = demoSiteUrl(business, { by: "WebGenie AI", badge: false });
+          const url = demoSiteUrl(business, { by: "WebGenie AI", sample: true });
           return (
             <a key={business.id} href={url} target="_blank" rel="noopener noreferrer" className="group block">
               <Card className="h-full transition-colors group-hover:border-iris/50">
