@@ -5,27 +5,23 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
-  Bot,
   Check,
   CheckCheck,
   ChevronDown,
-  Clock,
   Handshake,
   Minus,
   Phone,
-  PhoneCall,
   Plus,
   Radar,
   Repeat,
   Rocket,
   ScanLine,
   Sparkles,
-  Star,
   TrendingUp,
   X,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
-import { Button, Panel, Pill } from "@/components/ui";
+import { Button, Panel } from "@/components/ui";
 import { ScoreRing } from "@/components/score-ring";
 import { getAccessContext } from "@/lib/auth/access";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
@@ -181,93 +177,72 @@ function Hero() {
         <span>Human-executed outreach</span>
       </p>
 
-      <HeroProductWalkthrough />
+      <HeroProductScreenshot />
     </section>
   );
 }
 
 /**
- * The hero's visual proof -- a single substantial, centered panel
- * (~1100px, matching vibelabsagency.com's "Meet Vivi" panel weight)
- * spanning the width beneath the headline, instead of a small card pushed
- * to one side. Walks through the same four real stages every prospect
- * actually moves through -- Find prospect -> Verify opportunity -> Prepare
- * outreach -> Take the next action -- using the app's real component
- * patterns (a Finder-shaped result row, the real ScoreRing component, a
- * Daily Queue row) rather than an abstract icon list. One sample business
- * carried through all four stages for narrative continuity; explicitly
- * labeled illustrative throughout -- this is not a screenshot, and no
- * fabricated metric appears anywhere in it.
+ * Owner-review finding (FINAL DESIGN-QUALITY CORRECTION, screenshot gate):
+ * the hero previously showed a four-stage illustrative walkthrough built
+ * from real component patterns but no actual screenshot. It's replaced
+ * here with the real, owner-approved Daily Queue screenshot -- sanitized,
+ * flattened, metadata-free (see public/product-proof/ and the PR's
+ * sanitization notes). A discreet caption discloses the redaction per the
+ * owner's explicit requirement. No fabricated metric appears anywhere in
+ * this image; it is exactly what a signed-in account sees.
  */
-function HeroProductWalkthrough() {
-  const biz = SAMPLE_BUSINESSES.find((b) => b.id === "sample-plumber")!;
+function HeroProductScreenshot() {
   return (
     <div className="mt-14 text-left lg:mt-16">
       <div className="panel mx-auto max-w-[1100px] overflow-hidden">
-        <div className="grid grid-cols-1 divide-y divide-hairline sm:grid-cols-2 sm:divide-y-0 sm:divide-x lg:grid-cols-4">
-          <div className="p-6">
-            <StageLabel index={1} title="Find prospect" />
-            <div className="mt-4 rounded-lg border border-hairline bg-canvas/60 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-ink">{biz.name}</span>
-                <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px]">
-                  <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
-                  <span className="font-mono text-faint">{biz.rating}</span>
-                </span>
-              </div>
-              <p className="mt-1.5 text-sm text-muted">
-                {biz.city}, {biz.state} · no website found
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center p-6 text-center">
-            <StageLabel index={2} title="Verify opportunity" center />
-            <div className="mt-4">
-              <ScoreRing score={46} size={92} stroke={8} label="Website Health" sublabel="Illustrative example" />
-            </div>
-          </div>
-
-          <div className="p-6">
-            <StageLabel index={3} title="Prepare outreach" />
-            <div className="mt-4 space-y-2">
-              <div className="rounded-lg border border-hairline bg-canvas/60 p-3">
-                <p className="text-sm font-medium text-ink">Demo site generated</p>
-                <p className="mt-0.5 text-sm text-muted">Ready before the call</p>
-              </div>
-              <div className="rounded-lg border border-hairline bg-canvas/60 p-3">
-                <p className="text-sm font-medium text-ink">Playbook script ready</p>
-                <p className="mt-0.5 text-sm text-muted">Suggested opening & next action</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-center p-6">
-            <StageLabel index={4} title="Take the next action" />
-            <div className="mt-4 rounded-lg border border-iris/30 bg-iris/10 p-3">
-              <p className="flex items-center gap-2 text-sm font-semibold text-iris-soft">
-                <PhoneCall className="h-3.5 w-3.5" aria-hidden />
-                Call {biz.phone}
-              </p>
-              <p className="mt-1.5 text-sm text-muted">You make the call — WebGenie prepared everything before it.</p>
-            </div>
-          </div>
-        </div>
+        <ProductScreenshot
+          src="/product-proof/daily-queue.jpg"
+          width={1200}
+          height={633}
+          alt="The Daily Queue: today's prioritized actions, with evidence badges and an Open Playbook action on each card"
+          sizes="(min-width: 1100px) 1100px, 100vw"
+        />
       </div>
-      <p className="mt-3 text-center text-sm text-faint">
-        Illustrative example — the same connected flow every real prospect moves through.
-      </p>
+      <RedactedScreenshotCaption />
     </div>
   );
 }
 
-function StageLabel({ index, title, center = false }: { index: number; title: string; center?: boolean }) {
+/** Minimal window-chrome frame around a real screenshot -- signals "this is
+ * a captured app window," not a designed graphic, without adding a second
+ * decorative surface. Width/height are the screenshot's own intrinsic
+ * pixel dimensions, so the browser scales it responsively without ever
+ * stretching or cropping it. */
+function ProductScreenshot({
+  src,
+  width,
+  height,
+  alt,
+  sizes,
+}: {
+  src: string;
+  width: number;
+  height: number;
+  alt: string;
+  sizes: string;
+}) {
   return (
-    <div className={cn("flex items-center gap-2", center && "justify-center")}>
-      <span className="font-mono text-[13px] tracking-wide text-faint">{String(index).padStart(2, "0")}</span>
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+    <div className="overflow-hidden rounded-lg border border-hairline bg-canvas/60">
+      <div className="flex items-center gap-1.5 border-b border-hairline bg-canvas/80 px-3 py-2" aria-hidden>
+        <span className="h-2.5 w-2.5 rounded-full bg-signal-bad/50" />
+        <span className="h-2.5 w-2.5 rounded-full bg-signal-warn/50" />
+        <span className="h-2.5 w-2.5 rounded-full bg-signal-good/50" />
+      </div>
+      <Image src={src} width={width} height={height} alt={alt} sizes={sizes} className="h-auto w-full" />
     </div>
   );
+}
+
+/** Required verbatim by the owner wherever a redacted production screenshot
+ * appears on this page. */
+function RedactedScreenshotCaption() {
+  return <p className="mt-3 text-center text-sm text-faint">Real WebGenie interface; identifying details redacted.</p>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,25 +363,16 @@ function ProductWorkflow() {
 /* E. Product proof — nav anchor "How It Works"                        */
 /* ------------------------------------------------------------------ */
 
-/** Same curated fixture businesses /samples uses — nothing here is a real business. See lib/sitegen/samples.ts. */
-const FINDER_PREVIEW = SAMPLE_BUSINESSES.filter((b) => ["sample-plumber", "sample-hvac", "sample-electrician"].includes(b.id));
-
-const QUEUE_PREVIEW: Array<{ name: string; priority: "warn" | "good" | "neutral"; note: string }> = [
-  { name: "Cornerstone Plumbing Co.", priority: "warn", note: "No website — demo ready" },
-  { name: "Southern Comfort Heating & Air", priority: "good", note: "Follow-up due today" },
-  { name: "Bright Line Electric", priority: "neutral", note: "Audit complete, awaiting call" },
-];
-
 function ProductProof() {
   return (
     <div id="how-it-works" className={cn(SECTION_PLAIN, "scroll-mt-24")}>
       <SectionIntro
         title="See it work, not just hear about it"
-        description="Three real moments from the actual product — illustrative businesses throughout, real product behavior."
+        description="Real screens from the actual product, redacted for privacy, plus one illustrative workflow where a real screenshot isn't shown publicly."
       />
 
       <div className="mt-10 grid gap-4 text-left lg:grid-cols-3">
-        {/* Finder */}
+        {/* Finder — real screenshot, secondary proof (owner-approved, no PII to redact) */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
@@ -414,38 +380,26 @@ function ProductProof() {
               <h3 className="text-sm font-semibold text-ink">A prioritized list, not a pile of leads</h3>
             </div>
             <p className="mt-2 text-sm leading-relaxed text-ink/80">
-              Illustrative Finder results — every real search returns a list shaped like this,
-              sorted so you call the easiest yes first.
+              Finder before a search runs — every real result comes back scored and sorted, so
+              you call the easiest yes first.
             </p>
           </div>
-          <div className="space-y-2 p-4">
-            {FINDER_PREVIEW.map((b) => (
-              <div key={b.id} className="rounded-lg border border-hairline bg-canvas/60 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-ink">{b.name}</span>
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px]">
-                    <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
-                    <span className="font-mono text-faint">
-                      {b.rating} ({b.reviewCount})
-                    </span>
-                  </span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[13px] font-medium text-signal-warn">
-                    <Bot className="h-2.5 w-2.5" aria-hidden />
-                    No AI Receptionist
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-signal-warn/30 bg-signal-warn/10 px-2 py-0.5 text-[13px] font-medium text-signal-warn">
-                    <Clock className="h-2.5 w-2.5" aria-hidden />
-                    No 24/7 Coverage
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="p-4">
+            <ProductScreenshot
+              src="/product-proof/finder.jpg"
+              width={1400}
+              height={708}
+              alt="Finder's search screen, ready to search by industry, location and radius"
+              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            />
           </div>
         </div>
 
-        {/* Verified opportunity */}
+        {/* Verified opportunity — kept illustrative: the owner reviewed a real
+            Prospect Detail screenshot and rejected it even after redaction
+            (industry + city + rating + audit-finding specifics could still
+            re-identify the business), so this panel stays a labeled
+            illustrative workflow rather than a real screenshot. */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
@@ -453,12 +407,12 @@ function ProductProof() {
               <h3 className="text-sm font-semibold text-ink">Don&apos;t tell them it&apos;s weak. Show them why.</h3>
             </div>
             <p className="mt-2 text-sm leading-relaxed text-ink/80">
-              Illustrative example — every real audit runs the same 11-module engine and traces
+              Illustrative workflow — every real audit runs the same 11-module engine and traces
               each finding back to real evidence, never a guess.
             </p>
           </div>
           <div className="flex flex-col items-center gap-4 p-5">
-            <ScoreRing score={46} size={140} stroke={9} label="Website Health" sublabel="Illustrative example" />
+            <ScoreRing score={46} size={140} stroke={9} label="Website Health" sublabel="Illustrative workflow" />
             <ul className="w-full space-y-2">
               <li className="flex gap-2 text-sm leading-relaxed text-muted">
                 <Minus className="mt-0.5 h-3 w-3 shrink-0 text-signal-bad" aria-hidden />
@@ -476,30 +430,27 @@ function ProductProof() {
           </div>
         </div>
 
-        {/* Daily Queue + Playbook */}
+        {/* Live Outreach Playbook — real screenshot, redacted */}
         <div className="card overflow-hidden p-0">
           <div className="border-b border-hairline p-5">
             <div className="flex items-center gap-2">
               <CheckCheck className="h-4 w-4 text-iris-soft" aria-hidden />
-              <h3 className="text-sm font-semibold text-ink">One queue, always telling you what&apos;s next</h3>
+              <h3 className="text-sm font-semibold text-ink">A script ready before you dial</h3>
             </div>
             <p className="mt-2 text-sm leading-relaxed text-ink/80">
-              Illustrative example — the Daily Queue orders every prospect and follow-up by
-              priority, and the Playbook prepares what to say.
+              The Live Outreach Playbook, mid-call — a gatekeeper script, response buttons and the
+              prospect intelligence that grounds every line in real evidence.
             </p>
           </div>
-          <div className="space-y-2 p-4">
-            {QUEUE_PREVIEW.map((q) => (
-              <div key={q.name} className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/60 p-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-ink">{q.name}</div>
-                  <div className="mt-0.5 text-sm text-muted">{q.note}</div>
-                </div>
-                <Pill tone={q.priority === "warn" ? "warn" : q.priority === "good" ? "good" : "neutral"}>
-                  {q.priority === "warn" ? "High" : q.priority === "good" ? "Due" : "Queued"}
-                </Pill>
-              </div>
-            ))}
+          <div className="p-4">
+            <ProductScreenshot
+              src="/product-proof/playbook.jpg"
+              width={1200}
+              height={827}
+              alt="Live Outreach Playbook Stage 2, gatekeeper script with response options and a Prospect Intelligence panel"
+              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            />
+            <RedactedScreenshotCaption />
           </div>
         </div>
       </div>

@@ -101,7 +101,12 @@ console.log("\n4. Claim/count reconciliation -- counts derived from canonical so
   check("the real generator count is exactly 14 today (sanity check on the canonical source itself, not a page literal)", Object.keys(INDUSTRIES).length === 14);
   check("the gallery template count matches the same canonical source /gallery displays (64 today)", GALLERY_TEMPLATE_LIST.length === 64);
 
-  check('"Real Finder results" overclaim corrected to "Illustrative Finder results"', /Illustrative Finder results/.test(pageSrc) && !/Real Finder results/.test(pageSrc));
+  // Superseded by the screenshot-gate approval (section 17): Finder's panel
+  // is a real screenshot now, not the illustrative fixture list this check
+  // used to require -- re-asserted the other direction, since claiming
+  // "Real Finder results" would itself now be an overclaim (the screenshot
+  // shows Finder's empty pre-search state, not populated results).
+  check('Finder copy makes no "results" claim the empty pre-search screenshot can\'t support', !/Real Finder results/.test(pageSrc) && !/Illustrative Finder results/.test(pageSrc));
   check('"Generated automatically, before the call" autonomy-implying claim removed', !/Generated automatically, before the call/.test(pageSrc));
   check('"Every stage below is real" vague claim replaced with a more precise, supportable statement', !/Every stage below is real/.test(pageSrc) && /ships today/.test(pageSrc));
   check('FAQ corrects the "every prospect gets a demo site" overclaim (no-website -> demo, has-website -> audit)', /Only businesses with no existing website get an instant demo site/.test(pageSrc));
@@ -325,7 +330,12 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
   const pageSrc = src("src/app/page.tsx");
   check("Hero is a centered composition (text-center), not left-column/right-card", /function Hero\(\)[\s\S]{0,120}text-center/.test(pageSrc));
   check("Hero headline uses the P0-directed copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Find the right business\.[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductWalkthrough"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
-  check("Hero has a substantial centered product-walkthrough panel (not a small side card) naming all four real stages", /Find prospect/.test(pageSrc) && /Verify opportunity/.test(pageSrc) && /Prepare outreach/.test(pageSrc) && /Take the next action/.test(pageSrc) && /max-w-\[1100px\]/.test(pageSrc));
+  // Superseded by the owner's screenshot-gate approval (see section 17):
+  // the four-stage illustrative walkthrough this check used to assert on
+  // was replaced with a real, substantial, centered screenshot panel at
+  // the same weight/width -- still one substantial centered panel, not a
+  // small side card, just a real screenshot instead of a mockup now.
+  check("Hero still has a substantial centered real-screenshot panel (not a small side card), at the same panel weight as before", /function HeroProductScreenshot\(/.test(pageSrc) && /max-w-\[1100px\]/.test(pageSrc));
   check("every major SectionIntro is centered (mx-auto ... text-center), not left-aligned with a right-side action slot", /function SectionIntro[\s\S]{0,200}text-center/.test(pageSrc) && !/function SectionIntro\(\{ title, description, action/.test(pageSrc));
   check("a reusable full-width Band component exists for alternating section backgrounds", /function Band\(/.test(pageSrc) && /-mx-\[50vw\] w-screen/.test(pageSrc));
   check("Band re-centers its children at the same max-width/padding as the rest of the shell", /max-w-\[1280px\] px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12/.test(pageSrc));
@@ -378,6 +388,42 @@ console.log("\n16. Owner-review finding -- iframe overload corrected: static opt
   check("a documented, reusable regeneration script exists for the thumbnails (not a one-off throwaway)", fs.existsSync(path.join(__dirname, "..", "scripts", "generate-sample-thumbnails.mjs")));
 
   check("\"View full demo\" links still point at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(pageSrc2) && /target="_blank"/.test(pageSrc2));
+}
+
+console.log("\n17. Owner-review finding -- real, sanitized product screenshots replace the illustrative hero/product-proof mockups");
+{
+  const pageSrc3 = src("src/app/page.tsx");
+
+  check("the hero renders a real screenshot component, not the old 4-stage illustrative walkthrough", /function HeroProductScreenshot\(/.test(pageSrc3) && !/function HeroProductWalkthrough\(/.test(pageSrc3));
+  check("the hero screenshot is the real Daily Queue capture", /src="\/product-proof\/daily-queue\.jpg"/.test(pageSrc3));
+  check("the hero's real screenshot carries the owner-required verbatim redaction caption", /function RedactedScreenshotCaption\(\)/.test(pageSrc3) && /Real WebGenie interface; identifying details redacted\./.test(pageSrc3));
+  check("product proof's Finder panel is a real screenshot (not the old illustrative result-row list)", /src="\/product-proof\/finder\.jpg"/.test(pageSrc3));
+  check("product proof's Playbook panel is a real screenshot, captioned with the same required redaction disclosure", /src="\/product-proof\/playbook\.jpg"/.test(pageSrc3) && /<RedactedScreenshotCaption \/>/.test(pageSrc3));
+  check("Finder's screenshot (nothing to redact -- an empty pre-search state) is NOT given the redaction caption, since nothing was redacted in it", (() => {
+    const finderBlock = pageSrc3.slice(pageSrc3.indexOf('src="/product-proof/finder.jpg"'), pageSrc3.indexOf('src="/product-proof/finder.jpg"') + 400);
+    return !/<RedactedScreenshotCaption/.test(finderBlock);
+  })());
+  check("Prospect Detail is never used anywhere on the public page (rejected by the owner even after redaction)", !/prospect-detail/i.test(pageSrc3));
+  check("the one remaining constructed (non-screenshot) representation -- the audit ScoreRing -- is labeled exactly \"Illustrative workflow\", not \"Illustrative example\"", /sublabel="Illustrative workflow"/.test(pageSrc3) && /Illustrative workflow — every real audit runs/.test(pageSrc3));
+  check("ProductScreenshot renders next/image with explicit width+height (the source file's own intrinsic pixels, so it scales responsively without stretching or cropping)", /function ProductScreenshot\(/.test(pageSrc3) && /width=\{1200\}|width=\{1400\}/.test(pageSrc3) && /height=\{633\}|height=\{708\}|height=\{827\}/.test(pageSrc3));
+
+  check("all 3 approved product-proof images exist on disk", ["finder.jpg", "daily-queue.jpg", "playbook.jpg"].every((f) => fs.existsSync(path.join(__dirname, "..", "public", "product-proof", f))));
+  check("no product-proof image carries EXIF/ICC metadata or an alpha channel (flattened, metadata-free per the owner's requirement)", (() => {
+    // A cheap, dependency-free JPEG check: EXIF/ICC segments are APP1/APP2
+    // markers (0xFFE1 / 0xFFE2) that must appear before the first scan
+    // (0xFFDA) if sharp's default (metadata-stripping) output had somehow
+    // been bypassed. None of our files should contain one.
+    const dir = path.join(__dirname, "..", "public", "product-proof");
+    return ["finder.jpg", "daily-queue.jpg", "playbook.jpg"].every((f) => {
+      const buf = fs.readFileSync(path.join(dir, f));
+      const head = buf.subarray(0, 65536);
+      for (let i = 0; i < head.length - 1; i++) {
+        if (head[i] === 0xff && (head[i + 1] === 0xe1 || head[i + 1] === 0xe2)) return false;
+        if (head[i] === 0xff && head[i + 1] === 0xda) break; // start of scan -- stop looking
+      }
+      return true;
+    });
+  })(), "an APP1 (EXIF) or APP2 (ICC) marker was found in a product-proof JPEG");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
