@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { Panel } from "@/components/ui";
-import { Logo } from "@/components/shell";
+import { AuthShell } from "@/components/auth-shell";
 
 /**
  * Public self-serve signup — reintroduced 1 Sep 2026, this time deliberately
@@ -67,12 +67,11 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-6">
-      <Panel className="w-full max-w-md">
-        <Logo />
-        <h1 className="mt-6 text-display-md font-semibold text-ink">Create your account</h1>
+    <AuthShell>
+      <Panel className="mt-6 w-full">
+        <h1 className="text-display-md font-semibold text-ink">Create your account</h1>
         <p className="mt-2 text-sm text-muted">
-          Free to start, no credit card. Your workspace is ready the moment you sign up.
+          7-day full-access trial. No credit card required.
         </p>
 
         <div className="mt-7">
@@ -81,7 +80,7 @@ export default function SignupPage() {
 
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-hairline" />
-          <span className="text-xs text-faint">or</span>
+          <span className="text-sm text-faint">or</span>
           <div className="h-px flex-1 bg-hairline" />
         </div>
 
@@ -105,11 +104,15 @@ export default function SignupPage() {
               required
               minLength={8}
               autoComplete="new-password"
+              aria-describedby="signup-password-hint"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
               placeholder="At least 8 characters"
             />
+            <span id="signup-password-hint" className="mt-1.5 block text-sm text-faint">
+              Minimum 8 characters.
+            </span>
           </label>
           <button
             disabled={loading}
@@ -119,7 +122,11 @@ export default function SignupPage() {
           </button>
         </form>
 
-        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
+        {message ? (
+          <p role="alert" className="mt-4 text-sm text-signal-bad">
+            {message}
+          </p>
+        ) : null}
 
         <p className="mt-6 text-sm text-muted">
           Already have an account?{" "}
@@ -128,6 +135,6 @@ export default function SignupPage() {
           </Link>
         </p>
       </Panel>
-    </main>
+    </AuthShell>
   );
 }

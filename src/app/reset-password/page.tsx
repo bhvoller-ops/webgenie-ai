@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Panel } from "@/components/ui";
-import { Logo } from "@/components/shell";
+import { AuthShell } from "@/components/auth-shell";
 
 type Status = "checking" | "ready" | "invalid";
 
@@ -61,10 +61,9 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-6">
-      <Panel className="w-full max-w-md">
-        <Logo />
-        <h1 className="mt-6 text-display-md font-semibold text-ink">Set a new password</h1>
+    <AuthShell>
+      <Panel className="mt-6 w-full">
+        <h1 className="text-display-md font-semibold text-ink">Set a new password</h1>
 
         {status === "checking" ? <p className="mt-4 text-sm text-muted">Checking your link…</p> : null}
 
@@ -77,11 +76,15 @@ export default function ResetPasswordPage() {
                 required
                 minLength={8}
                 autoComplete="new-password"
+                aria-describedby="reset-password-hint"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="focus-ring mt-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-slate-900 placeholder:text-slate-400"
                 placeholder="••••••••"
               />
+              <span id="reset-password-hint" className="mt-1.5 block text-sm text-faint">
+                Minimum 8 characters.
+              </span>
             </label>
             <button
               disabled={loading}
@@ -93,7 +96,7 @@ export default function ResetPasswordPage() {
         ) : null}
 
         {status === "invalid" ? (
-          <p className="mt-4 text-sm text-muted">
+          <p role="alert" className="mt-4 text-sm text-muted">
             This link is invalid or has expired.{" "}
             <Link href="/forgot-password" className="text-ink underline decoration-dotted underline-offset-4 hover:text-iris-soft">
               Request a new one
@@ -102,8 +105,12 @@ export default function ResetPasswordPage() {
           </p>
         ) : null}
 
-        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
+        {message ? (
+          <p role="alert" className="mt-4 text-sm text-signal-bad">
+            {message}
+          </p>
+        ) : null}
       </Panel>
-    </main>
+    </AuthShell>
   );
 }
