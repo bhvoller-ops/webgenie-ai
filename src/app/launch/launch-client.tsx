@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Circle, Loader2, Rocket } from "lucide-react";
 import { PageShell } from "@/components/shell";
+import { PageHeader } from "@/components/workspace";
 import { Pill } from "@/components/ui";
+import { cn } from "@/lib/format";
 
 interface Settings {
   targetIndustry: string | null;
@@ -99,32 +101,26 @@ export function LaunchClient() {
   if (!settings?.startedAt) {
     return (
       <PageShell role="admin">
-        <div className="panel p-6 sm:p-10">
-          <Pill tone="iris">
-            <Rocket className="h-3 w-3" aria-hidden />
-            Agency Launch Mode
-          </Pill>
-          <h1 className="mt-4 max-w-2xl text-display-lg font-semibold text-ink">
-            What should I do this week <span className="gradient-text">to start building my pipeline?</span>
-          </h1>
-          <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted">A short setup, then WebGenie&rsquo;s real Finder, Queue, and Sequences take over — nothing fake, no separate task list.</p>
-        </div>
+        <PageHeader
+          title="Launch Mode"
+          description="A short setup, then WebGenie's real Finder, Queue, and Sequences take over — nothing fake, no separate task list."
+        />
 
-        <div className="mt-6 card max-w-xl space-y-3 p-6">
+        <div className="mt-5 card max-w-xl space-y-3 p-6">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-faint">Target industry</label>
+            <label className="label mb-1.5 block">Target industry</label>
             <input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="e.g. Roofing" className="focus-ring w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-[13px] text-ink" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-faint">Target location</label>
+            <label className="label mb-1.5 block">Target location</label>
             <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Denver, CO" className="focus-ring w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-[13px] text-ink" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-faint">Your offer</label>
+            <label className="label mb-1.5 block">Your offer</label>
             <input value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="e.g. $297/mo website package" className="focus-ring w-full rounded-lg border border-hairline bg-raised px-3 py-2 text-[13px] text-ink" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-faint">Daily prospecting target</label>
+            <label className="label mb-1.5 block">Daily prospecting target</label>
             <input value={dailyTarget} onChange={(e) => setDailyTarget(e.target.value)} type="number" min={1} className="focus-ring w-32 rounded-lg border border-hairline bg-raised px-3 py-2 text-[13px] text-ink" />
           </div>
           <button
@@ -141,51 +137,75 @@ export function LaunchClient() {
   }
 
   const milestones = [
-    { label: "Target market chosen", done: Boolean(settings.targetIndustry && settings.targetLocation) },
-    { label: `Prospects found (${insights?.prospectsFound ?? 0})`, done: (insights?.prospectsFound ?? 0) > 0 },
-    { label: `Prospects reviewed (${insights?.prospectsReviewed ?? 0})`, done: (insights?.prospectsReviewed ?? 0) > 0 },
-    { label: `Audits completed (${insights?.auditsCompleted ?? 0})`, done: (insights?.auditsCompleted ?? 0) > 0 },
-    { label: `Demos ready (${insights?.demosCreated ?? 0})`, done: (insights?.demosCreated ?? 0) > 0 },
-    { label: `Outreach performed (${insights?.outreachPerformed ?? 0})`, done: (insights?.outreachPerformed ?? 0) > 0 },
-    { label: `Meetings (${insights?.meetingsLogged ?? 0})`, done: (insights?.meetingsLogged ?? 0) > 0 },
-    { label: `Wins (${insights?.won ?? 0})`, done: (insights?.won ?? 0) > 0 }
+    { key: "market", label: "Market selected", done: Boolean(settings.targetIndustry && settings.targetLocation), count: null },
+    { key: "found", label: "Prospects found", done: (insights?.prospectsFound ?? 0) > 0, count: insights?.prospectsFound ?? 0 },
+    { key: "reviewed", label: "Reviewed", done: (insights?.prospectsReviewed ?? 0) > 0, count: insights?.prospectsReviewed ?? 0 },
+    { key: "audited", label: "Audited", done: (insights?.auditsCompleted ?? 0) > 0, count: insights?.auditsCompleted ?? 0 },
+    { key: "outreach", label: "Outreach performed", done: (insights?.outreachPerformed ?? 0) > 0, count: insights?.outreachPerformed ?? 0 },
+    { key: "meetings", label: "Meetings", done: (insights?.meetingsLogged ?? 0) > 0, count: insights?.meetingsLogged ?? 0 },
+    { key: "wins", label: "Wins", done: (insights?.won ?? 0) > 0, count: insights?.won ?? 0 }
   ];
+  // The current bottleneck -- the first not-yet-real step in the funnel.
+  const bottleneck = milestones.find((m) => !m.done);
+  const recommendPlaybook = bottleneck && (bottleneck.key === "market" || bottleneck.key === "found" || bottleneck.key === "reviewed");
 
   return (
     <PageShell role="admin">
-      <div className="panel p-6 sm:p-10">
-        <Pill tone="good">
-          <Rocket className="h-3 w-3" aria-hidden />
-          Your Launch Plan
-        </Pill>
-        <h1 className="mt-4 text-display-lg font-semibold text-ink">
-          {settings.targetIndustry ?? "Your market"} · {settings.targetLocation ?? "Your area"}
-        </h1>
-        <p className="mt-2 text-[13px] text-muted">Offer: {settings.agencyOffer || "not set"} · Daily target: {settings.dailyProspectingTarget ?? "—"} prospects</p>
-      </div>
+      <PageHeader
+        title={`${settings.targetIndustry ?? "Your market"} · ${settings.targetLocation ?? "Your area"}`}
+        context={
+          <span className="text-[13px] text-muted">
+            Offer: {settings.agencyOffer || "not set"} · Daily target: {settings.dailyProspectingTarget ?? "—"} prospects
+          </span>
+        }
+        primaryAction={
+          recommendPlaybook ? (
+            <Link href="/finder" className="focus-ring inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)]">
+              Find Prospects
+            </Link>
+          ) : (
+            <Link href="/prospecting" className="focus-ring inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)]">
+              Go to Daily Queue
+            </Link>
+          )
+        }
+        secondaryAction={
+          <Link href={recommendPlaybook ? "/prospecting" : "/finder"} className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-muted hover:text-ink">
+            {recommendPlaybook ? "Daily Queue" : "Find more prospects"}
+          </Link>
+        }
+      />
 
-      <div className="mt-6 card p-6">
-        <div className="eyebrow mb-4">Real progress</div>
-        <ul className="space-y-2.5">
-          {milestones.map((m) => (
-            <li key={m.label} className="flex items-center gap-2.5 text-[13px]">
-              {m.done ? <Check className="h-4 w-4 text-signal-good" aria-hidden /> : <Circle className="h-4 w-4 text-faint" aria-hidden />}
-              <span className={m.done ? "text-ink" : "text-muted"}>{m.label}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Link href="/finder" className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-muted hover:text-ink">
-          Find prospects
-        </Link>
-        <Link
-          href="/prospecting"
-          className="focus-ring inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)]"
-        >
-          You&rsquo;re live — go to your Daily Queue
-        </Link>
+      <div className="mt-6 card p-5">
+        <div className="label mb-4 flex items-center justify-between">
+          Real progress
+          {bottleneck ? <Pill tone="warn">Bottleneck: {bottleneck.label}</Pill> : <Pill tone="good">Full funnel active</Pill>}
+        </div>
+        {/* Compact horizontal funnel -- wraps to a vertical list on narrow
+            screens. A single connecting line sits behind the row of dots
+            (desktop only) rather than a per-item divider, which is more
+            robust than trying to stretch a divider inside each flex item. */}
+        <div className="relative">
+          <div className="absolute left-4 right-4 top-3.5 hidden h-px bg-hairline sm:block" aria-hidden />
+          <ol className="relative flex flex-col gap-3 sm:flex-row sm:gap-0">
+            {milestones.map((m) => (
+              <li key={m.key} className="flex flex-1 items-center gap-2.5 sm:flex-col sm:items-center sm:gap-1.5 sm:text-center">
+                <span
+                  className={cn(
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-full border",
+                    m.done ? "border-signal-good/40 bg-signal-good/15 text-signal-good" : m === bottleneck ? "border-signal-warn/50 bg-signal-warn/15 text-signal-warn" : "border-hairline bg-raised text-faint"
+                  )}
+                >
+                  {m.done ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Circle className="h-3.5 w-3.5" aria-hidden />}
+                </span>
+                <div className="sm:mt-1">
+                  <div className={cn("text-[12.5px] font-medium leading-tight", m.done ? "text-ink" : "text-muted")}>{m.label}</div>
+                  {m.count !== null ? <div className="font-mono text-[11.5px] text-faint">{m.count}</div> : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     </PageShell>
   );

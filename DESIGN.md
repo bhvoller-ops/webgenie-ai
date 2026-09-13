@@ -9,7 +9,7 @@ colors:
   hairline: "#1C212D"
   ink: "#EAEEF7"
   muted: "#8E97AC"
-  faint: "#5A6377"
+  faint: "#7A8298"
   iris: "#7C5CFF"
   iris-soft: "#9B85FF"
   iris-deep: "#4A2FD6"
@@ -20,6 +20,9 @@ colors:
   signal-bad: "#F87171"
   signal-info: "#60A5FA"
 typography:
+  # Public/marketing-site scale only, as of the "Authenticated UI/UX
+  # Rebuild" (see docs/history.md) -- never used on an authenticated
+  # operational page after that rebuild. Unchanged from before.
   display:
     fontFamily: "Inter, system-ui, -apple-system, sans-serif"
     fontSize: "clamp(3rem, 7vw, 5.5rem)"
@@ -32,9 +35,29 @@ typography:
     fontWeight: 600
     lineHeight: 1.1
     letterSpacing: "-0.03em"
+  # Authenticated-app scale (added by the Authenticated UI/UX Rebuild). A
+  # workspace page title, not a marketing headline -- 26-36px, never
+  # `headline`'s 28-40px marketing scale and nowhere near `display`.
+  page-title:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontSize: "clamp(1.625rem, 2.6vw, 2.25rem)"
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: "-0.02em"
+  section-title:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontSize: "clamp(1.25rem, 1.6vw, 1.5rem)"
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: "-0.015em"
   title:
     fontFamily: "Inter, system-ui, -apple-system, sans-serif"
     fontSize: "14px"
+    fontWeight: 600
+    lineHeight: 1.3
+  card-title:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.3
   body:
@@ -42,12 +65,25 @@ typography:
     fontSize: "13.5px"
     fontWeight: 400
     lineHeight: 1.6
-  label:
+  # Public-page label (unchanged) -- an authenticated page uses `label`
+  # below instead; the audit's own "operational labels around 11px, with
+  # excessive uppercase tracking" finding is this exact token.
+  eyebrow:
     fontFamily: "Inter, system-ui, -apple-system, sans-serif"
     fontSize: "11px"
     fontWeight: 600
     lineHeight: 1
     letterSpacing: "0.18em"
+  # Authenticated-app label (added by the rebuild) -- same role as
+  # `eyebrow`, at a legible 13px with far less tracking. Used everywhere
+  # a redesigned workspace page needs an uppercase field label or
+  # metadata caption.
+  label:
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: "0.06em"
   caption:
     fontFamily: "Inter, system-ui, -apple-system, sans-serif"
     fontSize: "12px"
@@ -115,6 +151,21 @@ components:
     textColor: "{colors.muted}"
     rounded: "{rounded.full}"
     padding: "4px 10px"
+  # Authenticated-app shared primitives added by the "Authenticated UI/UX
+  # Rebuild" (src/components/workspace.tsx) -- see that file's own header
+  # comment for the full reasoning. Deliberately small and composable,
+  # not a component framework.
+  page-header:
+    padding: "0 0 20px 0"
+    border: "bottom hairline only"
+    titleTypography: "{typography.page-title}"
+  summary-strip:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.md}"
+    padding: "12px 16px per cell"
+  disclosure-panel:
+    textColor: "{colors.iris-soft}"
+    typography: "{typography.body}"
 ---
 
 # Design System: WebGenie AI — Dashboard
@@ -177,7 +228,7 @@ Two accents, spent narrowly by role, on a near-black neutral scale; semantic sta
 - **Hairline** (`#1C212D`): the single border color used everywhere a surface needs an edge instead of a shadow.
 - **Ink** (`#EAEEF7`): primary text.
 - **Muted** (`#8E97AC`): secondary text — descriptions, nav labels at rest.
-- **Faint** (`#5A6377`): tertiary text — hints, timestamps, label-row text.
+- **Faint** (`#7A8298`): tertiary text — hints, timestamps, label-row text. Corrected from `#5A6377` by the Authenticated UI/UX Rebuild (see docs/history.md) — the old value measured ~2.9:1 against the system's own surfaces, below WCAG AA's 4.5:1 floor for normal text; `#7A8298` measures ~4.9:1 against every surface token above while keeping the same dark, restrained character.
 
 ### Named Rules
 **The Tint Formula Rule.** Every semantic color (iris, neon, and all four signal colors) appears as a pill/badge in exactly one shape: ~30%-opacity border, ~10%-opacity background, full-strength text. A solid fill is reserved for the primary button and the score ring/bar only — nothing else gets a solid semantic fill.
@@ -192,11 +243,15 @@ Two accents, spent narrowly by role, on a near-black neutral scale; semantic sta
 **Character:** Inter carries every word a human wrote; JetBrains Mono carries every value the system measured. The pairing is the console's core legibility trick — you can tell fact from prose without reading either.
 
 ### Hierarchy
-- **Display** (600, `clamp(3rem, 7vw, 5.5rem)`, line-height 0.95, tracking -0.04em): hero-scale headlines on marketing/landing surfaces only.
-- **Headline** (600, `clamp(1.75rem, 3vw, 2.5rem)`, line-height 1.1, tracking -0.03em): section headings inside the dashboard (`SectionHeading`'s `<h2>`).
+- **Display** (600, `clamp(3rem, 7vw, 5.5rem)`, line-height 0.95, tracking -0.04em): hero-scale headlines on marketing/landing surfaces only. Never on an authenticated operational page — see Page Title below.
+- **Headline** (600, `clamp(1.75rem, 3vw, 2.5rem)`, line-height 1.1, tracking -0.03em): section headings on the public/marketing site only (`SectionHeading`'s `<h2>` there).
+- **Page Title** (600, `clamp(1.625rem, 2.6vw, 2.25rem)`, line-height 1.15, tracking -0.02em): added by the Authenticated UI/UX Rebuild — the one `<h1>` on every authenticated workspace page, rendered by the shared `PageHeader` component (`src/components/workspace.tsx`). 26-36px, deliberately well below Display/Headline's marketing scale: a workspace page reads as a title, not a hero.
+- **Section Title** (600, `clamp(1.25rem, 1.6vw, 1.5rem)`, line-height 1.25, tracking -0.015em): a sub-heading within an authenticated page (e.g. Daily Queue's "Your Next Actions", Finder's "Prospects").
 - **Title** (600, 14px, line-height 1.3): card and component headers — module names, nav item labels, button labels.
+- **Card Title** (600, 15px, line-height 1.3): a slightly larger title step for a list-row or card's own name (a queue row's business name, an empty-state heading) — sits between Title (14px) and Section Title.
 - **Body** (400, 13.5px, line-height 1.6, set in `muted`): descriptions, paragraph copy, list items.
-- **Label** (600, 11px, uppercase, tracking 0.18em, set in `faint`): strengths/weaknesses headers, table column labels, form field labels. Never above a section `<h2>` as a kicker — see Do's and Don'ts.
+- **Label** (600, 13px, uppercase, tracking 0.06em, set in `faint`): the authenticated-app counterpart to Eyebrow below — table column labels, form field labels, metadata captions on every page the rebuild touched (`.label` in globals.css). Never above a section `<h2>` as a kicker — see Do's and Don'ts.
+- **Eyebrow** (600, 11px, uppercase, tracking 0.18em, set in `faint`): the original label step (`.eyebrow` in globals.css) — still correct for the public/marketing site and any authenticated page not yet redesigned. The Authenticated UI/UX Rebuild's own audit named this exact step ("operational labels around 11px... excessive uppercase letter spacing") as illegible at this size/tracking on a real operational page; Label above is its 13px replacement there.
 - **Caption** (400, 12px, line-height 1.5, set in `muted`/`faint`): the dashboard's real default for secondary detail text — card metadata, list-item subtext, helper copy under a control. This is the single most common text size in the app and was missing from earlier versions of this file; it is not a violation, it is the documented default.
 - **Caption Large** (400, 12.5px): a marginally larger caption step used for slightly more prominent secondary text (e.g. helper copy directly under a primary input).
 - **Micro** (500, 10px, line-height 1): the smallest step — inline badges, a stat's unit label, a timestamp squeezed into a tight row. Use sparingly; below this, use an icon or omit rather than shrinking further.

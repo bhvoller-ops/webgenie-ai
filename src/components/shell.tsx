@@ -22,6 +22,7 @@ import { Button } from "@/components/ui";
 import { NavGroup, type NavGroupItem } from "@/components/nav-group";
 import { MobileNav } from "@/components/mobile-nav";
 import { signOut } from "@/app/actions";
+import { cn } from "@/lib/format";
 import type { AccessRole } from "@/lib/auth/access";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
@@ -39,7 +40,22 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-const PROSPECTOR_ITEMS: NavGroupItem[] = [
+/**
+ * UI clarity correction: regrouped around the user's actual workflow
+ * (WORK -> OUTREACH -> DELIVERY), replacing the previous "Prospector" /
+ * "Dashboard" split that mixed operational areas, project creation, and
+ * public marketing resources at the same level. Public-facing reference
+ * material (Samples, Gallery) moves to its own low-emphasis RESOURCES
+ * group below so it stops competing visually with Daily Queue and
+ * Finder — see RESOURCES_ITEMS.
+ *
+ * "Prospects" (the spec's third WORK destination) has no dedicated index
+ * route in this app -- prospects are only ever reached via Daily Queue,
+ * Finder, or a project -- so it's intentionally omitted rather than
+ * invented. "Find Audits" (/audit), a real existing prospecting
+ * destination, takes its place in WORK instead.
+ */
+const WORK_ITEMS: NavGroupItem[] = [
   {
     href: "/prospecting",
     label: "Daily Queue",
@@ -49,15 +65,27 @@ const PROSPECTOR_ITEMS: NavGroupItem[] = [
   {
     href: "/finder",
     label: "Find Clients",
-    description: "Scan Google Maps for businesses with no website — build each one a demo site instantly.",
+    // OWNER-REVIEW CORRECTION: Finder (P0.5) shows every result a search
+    // returns, not only businesses with no website -- this previously
+    // undersold current Finder behavior and read as identical to Find
+    // Audits below. Rewritten to name the real distinguishing behavior:
+    // a scored, mixed result set, with an instant demo only for the
+    // no-website subset.
+    description: "Search local businesses of any kind — every result scored, with a demo site ready instantly for anyone with no website yet.",
     icon: <Search className="h-4 w-4" aria-hidden />,
   },
   {
     href: "/audit",
     label: "Find Audits",
-    description: "Find businesses with a bad website and queue a real 11-module intelligence scan.",
+    // Distinct from Find Clients above: this search is scoped to
+    // businesses that already have a website, and queues each match
+    // straight for the real 11-module audit -- no separate review step.
+    description: "Search businesses that already have a website — each match is queued straight for a real 11-module audit.",
     icon: <Radar className="h-4 w-4" aria-hidden />,
   },
+];
+
+const OUTREACH_ITEMS: NavGroupItem[] = [
   {
     href: "/sequences",
     label: "Sequences",
@@ -78,7 +106,13 @@ const PROSPECTOR_ITEMS: NavGroupItem[] = [
   },
 ];
 
-const DASHBOARD_ITEMS: NavGroupItem[] = [
+const DELIVERY_ITEMS: NavGroupItem[] = [
+  {
+    href: "/projects/new",
+    label: "Projects",
+    description: "Add a business, then browse every audit, blueprint, and prompt package you've generated.",
+    icon: <FolderKanban className="h-4 w-4" aria-hidden />,
+  },
   {
     href: "/calls",
     label: "Call Tracker",
@@ -97,17 +131,22 @@ const DASHBOARD_ITEMS: NavGroupItem[] = [
     description: "Walk a new client through the 10-step setup flow.",
     icon: <UserPlus className="h-4 w-4" aria-hidden />,
   },
+];
+
+/**
+ * Low-emphasis reference material -- public-facing (Samples, Gallery) and
+ * account-adjacent (Partners, Playbooks, Support) destinations that don't
+ * belong beside Daily Queue/Finder but still need to stay reachable.
+ * Deliberately still a NavGroup (so it gets the same current-page
+ * indication and keyboard behavior as WORK/OUTREACH/DELIVERY), just the
+ * last, plainest-labeled item in the bar.
+ */
+const RESOURCES_ITEMS: NavGroupItem[] = [
   {
     href: "/partners",
     label: "Partners",
     description: "Manage referral partners, invites, and commission payouts.",
     icon: <Handshake className="h-4 w-4" aria-hidden />,
-  },
-  {
-    href: "/projects/new",
-    label: "Projects",
-    description: "Add a business, then browse every audit, blueprint, and prompt package you've generated.",
-    icon: <FolderKanban className="h-4 w-4" aria-hidden />,
   },
   {
     href: "/playbooks",
@@ -121,23 +160,37 @@ const DASHBOARD_ITEMS: NavGroupItem[] = [
     description: "Open a ticket — real people, not a bot.",
     icon: <LifeBuoy className="h-4 w-4" aria-hidden />,
   },
-];
-
-const PUBLIC_ITEMS = [
-  { href: "/samples", label: "Samples" },
-  { href: "/gallery", label: "Gallery" },
+  {
+    href: "/samples",
+    label: "Samples",
+    description: "Every one of the 73 industry sample sites, browsable by name.",
+    icon: <Sparkles className="h-4 w-4" aria-hidden />,
+  },
+  {
+    href: "/gallery",
+    label: "Gallery",
+    description: "A visual gallery of real generated sites.",
+    icon: <FolderKanban className="h-4 w-4" aria-hidden />,
+  },
 ];
 
 export function TopBar({ role = "guest" }: { role?: AccessRole }) {
+  const contentWidth = role === "guest" ? "max-w-[1400px]" : "max-w-[1280px]";
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
-      <div className="relative mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-6">
+      <div className={cn("relative mx-auto flex h-16 items-center gap-6 px-6", contentWidth)}>
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
           {role === "admin" ? (
             <>
-              <NavGroup label="Prospector" items={PROSPECTOR_ITEMS} />
-              <NavGroup label="Dashboard" items={DASHBOARD_ITEMS} />
+              <NavGroup label="Work" items={WORK_ITEMS} />
+              <NavGroup label="Outreach" items={OUTREACH_ITEMS} />
+              <NavGroup label="Delivery" items={DELIVERY_ITEMS} />
+              {/* Deliberately last and unstyled-different from the others in
+                  every way except position -- still a full NavGroup (current-
+                  page indication included), just never first in reading
+                  order, so it can't visually compete with Work/Outreach. */}
+              <NavGroup label="Resources" items={RESOURCES_ITEMS} />
             </>
           ) : null}
           {role === "partner" ? (
@@ -156,18 +209,9 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
               My Trials
             </Link>
           ) : null}
-          {PUBLIC_ITEMS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              {l.label}
-            </Link>
-          ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <MobileNav role={role} prospectorItems={PROSPECTOR_ITEMS} dashboardItems={DASHBOARD_ITEMS} publicItems={PUBLIC_ITEMS} />
+          <MobileNav role={role} workItems={WORK_ITEMS} outreachItems={OUTREACH_ITEMS} deliveryItems={DELIVERY_ITEMS} resourcesItems={RESOURCES_ITEMS} />
           {role === "admin" ? (
             <>
               <Link
@@ -177,6 +221,9 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
                 <Settings className="h-4 w-4" />
                 Settings
               </Link>
+              {/* Creation is visually distinct from navigation (its own
+                  outlined button, never a NavGroup item) -- "New project" and
+                  "Find clients" are actions, not destinations to browse. */}
               <Button href="/projects/new" variant="secondary" className="hidden sm:inline-flex">
                 <Plus className="h-4 w-4" />
                 New project
@@ -226,12 +273,36 @@ export function Footer() {
   );
 }
 
+/**
+ * UI clarity correction: the authenticated app previously carried the same
+ * marketing footer as the public site on every operational page ("Website
+ * intelligence, blueprints, and build-ready prompt packages" doesn't help
+ * someone mid-task complete work). A signed-in workspace page gets this
+ * minimal version instead — just a version/build tag, no marketing copy,
+ * no repeated logo+tagline. The full marketing Footer is preserved
+ * unchanged for `role="guest"` (the public site).
+ */
+function AuthenticatedFooter() {
+  return (
+    <footer className="mt-16 border-t border-hairline">
+      <div className="mx-auto flex max-w-[1400px] items-center justify-center px-6 py-5">
+        <span className="font-mono text-[11px] text-faint">SimpleOS · WebGenie AI</span>
+      </div>
+    </footer>
+  );
+}
+
 export function PageShell({ children, role = "guest" }: { children: ReactNode; role?: AccessRole }) {
+  // UI clarity correction: authenticated workspace pages get a tighter
+  // 1280px content column and less vertical padding than the public
+  // marketing site's 1400px/py-10 (unchanged for role="guest") — an
+  // operational page reads as a workspace, not a landing page.
+  const contentWidth = role === "guest" ? "max-w-[1400px] py-10" : "max-w-[1280px] py-8";
   return (
     <div className="min-h-screen">
       <TopBar role={role} />
-      <main className="mx-auto max-w-[1400px] px-6 py-10">{children}</main>
-      <Footer />
+      <main className={cn("mx-auto px-6", contentWidth)}>{children}</main>
+      {role === "guest" ? <Footer /> : <AuthenticatedFooter />}
     </div>
   );
 }

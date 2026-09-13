@@ -15,12 +15,12 @@ import {
   MessageSquare,
   Radar,
   Search,
-  Sparkles,
   Star,
   Target,
   Radio,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
+import { PageHeader, SummaryStrip, EmptyState } from "@/components/workspace";
 import { Pill, type PillTone } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
@@ -255,151 +255,149 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
 
   return (
     <PageShell role={role}>
-      <Panel className="relative overflow-hidden" padded={false}>
-        <div
-          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.3]"
-          style={{
-            backgroundSize: "54px 54px",
-            maskImage: "radial-gradient(620px 280px at 50% 0%, #000, transparent)",
-            WebkitMaskImage: "radial-gradient(620px 280px at 50% 0%, #000, transparent)",
-          }}
-          aria-hidden
-        />
-        <div className="relative px-6 py-14 text-center sm:px-12 sm:py-16">
-          <Pill tone="iris" className="mx-auto">
-            <Sparkles className="h-3 w-3" aria-hidden />
-            Find businesses worth contacting
-          </Pill>
+      <PageHeader
+        title="Find Prospects"
+        description="Search your market — WebGenie surfaces businesses worth contacting from real, public business signals."
+      />
 
-          <h1 className="mx-auto mt-6 max-w-3xl text-display-lg font-semibold">
-            <span className="text-ink">Find Local Businesses</span>
-            <br />
-            <span className="gradient-text">Worth Contacting</span>
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-xl text-[15px] leading-relaxed text-muted">
-            Search your market. WebGenie analyzes public business signals, surfaces promising
-            prospects, and helps you decide who deserves a closer look.
-          </p>
-
-          {/* Search */}
-          <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <IndustryPicker value={industry} onChange={setIndustry} />
-
-              <label className="relative block">
-                <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && run()}
-                  placeholder="Atlanta, GA"
-                  className="focus-ring w-full rounded-xl border border-hairline bg-surface py-3 pl-10 pr-4 text-sm text-ink placeholder:text-faint transition-colors hover:border-iris/40"
-                />
-              </label>
-
-              <label className="relative block">
-                <Radar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
-                <select
-                  value={radiusMiles}
-                  onChange={(e) => setRadiusMiles(e.target.value)}
-                  className="focus-ring w-full appearance-none rounded-xl border border-hairline bg-surface py-3 pl-10 pr-9 text-left text-sm text-ink transition-colors hover:border-iris/40"
-                >
-                  {RADIUS_OPTIONS.map((r) => (
-                    <option key={r.value} value={r.value} className="bg-surface">
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <button
-              onClick={run}
-              disabled={running || !location.trim()}
-              className="focus-ring mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep py-3.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {running ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  Processing…
-                </>
-              ) : (
-                <>
-                  <Search className="h-4 w-4" aria-hidden />
-                  Find Prospects
-                </>
-              )}
-            </button>
+      {/* Search — a practical horizontal bar, not a centered hero. */}
+      <div className="mt-5 rounded-panel border border-hairline bg-canvas/70 p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+          <div>
+            <span className="label mb-1.5 block">Industry</span>
+            <IndustryPicker value={industry} onChange={setIndustry} />
           </div>
 
-          {/* Progress */}
-          {running ? (
-            <div className="mx-auto mt-4 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-5 text-left">
-              <ul className="space-y-2.5">
-                {STAGES.map((s, i) => {
-                  const done = stage > i;
-                  const active = stage === i;
-                  return (
-                    <li key={s} className="flex items-center gap-3">
-                      {done ? (
-                        <span className="grid h-4 w-4 place-items-center rounded-full bg-signal-good/20">
-                          <span className="h-1.5 w-1.5 rounded-full bg-signal-good" />
-                        </span>
-                      ) : active ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-iris-soft" aria-hidden />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border border-hairline" />
-                      )}
-                      <span
-                        className={cn(
-                          "text-[13px]",
-                          done ? "text-muted" : active ? "text-iris-soft" : "text-faint"
-                        )}
-                      >
-                        {s}…
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="mt-4 h-1 overflow-hidden rounded-full bg-hairline">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-iris to-neon transition-all duration-500"
-                  style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
+          <label className="block">
+            <span className="label mb-1.5 block">Location</span>
+            <span className="relative block">
+              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && run()}
+                placeholder="Atlanta, GA"
+                className="focus-ring w-full rounded-xl border border-hairline bg-surface py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-faint transition-colors hover:border-iris/40"
+              />
+            </span>
+          </label>
 
-          {error ? (
-            <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">
-              {error}
-            </div>
-          ) : null}
+          <label className="block">
+            <span className="label mb-1.5 block">Radius</span>
+            <span className="relative block">
+              <Radar className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden />
+              <select
+                value={radiusMiles}
+                onChange={(e) => setRadiusMiles(e.target.value)}
+                className="focus-ring w-full appearance-none rounded-xl border border-hairline bg-surface py-2.5 pl-10 pr-9 text-left text-sm text-ink transition-colors hover:border-iris/40"
+              >
+                {RADIUS_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value} className="bg-surface">
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+
+          <button
+            onClick={run}
+            disabled={running || !location.trim()}
+            className="focus-ring flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {running ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Processing…
+              </>
+            ) : (
+              <>
+                <Search className="h-4 w-4" aria-hidden />
+                Find Prospects
+              </>
+            )}
+          </button>
         </div>
-      </Panel>
+
+        {/* Progress */}
+        {running ? (
+          <div className="mt-4 rounded-lg border border-hairline bg-canvas/80 p-4 text-left">
+            <ul className="space-y-2.5">
+              {STAGES.map((s, i) => {
+                const done = stage > i;
+                const active = stage === i;
+                return (
+                  <li key={s} className="flex items-center gap-3">
+                    {done ? (
+                      <span className="grid h-4 w-4 place-items-center rounded-full bg-signal-good/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-signal-good" />
+                      </span>
+                    ) : active ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-iris-soft" aria-hidden />
+                    ) : (
+                      <span className="h-4 w-4 rounded-full border border-hairline" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-[13px]",
+                        done ? "text-muted" : active ? "text-iris-soft" : "text-faint"
+                      )}
+                    >
+                      {s}…
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-4 h-1 overflow-hidden rounded-full bg-hairline">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-iris to-neon transition-all duration-500"
+                style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="mt-4 rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">
+            {error}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Empty state — no search has run yet. Concise, tells the user what to do. */}
+      {!result && !running ? (
+        <div className="mt-6">
+          <EmptyState
+            icon={<Search className="h-8 w-8" aria-hidden />}
+            title="No search yet"
+            description="Choose an industry, enter a location, and run a search — every result comes back already checked for a website, or the lack of one."
+          />
+        </div>
+      ) : null}
 
       {/* Results */}
       {result ? (
-        <div className="mt-10 animate-fade-up">
+        <div className="mt-8 animate-fade-up">
           {result.notice ? (
             <div className="mb-6 rounded-xl border border-signal-warn/30 bg-signal-warn/[0.08] px-4 py-3 text-[13px] text-signal-warn">
               {result.notice}
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard icon={<Building2 className="h-4 w-4 text-muted" aria-hidden />} label="Total found" value={result.totalFound} tone="ink" />
-            <StatCard icon={<Target className="h-4 w-4 text-signal-good" aria-hidden />} label="Recommended" value={recommendedCount} tone="good" />
-            <StatCard icon={<Globe className="h-4 w-4 text-signal-warn" aria-hidden />} label="No website" value={noWebsiteCount} tone="warn" />
-            <StatCard icon={<Radio className="h-4 w-4 text-neon" aria-hidden />} label="Audited" value={auditedCount} tone="neon" />
-          </div>
+          <SummaryStrip
+            items={[
+              { label: "Total found", value: result.totalFound, icon: <Building2 className="h-4 w-4" aria-hidden /> },
+              { label: "Recommended", value: recommendedCount, tone: "good", icon: <Target className="h-4 w-4" aria-hidden /> },
+              { label: "No website", value: noWebsiteCount, tone: "warn", icon: <Globe className="h-4 w-4" aria-hidden /> },
+              { label: "Audited", value: auditedCount, tone: "neon", icon: <Radio className="h-4 w-4" aria-hidden /> },
+            ]}
+          />
 
-          <div className="mt-10 flex flex-wrap items-end justify-between gap-4">
+          <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="text-display-md font-semibold text-ink">Prospects</h2>
-              <p className="mt-1.5 text-sm text-muted">
+              <h2 className="text-section-title font-semibold text-ink">Prospects</h2>
+              <p className="mt-1 text-[13px] text-muted">
                 {sorted.length} of {rows.length} shown
                 {result.provider === "sample" ? " · sample data" : " · live Google data"}
               </p>
@@ -734,10 +732,6 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
   );
 }
 
-function Panel({ children, className, padded = true }: { children: React.ReactNode; className?: string; padded?: boolean }) {
-  return <section className={cn("panel", padded && "p-6 sm:p-8", className)}>{children}</section>;
-}
-
 function PhotoOverrideInput({
   label,
   placeholder,
@@ -774,27 +768,3 @@ function PhotoOverrideInput({
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone: "ink" | "warn" | "good" | "neon";
-}) {
-  const color = { ink: "text-ink", warn: "text-signal-warn", good: "text-signal-good", neon: "text-neon" }[tone];
-  return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between">
-        <span className="eyebrow">{label}</span>
-        {icon}
-      </div>
-      <div className={cn("mt-3 font-mono text-4xl font-semibold tabular-nums tracking-tight", color)}>
-        {value}
-      </div>
-    </div>
-  );
-}

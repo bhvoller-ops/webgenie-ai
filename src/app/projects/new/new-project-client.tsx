@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -11,25 +11,26 @@ import {
   Loader2,
   MessageSquare,
   Phone,
+  Plus,
   Search,
-  Sparkles,
   Star,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@/components/shell";
-import { Eyebrow, Panel, Pill, SectionHeading, Stat } from "@/components/ui";
+import { PageHeader, SummaryStrip, EmptyState } from "@/components/workspace";
+import { Eyebrow, Pill } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
 import { IndustryPicker } from "@/components/industry-picker";
-import { ProjectCard } from "@/components/project-card";
+import { ScoreBar } from "@/components/score-ring";
 import { Pagination } from "@/components/pagination";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
 import type { Business, IndustryKey } from "@/lib/sitegen/types";
-import type { ProjectSummary } from "@/lib/types";
+import { JOB_STAGE_LABELS, type ProjectSummary } from "@/lib/types";
 import type { getPortfolioStats } from "@/lib/data/provider";
 import { createProject } from "@/app/actions";
-import { cn } from "@/lib/format";
+import { BAND_TEXT_CLASS, cn, formatDate, hostOf, scoreBand } from "@/lib/format";
 
 interface QueuedProject {
   projectId: string;
@@ -75,6 +76,19 @@ export function NewProjectClient({
   const [copied, setCopied] = useState<string | null>(null);
   const [industryOverrides, setIndustryOverrides] = useState<Record<string, IndustryKey>>({});
   const [showManual, setShowManual] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((project) => {
+      const haystack = [project.name, project.primaryUrl ? hostOf(project.primaryUrl) : "", project.industry, analysisStateLabel(project)]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [projects, search]);
 
   const lineCount = lines.split("\n").map((l) => l.trim()).filter(Boolean).length;
   const tooMany = lineCount > MAX_LINES;
@@ -135,60 +149,52 @@ export function NewProjectClient({
 
   return (
     <PageShell role={role}>
-      <Panel className="relative overflow-hidden" padded={false}>
-        <div
-          className="pointer-events-none absolute inset-0 bg-grid-fade opacity-[0.3]"
-          style={{
-            backgroundSize: "54px 54px",
-            maskImage: "radial-gradient(620px 280px at 50% 0%, #000, transparent)",
-            WebkitMaskImage: "radial-gradient(620px 280px at 50% 0%, #000, transparent)",
-          }}
-          aria-hidden
-        />
-        <div className="relative px-6 py-14 text-center sm:px-12 sm:py-16">
-          <Pill tone="iris" className="mx-auto">
-            <Sparkles className="h-3 w-3" aria-hidden />
-            Add businesses to your dashboard
-          </Pill>
+      <PageHeader
+        title="Projects"
+        description="Add a business, then browse every audit, blueprint, and prompt package you've generated."
+        primaryAction={
+          <button
+            onClick={() => setShowCreate((v) => !v)}
+            className="focus-ring inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            New Project
+          </button>
+        }
+      />
 
-          <h1 className="mx-auto mt-6 max-w-3xl text-display-lg font-semibold">
-            <span className="text-ink">New Project</span>
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted">
+      {/* Create panel — collapsed by default behind the primary button above,
+          instead of a full-viewport hero every visit opened with. */}
+      {showCreate ? (
+        <div className="mt-5 rounded-panel border border-hairline bg-canvas/80 p-5">
+          <p className="text-[13.5px] leading-relaxed text-muted">
             Paste one or more businesses — a Google Business Profile link, a plain business name,
             or an existing website URL. One per line. A business with no website gets a demo site
             built instantly, just like Finder; a business with a website gets queued for a real
             audit, just like Audit.
           </p>
 
-          <div className="mx-auto mt-10 max-w-2xl rounded-panel border border-hairline bg-canvas/80 p-4 text-left">
+          <div className="mt-4">
             <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-faint">
-                Businesses (one per line, up to 25)
-              </span>
+              <span className="label mb-1.5 block">Businesses (one per line, up to 25)</span>
               <textarea
                 value={lines}
                 onChange={(e) => setLines(e.target.value)}
-                rows={6}
+                rows={5}
                 placeholder={"https://maps.app.goo.gl/xxxxxx\nAce Plumbing, Marietta GA\nhttps://acmeroofing.com"}
-                className="focus-ring mt-2 w-full rounded-xl border border-hairline bg-surface px-3 py-2.5 font-mono text-[12.5px] text-ink placeholder:text-faint transition-colors hover:border-iris/40"
+                className="focus-ring mt-1.5 w-full rounded-xl border border-hairline bg-surface px-3 py-2.5 font-mono text-[13px] text-ink placeholder:text-faint transition-colors hover:border-iris/40"
               />
             </label>
 
             <div className="mt-3 max-w-xs">
-              <span className="text-[11px] font-medium uppercase tracking-widest text-faint">
-                If we can&rsquo;t tell the industry
-              </span>
-              <div className="mt-2">
-                <IndustryPicker value={defaultIndustry} onChange={setDefaultIndustry} />
-              </div>
+              <span className="label mb-1.5 block">If we can&rsquo;t tell the industry</span>
+              <IndustryPicker value={defaultIndustry} onChange={setDefaultIndustry} />
             </div>
 
             <button
               onClick={run}
               disabled={running || lineCount === 0 || tooMany}
-              className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep py-3.5 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className="focus-ring mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-iris to-iris-deep py-3 text-sm font-semibold text-white shadow-[0_10px_34px_-12px_rgba(124,92,255,.9)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-8"
             >
               {running ? (
                 <>
@@ -203,11 +209,11 @@ export function NewProjectClient({
               )}
             </button>
             {tooMany ? (
-              <p className="mt-2 text-[11px] text-signal-bad">
+              <p className="mt-2 text-[12.5px] text-signal-bad">
                 {lineCount} lines pasted — {MAX_LINES} max per batch. Remove {lineCount - MAX_LINES} to continue.
               </p>
             ) : (
-              <p className="mt-2 text-[11px] text-faint">
+              <p className="mt-2 text-[12.5px] text-faint">
                 Each line runs its own Google lookup, so a wrong or missing match on one line
                 doesn&rsquo;t block the rest.
               </p>
@@ -215,12 +221,12 @@ export function NewProjectClient({
           </div>
 
           {error ? (
-            <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">
+            <div className="mt-4 rounded-xl border border-signal-bad/30 bg-signal-bad/10 px-4 py-3 text-[13px] text-signal-bad">
               {error}
             </div>
           ) : null}
         </div>
-      </Panel>
+      ) : null}
 
       {result ? (
         <div className="mt-10 animate-fade-up space-y-10">
@@ -228,7 +234,7 @@ export function NewProjectClient({
             <div>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-display-md font-semibold text-ink">Ready for outreach</h2>
+                  <h2 className="text-section-title font-semibold text-ink">Ready for outreach</h2>
                   <p className="mt-1.5 text-sm text-muted">
                     {result.generated.length} business{result.generated.length === 1 ? "" : "es"} with no
                     website — a demo site is already built for each.
@@ -346,7 +352,7 @@ export function NewProjectClient({
             <div>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-display-md font-semibold text-ink">Now analyzing</h2>
+                  <h2 className="text-section-title font-semibold text-ink">Now analyzing</h2>
                   <p className="mt-1.5 text-sm text-muted">
                     {result.queued.length} business{result.queued.length === 1 ? "" : "es"} with an
                     existing site, queued for a real 11-module scan — scores appear on your dashboard a
@@ -456,40 +462,93 @@ export function NewProjectClient({
         </div>
       ) : null}
 
-      <div className="mt-16">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Projects" value={stats.projectCount} hint="Across the workspace" />
-          <Stat label="Runs in flight" value={stats.activeRuns} hint="Capture and analysis" tone="warn" />
-          <Stat label="Mean score" value={stats.averageScore} hint="Weighted across 11 modules" />
-          <Stat
-            label="Critical findings"
-            value={stats.criticalFindings}
-            hint="Blocking conversion or performance"
-            tone="bad"
-          />
-        </div>
+      <div className="mt-10">
+        <SummaryStrip
+          items={[
+            { label: "Projects", value: stats.projectCount },
+            { label: "Runs in flight", value: stats.activeRuns, tone: "warn" },
+            { label: "Mean score", value: stats.averageScore },
+            { label: "Critical findings", value: stats.criticalFindings, tone: "bad" },
+          ]}
+        />
 
-        <div className="mt-10">
-          <SectionHeading
-            title="Every project"
-            description="Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package."
-          />
+        <div className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-section-title font-semibold text-ink">Every project</h2>
+              <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-muted">
+                Every project holds a reference set, a scored intelligence artifact, an original rebuild blueprint, and an exportable prompt package.
+              </p>
+            </div>
+            {projects.length ? (
+              <label className="relative block w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search this page's projects…"
+                  aria-label="Search projects on this page"
+                  className="focus-ring w-full rounded-lg border border-hairline bg-raised py-2 pl-9 pr-3 text-[13px] text-ink placeholder:text-faint"
+                />
+              </label>
+            ) : null}
+          </div>
 
           {projects.length ? (
             <>
-              <div className="mt-8 grid gap-4 lg:grid-cols-2">
-                {projects.map((project) => (
-                  <ProjectCard key={project.id} project={project} />
-                ))}
-              </div>
+              {/* OWNER-REVIEW CORRECTION: a non-destructive client-side
+                  search/filter over the currently-loaded page of projects --
+                  never a new server endpoint, never a change to project
+                  records. Pagination and every existing project behavior
+                  (row link, badges) are untouched; searching narrows which
+                  of THIS page's rows are shown, it doesn't fetch other
+                  pages. */}
+              {filteredProjects.length ? (
+                <div className="mt-5 overflow-x-auto rounded-panel border border-hairline">
+                  <table className="w-full min-w-[720px] text-left">
+                    <thead className="bg-raised">
+                      <tr>
+                        {["Business", "Website", "Industry", "Analysis", "Assets", "Updated"].map((h) => (
+                          <th key={h} className="label px-4 py-3">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProjects.map((project) => (
+                        <ProjectRow key={project.id} project={project} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="mt-5">
+                  <EmptyState
+                    icon={<Search className="h-8 w-8" aria-hidden />}
+                    title="No matches on this page"
+                    description={`Nothing on this page matches "${search}". Try a different term, or clear the search and use pagination to browse the rest.`}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setSearch("")}
+                        className="focus-ring rounded-lg border border-hairline bg-raised px-4 py-2 text-[13px] font-medium text-muted hover:text-ink"
+                      >
+                        Clear search
+                      </button>
+                    }
+                  />
+                </div>
+              )}
               <Pagination page={page} totalPages={totalPages} basePath="/projects/new" />
             </>
           ) : (
-            <div className="mt-8 rounded-panel border border-dashed border-hairline p-10 text-center">
-              <h3 className="text-lg font-semibold text-ink">No projects yet</h3>
-              <p className="mt-2 text-sm text-muted">
-                Add a business above — an audit or a demo site becomes a project here.
-              </p>
+            <div className="mt-5">
+              <EmptyState
+                icon={<Building2 className="h-8 w-8" aria-hidden />}
+                title="No projects yet"
+                description="Add a business above — an audit or a demo site becomes a project here."
+              />
             </div>
           )}
         </div>
@@ -538,5 +597,80 @@ export function NewProjectClient({
         ) : null}
       </div>
     </PageShell>
+  );
+}
+
+/**
+ * A compact, scannable table row replacing the previous card-grid layout
+ * (Phase 5A: "Present projects as a searchable, scannable table/list").
+ * The whole row is one link (a stretched-link overlay on the business
+ * name cell) — no separate repeated "Open" control.
+ */
+/** Shared with the search filter above, so "what you can search for" matches "what the Analysis column shows." */
+function analysisStateLabel(project: ProjectSummary): string {
+  const job = project.latestJob;
+  if (typeof job?.overallScore === "number") return String(job.overallScore);
+  if (job && job.status !== "completed" && job.status !== "failed") return JOB_STAGE_LABELS[job.status];
+  return "Not analyzed";
+}
+
+function ProjectRow({ project }: { project: ProjectSummary }) {
+  const job = project.latestJob;
+  const score = job?.overallScore;
+  const isRunning = Boolean(job && job.status !== "completed" && job.status !== "failed");
+  const assetCount = [project.deliverables.intelligence, project.deliverables.blueprint, project.deliverables.promptPackage].filter(Boolean).length;
+
+  return (
+    <tr className="group relative border-t border-hairline transition-colors hover:bg-raised/40">
+      <td className="px-4 py-3.5">
+        <Link href={`/projects/${project.id}`} className="focus-ring after:absolute after:inset-0">
+          <span className="block truncate text-[14px] font-medium text-ink group-hover:text-iris-soft">{project.name}</span>
+        </Link>
+        {/* OWNER-REVIEW CORRECTION: project.primaryGoal was "Generate leads"
+            on nearly every row (the bulk-import route's hardcoded default,
+            src/app/api/projects/bulk/route.ts) -- identical, non-row-specific
+            noise. Reference count is real, row-specific record context. */}
+        {project.referenceCount > 0 ? (
+          <span className="mt-0.5 block text-[12px] text-faint">
+            {project.referenceCount} reference{project.referenceCount === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </td>
+      <td className="px-4 py-3.5">
+        <span className="font-mono text-[12px] text-faint">{project.primaryUrl ? hostOf(project.primaryUrl) : "No reference yet"}</span>
+      </td>
+      <td className="px-4 py-3.5">
+        <Pill>{project.industry}</Pill>
+      </td>
+      <td className="px-4 py-3.5">
+        {typeof score === "number" ? (
+          <div className="flex items-center gap-2">
+            <span className={cn("font-mono text-[13px] font-semibold tabular-nums", BAND_TEXT_CLASS[scoreBand(score)])}>{score}</span>
+            <ScoreBar score={score} className="w-16" />
+          </div>
+        ) : (
+          <Pill tone={isRunning ? "warn" : "neutral"}>
+            {isRunning ? (
+              <>
+                <span className="h-1.5 w-1.5 animate-pulse-ring rounded-full bg-signal-warn" aria-hidden />
+                {JOB_STAGE_LABELS[job!.status]}
+              </>
+            ) : (
+              "Not analyzed"
+            )}
+          </Pill>
+        )}
+      </td>
+      <td className="px-4 py-3.5">
+        <div className="flex flex-wrap gap-1">
+          {project.deliverables.blueprint ? <Pill tone="iris" className="text-[10.5px]">Blueprint</Pill> : null}
+          {project.deliverables.promptPackage ? <Pill tone="neon" className="text-[10.5px]">Prompts</Pill> : null}
+          {assetCount === 0 ? <span className="text-[12px] text-faint">None yet</span> : null}
+        </div>
+      </td>
+      <td className="px-4 py-3.5 whitespace-nowrap">
+        <span className="text-[12.5px] text-faint">{formatDate(project.updatedAt)}</span>
+      </td>
+    </tr>
   );
 }

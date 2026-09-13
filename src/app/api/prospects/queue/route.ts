@@ -2,6 +2,29 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/access";
 import { sortQueueActions, isActionDueNow } from "@/lib/prospect/queue";
 import { PROSPECT_ACTION_LABELS, type OpportunityLevel, type ProspectActionType, type ActionPriority, type SequenceStepActionMetadata } from "@/lib/prospect/types";
+import { evaluateChannelActivation, type ContactVerificationRecord } from "@/lib/prospect/contact-verification";
+import { describeBriefSummary } from "@/lib/prospect/evidence-readiness";
+
+/**
+ * UI clarity correction -- evidence-display consistency fix. The stored
+ * opportunity_briefs.summary for a "has a website, no audit yet" prospect
+ * is always the literal sentence produced by
+ * lib/prospect/opportunity-brief.ts's hasWebsiteNoAuditBrief() --
+ * regardless of whether a real, approved verified outreach observation
+ * exists for that prospect (migration 041's
+ * prospect_evidence_observations, already the source the Playbook itself
+ * reads via getVerifiedManualObservations()). describeBriefSummary()
+ * detects that EXACT known sentence and swaps in the truthful
+ * verified_observation copy -- a read-time presentation override, never a
+ * rewrite of the persisted brief. See evidence-readiness.ts's file header.
+ *
+ * OWNER-REVIEW CORRECTION: this route now also exposes `hasVerifiedObservation`
+ * and a REAL `verifiedChannel` (derived from evaluateChannelActivation()
+ * against actual prospect_contact_verifications rows, not the looser
+ * `playbookChannel` hint used for routing) so the client can render the
+ * same single, non-contradictory readiness badge Prospect Detail and the
+ * Playbook use.
+ */
 
 /**
  * The P1 Daily Prospecting Queue's data source — GET only, read-only.
@@ -25,6 +48,16 @@ export interface QueueItem {
   dueAt: string | null;
   status: "PENDING" | "SNOOZED";
   evidenceSummary: string | null;
+  /** True when an approved, human-verified outreach observation exists for this prospect (migration 041). */
+  hasVerifiedObservation: boolean;
+  /**
+   * A REAL, verified contact channel for this prospect (evaluateChannelActivation()
+   * against actual prospect_contact_verifications rows) -- distinct from
+   * `playbookChannel` below, which is only a routing hint and may not yet
+   * be confirmed for a CONTACT action. Used only for the evidence-readiness
+   * badge/note, never for routing.
+   */
+  verifiedChannel: "CALL" | "EMAIL" | null;
   /**
    * Home Services Live Outreach Playbook: the channel a CONTACT (unset) or
    * SEQUENCE_STEP (from its own metadata) action is for, plus the
@@ -70,6 +103,8 @@ export async function GET() {
 
   const prospectIds = nonSuppressedRows.map((r) => r.prospect_id);
   const briefByProspectId = new Map<string, { opportunity_level: OpportunityLevel; summary: string }>();
+  const verifiedObservationProspectIds = new Set<string>();
+  const verificationRecordsByProspectId = new Map<string, ContactVerificationRecord[]>();
   if (prospectIds.length > 0) {
     const { data: briefs } = await supabase
       .from("opportunity_briefs")
@@ -78,12 +113,39 @@ export async function GET() {
     for (const b of briefs ?? []) {
       briefByProspectId.set(b.prospect_id as string, { opportunity_level: b.opportunity_level as OpportunityLevel, summary: b.summary as string });
     }
+
+    const { data: observationRows } = await supabase
+      .from("prospect_evidence_observations")
+      .select("prospect_id")
+      .eq("organization_id", organizationId)
+      .in("prospect_id", prospectIds)
+      .in("evidence_state", ["VERIFIED_PRESENT", "VERIFIED_ABSENT"]);
+    for (const row of observationRows ?? []) verifiedObservationProspectIds.add(row.prospect_id as string);
+
+    const { data: verificationRows } = await supabase
+      .from("prospect_contact_verifications")
+      .select("prospect_id, channel, contact_value, is_single_source")
+      .eq("organization_id", organizationId)
+      .in("prospect_id", prospectIds);
+    for (const row of verificationRows ?? []) {
+      const list = verificationRecordsByProspectId.get(row.prospect_id as string) ?? [];
+      list.push({ channel: row.channel as "CALL" | "EMAIL", contactValue: row.contact_value as string, isSingleSource: row.is_single_source as boolean });
+      verificationRecordsByProspectId.set(row.prospect_id as string, list);
+    }
   }
 
   const now = new Date();
   const allItems: QueueItem[] = nonSuppressedRows.map((r) => {
     const prospectJoin = r.prospects as unknown as { business_name: string; industry: string | null; city: string | null; state: string | null } | null;
     const brief = briefByProspectId.get(r.prospect_id as string);
+    const hasVerifiedObservation = verifiedObservationProspectIds.has(r.prospect_id as string);
+    const evidenceSummary = describeBriefSummary(brief?.summary ?? null, hasVerifiedObservation);
+    const records = verificationRecordsByProspectId.get(r.prospect_id as string) ?? [];
+    const verifiedChannel = evaluateChannelActivation(records, "CALL").activatable
+      ? "CALL"
+      : evaluateChannelActivation(records, "EMAIL").activatable
+        ? "EMAIL"
+        : null;
     const actionType = r.action_type as ProspectActionType;
     let playbookChannel: "CALL" | "EMAIL" | null = null;
     let enrollmentId: string | null = null;
@@ -110,7 +172,9 @@ export async function GET() {
       reason: r.reason as string,
       dueAt: r.due_at as string | null,
       status: r.status as "PENDING" | "SNOOZED",
-      evidenceSummary: brief?.summary ?? null,
+      evidenceSummary,
+      hasVerifiedObservation,
+      verifiedChannel,
       playbookChannel,
       enrollmentId
     };

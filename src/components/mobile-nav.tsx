@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, Settings, X } from "lucide-react";
 import { signOut } from "@/app/actions";
 import type { AccessRole } from "@/lib/auth/access";
 import type { NavGroupItem as NavItem } from "@/components/nav-group";
-
-interface SimpleNavItem {
-  href: string;
-  label: string;
-}
+import { cn } from "@/lib/format";
 
 /**
  * The desktop nav (components/shell.tsx TopBar) is `hidden md:flex` with no
@@ -19,19 +16,56 @@ interface SimpleNavItem {
  * checking their portal from a phone. This is the fallback: a hamburger
  * button, `md:hidden`, opening a full list of the same links flattened
  * (no nested dropdowns needed at this width).
+ *
+ * UI clarity correction: regrouped to match the desktop WORK / OUTREACH /
+ * DELIVERY / RESOURCES split (was "Prospector" / "Dashboard" / "More",
+ * which put Samples and Gallery one tap away from Daily Queue). Each link
+ * now also marks the current page (`aria-current="page"` plus a filled
+ * dot), which the mobile menu previously had no equivalent of at all.
  */
+function GroupLabel({ children }: { children: string }) {
+  return <p className="mt-3 px-3 text-[12px] font-semibold uppercase tracking-wider text-faint first:mt-2">{children}</p>;
+}
+
+function MobileNavLink({ item, active, onClose }: { item: NavItem; active: boolean; onClose: () => void }) {
+  return (
+    <Link
+      href={item.href}
+      onClick={onClose}
+      aria-current={active ? "page" : undefined}
+      className={cn("focus-ring flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-raised", active && "bg-raised")}
+    >
+      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border", active ? "border-iris/45 bg-iris/15 text-iris-soft" : "border-iris/25 bg-iris/10 text-iris-soft")}>
+        {item.icon}
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+          {item.label}
+          {active ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-iris" aria-hidden /> : null}
+        </span>
+        <span className="mt-0.5 block text-[12px] leading-snug text-faint">{item.description}</span>
+      </span>
+    </Link>
+  );
+}
+
 export function MobileNav({
   role,
-  prospectorItems,
-  dashboardItems,
-  publicItems
+  workItems,
+  outreachItems,
+  deliveryItems,
+  resourcesItems
 }: {
   role: AccessRole;
-  prospectorItems: NavItem[];
-  dashboardItems: NavItem[];
-  publicItems: SimpleNavItem[];
+  workItems: NavItem[];
+  outreachItems: NavItem[];
+  deliveryItems: NavItem[];
+  resourcesItems: NavItem[];
 }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
+  const close = () => setOpen(false);
 
   return (
     <div className="md:hidden">
@@ -46,63 +80,61 @@ export function MobileNav({
       </button>
 
       {open ? (
-        <div className="absolute inset-x-0 top-full z-50 border-b border-hairline bg-canvas px-4 py-4 shadow-xl">
+        <div className="absolute inset-x-0 top-full z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-hairline bg-canvas px-4 py-4 shadow-xl">
           <nav className="flex flex-col gap-1">
             {role === "admin" ? (
               <>
-                <p className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Prospector</p>
-                {prospectorItems.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-raised">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/25 bg-iris/10 text-iris-soft">{item.icon}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-ink">{item.label}</span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-faint">{item.description}</span>
-                    </span>
-                  </Link>
+                <GroupLabel>Work</GroupLabel>
+                {workItems.map((item) => (
+                  <MobileNavLink key={item.href} item={item} active={isActive(item.href)} onClose={close} />
                 ))}
-                <p className="mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">Dashboard</p>
-                {dashboardItems.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-raised">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/25 bg-iris/10 text-iris-soft">{item.icon}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-ink">{item.label}</span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-faint">{item.description}</span>
-                    </span>
-                  </Link>
+                <GroupLabel>Outreach</GroupLabel>
+                {outreachItems.map((item) => (
+                  <MobileNavLink key={item.href} item={item} active={isActive(item.href)} onClose={close} />
                 ))}
-                <Link href="/settings" onClick={() => setOpen(false)} className="focus-ring mt-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
+                <GroupLabel>Delivery</GroupLabel>
+                {deliveryItems.map((item) => (
+                  <MobileNavLink key={item.href} item={item} active={isActive(item.href)} onClose={close} />
+                ))}
+                <GroupLabel>Resources</GroupLabel>
+                {resourcesItems.map((item) => (
+                  <MobileNavLink key={item.href} item={item} active={isActive(item.href)} onClose={close} />
+                ))}
+                <GroupLabel>System</GroupLabel>
+                <Link
+                  href="/settings"
+                  onClick={close}
+                  aria-current={isActive("/settings") ? "page" : undefined}
+                  className={cn("focus-ring flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink", isActive("/settings") && "bg-raised text-ink")}
+                >
                   <Settings className="h-4 w-4" aria-hidden />
                   Settings
                 </Link>
               </>
             ) : null}
             {role === "partner" ? (
-              <Link href="/partners/portal" onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
+              <Link href="/partners/portal" onClick={close} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
                 My Referrals
               </Link>
             ) : null}
             {role === "beta" ? (
-              <Link href="/trial/portal" onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
+              <Link href="/trial/portal" onClick={close} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
                 My Trials
               </Link>
             ) : null}
-            <p className="mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-faint">More</p>
-            {publicItems.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="focus-ring rounded-lg px-3 py-2.5 text-sm text-muted hover:bg-raised hover:text-ink">
-                {item.label}
-              </Link>
-            ))}
             <div className="mt-3 border-t border-hairline pt-3">
               {role === "guest" ? (
                 <div className="space-y-2">
-                  <Link href="/signup" onClick={() => setOpen(false)} className="focus-ring block rounded-lg bg-iris px-3 py-2.5 text-center text-sm font-semibold text-white">
+                  <Link href="/signup" onClick={close} className="focus-ring block rounded-lg bg-iris px-3 py-2.5 text-center text-sm font-semibold text-white">
                     Get started free
                   </Link>
-                  <Link href="/login" onClick={() => setOpen(false)} className="focus-ring block rounded-lg border border-hairline px-3 py-2.5 text-center text-sm text-muted hover:text-ink">
+                  <Link href="/login" onClick={close} className="focus-ring block rounded-lg border border-hairline px-3 py-2.5 text-center text-sm text-muted hover:text-ink">
                     Sign in
                   </Link>
                 </div>
               ) : (
+                // Sign out is a plain bordered secondary control, deliberately
+                // never styled like a primary workflow action.
                 <form action={signOut}>
                   <button type="submit" className="focus-ring w-full rounded-lg border border-hairline px-3 py-2.5 text-sm text-muted hover:text-ink">
                     Sign out

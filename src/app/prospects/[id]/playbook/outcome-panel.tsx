@@ -197,14 +197,14 @@ export function OutcomePanel({
     return (
       <div>
         <p className="text-[12.5px] font-medium text-ink">What actually happened?</p>
-        <p className="mt-1 text-[11.5px] text-faint">Select the one real outcome — this determines what gets recorded. &ldquo;Gatekeeper only&rdquo; and &ldquo;Spoke with decision-maker&rdquo; ask a follow-up question rather than recording anything by themselves.</p>
+        <p className="mt-1 text-[13px] text-faint">Select the one real outcome — this determines what gets recorded. &ldquo;Gatekeeper only&rdquo; and &ldquo;Spoke with decision-maker&rdquo; ask a follow-up question rather than recording anything by themselves.</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {CONVERSATION_BRANCHES.map((b) => (
             <button
               key={b.key}
               type="button"
               onClick={() => setSelection({ type: "branch", key: b.key })}
-              className="focus-ring rounded-full border border-signal-warn/30 bg-signal-warn/5 px-3 py-1.5 text-[11.5px] text-signal-warn hover:border-signal-warn/50"
+              className="focus-ring rounded-full border border-signal-warn/30 bg-signal-warn/5 px-3 py-1.5 text-[13px] text-signal-warn hover:border-signal-warn/50"
             >
               {b.label} →
             </button>
@@ -214,7 +214,7 @@ export function OutcomePanel({
               key={o.key}
               type="button"
               onClick={() => setSelection({ type: "outcome", key: o.key })}
-              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[11.5px] text-muted hover:border-iris/40 hover:text-ink"
+              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[13px] text-muted hover:border-iris/40 hover:text-ink"
             >
               {o.label}
             </button>
@@ -244,18 +244,18 @@ export function OutcomePanel({
     const reachable = PLAYBOOK_OUTCOMES.filter((o) => selectedBranch.reachableOutcomes?.includes(o.key));
     return (
       <div>
-        <button type="button" onClick={reset} className="focus-ring text-[11.5px] text-iris-soft hover:underline">
+        <button type="button" onClick={reset} className="focus-ring text-[13px] text-iris-soft hover:underline">
           ← Choose a different branch
         </button>
         <p className="mt-3 text-[12.5px] font-medium text-ink">{selectedBranch.label} — what was the real result?</p>
-        <p className="mt-1 text-[11.5px] text-faint">A branch is never itself a recorded outcome — pick the one thing that actually happened.</p>
+        <p className="mt-1 text-[13px] text-faint">A branch is never itself a recorded outcome — pick the one thing that actually happened.</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {reachable.map((o) => (
             <button
               key={o.key}
               type="button"
               onClick={() => setSelection({ type: "outcome", key: o.key })}
-              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[11.5px] text-muted hover:border-iris/40 hover:text-ink"
+              className="focus-ring rounded-full border border-hairline bg-raised px-3 py-1.5 text-[13px] text-muted hover:border-iris/40 hover:text-ink"
             >
               {o.label}
             </button>
@@ -291,7 +291,7 @@ export function OutcomePanel({
       <button
         type="button"
         onClick={() => setSelection(selectedBranch ? selection : null)}
-        className="focus-ring text-[11.5px] text-iris-soft hover:underline"
+        className="focus-ring text-[13px] text-iris-soft hover:underline"
       >
         ← Choose a different outcome
       </button>
@@ -300,7 +300,7 @@ export function OutcomePanel({
         <p className="text-[12.5px] font-semibold text-ink">{label}</p>
 
         {!isOptOut ? (
-          <div className="mt-2 rounded-lg border border-hairline bg-canvas/60 px-2.5 py-2 text-[11px] leading-relaxed text-faint">
+          <div className="mt-2 rounded-lg border border-hairline bg-canvas/60 px-2.5 py-2 text-[13px] leading-relaxed text-faint">
             Stored as: <span className="font-mono text-ink">{mapping.value}</span> — exact, truthful match.
             {isCallback ? " This creates a real, due-dated \"Callback\" action that will appear in Daily Queue exactly when it comes due." : null}
             {isInfoRequest ? " This creates a real, immediately-actionable \"Send information\" action — it stays pending until you explicitly mark it sent." : null}
@@ -310,17 +310,17 @@ export function OutcomePanel({
         {isCallback ? (
           <div className="mt-2 space-y-2 rounded-lg border border-iris/25 bg-iris/5 p-3">
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-faint">
+              <label className="text-[13px] text-faint">
                 Date
                 <input type="date" value={callbackDate} onChange={(e) => setCallbackDate(e.target.value)} className="focus-ring mt-1 w-full rounded-lg border border-hairline bg-surface px-2 py-1.5 text-[12px] text-ink" />
               </label>
-              <label className="text-[11px] text-faint">
+              <label className="text-[13px] text-faint">
                 Time
                 <input type="time" value={callbackTime} onChange={(e) => setCallbackTime(e.target.value)} className="focus-ring mt-1 w-full rounded-lg border border-hairline bg-surface px-2 py-1.5 text-[12px] text-ink" />
               </label>
             </div>
-            <p className="text-[10.5px] text-faint">Timezone: {browserTimezone || "unknown — please also state it in the purpose note"}</p>
-            <label className="block text-[11px] text-faint">
+            <p className="text-[12.5px] text-faint">Timezone: {browserTimezone || "unknown — please also state it in the purpose note"}</p>
+            <label className="block text-[13px] text-faint">
               Callback purpose (required)
               <input
                 value={callbackPurpose}
@@ -330,7 +330,7 @@ export function OutcomePanel({
               />
             </label>
             {callbackDueAtPreview && !isNaN(callbackDueAtPreview.getTime()) ? (
-              <p className="text-[11px] text-signal-good">
+              <p className="text-[13px] text-signal-good">
                 Resulting action: <span className="font-medium text-ink">Callback</span> due {callbackDueAtPreview.toLocaleString()} — will appear in Daily Queue exactly then.
               </p>
             ) : null}
@@ -339,7 +339,7 @@ export function OutcomePanel({
 
         {isInfoRequest ? (
           <div className="mt-2 space-y-2 rounded-lg border border-iris/25 bg-iris/5 p-3">
-            <label className="block text-[11px] text-faint">
+            <label className="block text-[13px] text-faint">
               What information was requested (required)
               <input
                 value={requestedInfo}
@@ -348,10 +348,10 @@ export function OutcomePanel({
                 className="focus-ring mt-1 w-full rounded-lg border border-hairline bg-surface px-2 py-1.5 text-[12px] text-ink"
               />
             </label>
-            <p className="text-[11px] text-faint">
+            <p className="text-[13px] text-faint">
               Verified delivery channel: <span className="font-medium text-ink">{channel}</span>
             </p>
-            <label className="block text-[11px] text-faint">
+            <label className="block text-[13px] text-faint">
               Promised timing (optional)
               <input
                 value={promisedTiming}
@@ -361,7 +361,7 @@ export function OutcomePanel({
               />
             </label>
             {requestedInfo.trim() ? (
-              <p className="text-[11px] text-signal-good">
+              <p className="text-[13px] text-signal-good">
                 Resulting action: <span className="font-medium text-ink">Send information</span> via {channel} — pending until you mark it sent yourself.
               </p>
             ) : null}
@@ -384,7 +384,7 @@ export function OutcomePanel({
         />
 
         {followUpRequired && !isCallback ? (
-          <label className="mt-2 block text-[11px] text-faint">
+          <label className="mt-2 block text-[13px] text-faint">
             Follow-up (required for this outcome)
             <select value={followUpOption} onChange={(e) => setFollowUpOption(e.target.value)} className="focus-ring mt-1 w-full rounded-lg border border-hairline bg-surface px-2 py-1.5 text-[12px] text-ink">
               <option value="">Choose a follow-up date</option>
@@ -395,7 +395,7 @@ export function OutcomePanel({
           </label>
         ) : null}
 
-        <div className="mt-3 space-y-1 rounded-lg border border-hairline bg-canvas/70 p-3 text-[11.5px] leading-relaxed text-muted">
+        <div className="mt-3 space-y-1 rounded-lg border border-hairline bg-canvas/70 p-3 text-[13px] leading-relaxed text-muted">
           <p className="font-medium text-ink">Before you save:</p>
           <p>• The underlying action will be marked performed: yes.</p>
           <p>
@@ -414,7 +414,7 @@ export function OutcomePanel({
         </div>
 
         {isOptOut ? (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-signal-bad/30 bg-signal-bad/10 p-2.5 text-[11.5px] text-signal-bad">
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-signal-bad/30 bg-signal-bad/10 p-2.5 text-[13px] text-signal-bad">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>This uses the canonical Suppress Prospect action — the prospect will be permanently excluded from future outreach until explicitly unsuppressed.</span>
           </div>
@@ -432,7 +432,7 @@ export function OutcomePanel({
               Preview & Confirm
             </button>
             {!canConfirm ? (
-              <p id="outcome-confirm-reason" className="mt-1.5 text-[11px] text-signal-warn">
+              <p id="outcome-confirm-reason" className="mt-1.5 text-[13px] text-signal-warn">
                 {isCallback && !callbackFieldsValid
                   ? "Date, time, and a callback purpose are all required."
                   : isInfoRequest && !infoFieldsValid
@@ -469,7 +469,7 @@ export function OutcomePanel({
                 {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
                 Confirm & Save
               </button>
-              <button type="button" onClick={() => setConfirming(false)} disabled={pending} className="focus-ring text-[11.5px] text-faint hover:text-muted">
+              <button type="button" onClick={() => setConfirming(false)} disabled={pending} className="focus-ring text-[13px] text-faint hover:text-muted">
                 Back
               </button>
             </div>
@@ -511,11 +511,11 @@ function OperationalBranch({
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   return (
     <div>
-      <button type="button" onClick={onBack} className="focus-ring text-[11.5px] text-iris-soft hover:underline">
+      <button type="button" onClick={onBack} className="focus-ring text-[13px] text-iris-soft hover:underline">
         ← Choose a different outcome
       </button>
       <p className="mt-3 text-[12.5px] font-medium text-ink">{label}</p>
-      <div className="mt-2 rounded-lg border border-hairline bg-canvas/60 p-3 text-[11.5px] leading-relaxed text-muted">
+      <div className="mt-2 rounded-lg border border-hairline bg-canvas/60 p-3 text-[13px] leading-relaxed text-muted">
         <p className="font-medium text-ink">What will be recorded:</p>
         <p>• A structured operational event — never classified as not interested, no answer, engagement, or conversion.</p>
         <p>• The affected channel ({label.includes("Number") || label.includes("disputed") ? "the number/contact in question" : "this channel"}) becomes unavailable in the Playbook until reverified — other verified channels are untouched.</p>
@@ -570,7 +570,7 @@ function OperationalBranch({
         </div>
       ) : (
         <div className="mt-3">
-          <p className="text-[11.5px] text-faint">No specific queue action is attached to this session — there&rsquo;s nothing to skip or snooze, but the event itself can still be recorded.</p>
+          <p className="text-[13px] text-faint">No specific queue action is attached to this session — there&rsquo;s nothing to skip or snooze, but the event itself can still be recorded.</p>
           <button
             type="button"
             disabled={pending}
