@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui";
 import { NavGroup, type NavGroupItem } from "@/components/nav-group";
 import { MobileNav } from "@/components/mobile-nav";
+import { PublicNav } from "@/components/public-nav";
 import { signOut } from "@/app/actions";
 import { cn } from "@/lib/format";
 import type { AccessRole } from "@/lib/auth/access";
@@ -180,36 +181,40 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
       <div className={cn("relative mx-auto flex h-16 items-center gap-6 px-6", contentWidth)}>
         <Logo />
-        <nav className="hidden items-center gap-1 md:flex">
-          {role === "admin" ? (
-            <>
-              <NavGroup label="Work" items={WORK_ITEMS} />
-              <NavGroup label="Outreach" items={OUTREACH_ITEMS} />
-              <NavGroup label="Delivery" items={DELIVERY_ITEMS} />
-              {/* Deliberately last and unstyled-different from the others in
-                  every way except position -- still a full NavGroup (current-
-                  page indication included), just never first in reading
-                  order, so it can't visually compete with Work/Outreach. */}
-              <NavGroup label="Resources" items={RESOURCES_ITEMS} />
-            </>
-          ) : null}
-          {role === "partner" ? (
-            <Link
-              href="/partners/portal"
-              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              My Referrals
-            </Link>
-          ) : null}
-          {role === "beta" ? (
-            <Link
-              href="/trial/portal"
-              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              My Trials
-            </Link>
-          ) : null}
-        </nav>
+        {role === "guest" ? (
+          <PublicNav />
+        ) : (
+          <nav className="hidden items-center gap-1 md:flex">
+            {role === "admin" ? (
+              <>
+                <NavGroup label="Work" items={WORK_ITEMS} />
+                <NavGroup label="Outreach" items={OUTREACH_ITEMS} />
+                <NavGroup label="Delivery" items={DELIVERY_ITEMS} />
+                {/* Deliberately last and unstyled-different from the others in
+                    every way except position -- still a full NavGroup (current-
+                    page indication included), just never first in reading
+                    order, so it can't visually compete with Work/Outreach. */}
+                <NavGroup label="Resources" items={RESOURCES_ITEMS} />
+              </>
+            ) : null}
+            {role === "partner" ? (
+              <Link
+                href="/partners/portal"
+                className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                My Referrals
+              </Link>
+            ) : null}
+            {role === "beta" ? (
+              <Link
+                href="/trial/portal"
+                className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                My Trials
+              </Link>
+            ) : null}
+          </nav>
+        )}
         <div className="ml-auto flex items-center gap-3">
           <MobileNav role={role} workItems={WORK_ITEMS} outreachItems={OUTREACH_ITEMS} deliveryItems={DELIVERY_ITEMS} resourcesItems={RESOURCES_ITEMS} />
           {role === "admin" ? (
@@ -239,7 +244,7 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
               >
                 Sign in
               </Link>
-              <Button href="/signup">Get started free</Button>
+              <Button href="/signup">Start Free</Button>
             </>
           ) : (
             <form action={signOut}>
@@ -257,17 +262,52 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
   );
 }
 
+/**
+ * Public SaaS Impeccable rebuild (Phase 4L): replaces the previous
+ * "Website intelligence, blueprints, and build-ready prompt packages" tagline
+ * (stale wording from a prior positioning) and the isolated "SimpleOS ·
+ * WebGenie AI" mark (SimpleOS is never explained to a customer anywhere in
+ * this app, so an unexplained second brand name in the footer reads as a
+ * mistake) with an honest one-line description, the four real destinations
+ * a visitor can reach from here, and a correct copyright line naming the
+ * actual operating relationship (WebGenie AI is a product of VibeLabs
+ * Agency). No Privacy/Terms links -- neither route exists yet, and this
+ * phase does not fabricate one.
+ */
+const FOOTER_LINKS = [
+  { href: "/#product", label: "Product" },
+  { href: "/gallery", label: "Examples" },
+  { href: "/login", label: "Account" },
+  { href: "/support", label: "Support" },
+] as const;
+
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-6 py-8">
-        <div className="flex items-center gap-3">
-          <Logo compact />
-          <span className="text-xs text-faint">
-            Website intelligence, blueprints, and build-ready prompt packages.
-          </span>
+      <div className="mx-auto max-w-[1400px] px-6 py-12">
+        <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-sm">
+            <Logo compact />
+            <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+              The client-acquisition workspace for agencies — find the right prospects, verify the
+              opportunity, and prepare the work before you ever pick up the phone.
+            </p>
+          </div>
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3">
+            {FOOTER_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="focus-ring rounded text-[13.5px] text-muted transition-colors hover:text-ink"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
         </div>
-        <span className="font-mono text-[11px] text-faint">SimpleOS · WebGenie AI</span>
+        <div className="mt-10 border-t border-hairline pt-6 text-[12px] text-faint">
+          © {new Date().getFullYear()} VibeLabs Agency. WebGenie AI is built and operated by VibeLabs Agency.
+        </div>
       </div>
     </footer>
   );
