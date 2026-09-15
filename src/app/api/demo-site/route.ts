@@ -2,8 +2,6 @@ import { generateSite } from "@/lib/sitegen/generate";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { GALLERY_INDUSTRIES } from "@/lib/sitegen/gallery-industries";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isKnownSampleBusiness } from "@/lib/sitegen/samples";
-import { getAccessContext } from "@/lib/auth/access";
 import type { Business, SiteBranding } from "@/lib/sitegen/types";
 
 /**
@@ -21,21 +19,23 @@ import type { Business, SiteBranding } from "@/lib/sitegen/types";
  *
  * `?download=1` returns it as a file attachment instead of rendering.
  *
- * PUBLIC EXAMPLES AUTH GATE (owner-directed correction): this same route
- * also renders every REAL prospect/client demo link (Finder, onboarding,
- * project creation -- see those callers of demoSiteUrl()) and those must
- * stay reachable with zero authentication, unchanged -- that's the whole
- * point of a cold-outreach demo link a prospect who has never heard of
- * WebGenie can open. The only businesses that now require a real WebGenie
- * session are the 14 curated illustrative fixtures in
- * lib/sitegen/samples.ts's SAMPLE_BUSINESSES, detected by
- * isKnownSampleBusiness() -- a full server-side field match against that
- * module's own hardcoded array, never the caller-supplied `?sample=1`
- * query flag or any single field of the decoded business (see that
- * function's own header for why an isolated client-asserted field would
- * be unsound). Everything else about this route -- org branding lookup,
- * `?badge=`, `?download=1`, the `isSample` cosmetic flag passed into
- * generateSite() -- is unchanged.
+ * PUBLIC EXAMPLES AUTH GATE (owner-directed correction, FINAL pass): this
+ * route stays exactly what it always was -- Motion A's real prospect/
+ * client demo-link renderer (Finder, onboarding, project creation -- see
+ * those callers of demoSiteUrl()), reachable with zero authentication by
+ * design, since a prospect who has never heard of WebGenie must be able
+ * to open their own cold-outreach demo link. An earlier pass tried to
+ * gate this same route for the curated SAMPLE_BUSINESSES fixtures by
+ * classifying the decoded `b=` payload (isKnownSampleBusiness(), a full
+ * field-match against the fixture array). The owner correctly rejected
+ * that: a minimally altered sample payload (any single field off by one
+ * character) fails classification and silently falls through to this
+ * route's normal unauthenticated behavior -- a real bypass, not a
+ * hardening. Sample authorization now lives entirely in the dedicated
+ * /api/sample-preview route (resolves the canonical business server-side
+ * from SAMPLE_BUSINESSES by id, never from client-supplied JSON) --
+ * see that route's own header. This file has no sample-related logic at
+ * all anymore, on purpose.
  */
 
 function decode(param: string): Business | null {
@@ -59,14 +59,6 @@ export async function GET(request: Request) {
   const business = decode(param);
   if (!business) {
     return new Response("Invalid or malformed business data.", { status: 400 });
-  }
-
-  if (isKnownSampleBusiness(business)) {
-    const { user } = await getAccessContext();
-    if (!user) {
-      const returnTo = encodeURIComponent(`${url.pathname}${url.search}`);
-      return Response.redirect(new URL(`/login?returnTo=${returnTo}`, request.url), 302);
-    }
   }
 
   const organizationId = url.searchParams.get("org") ?? undefined;

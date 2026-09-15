@@ -4,7 +4,6 @@ import { ArrowRight, Lock } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, SectionHeading } from "@/components/ui";
 import { industryLabel } from "@/lib/sitegen/industry-lookup";
-import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { getAccessContext } from "@/lib/auth/access";
 import type { Business } from "@/lib/sitegen/types";
@@ -32,23 +31,28 @@ export const dynamic = "force-dynamic";
  * "View full demo" still opens the real, live, fully-interactive site --
  * as a full top-level page navigation, never an embedded iframe here.
  *
- * PUBLIC EXAMPLES AUTH GATE (owner-directed correction): "View full demo"
- * now only renders for a signed-in visitor. A logged-out visitor sees the
- * same static thumbnail plus a compact "Full demo available after
- * sign-in" label -- no link, no button, nothing to click per card (avoids
- * the visual noise of a disabled button on all 14 cards) -- and one
- * section-level sign-in CTA does the actual work. This is a client-side
- * convenience only: the real enforcement is server-side in
- * /api/demo-site/route.ts (isKnownSampleBusiness()), which is what
- * actually stops a logged-out visitor who types or bookmarks the demo URL
- * directly, not this page's rendering choice.
+ * PUBLIC EXAMPLES AUTH GATE (owner-directed correction, FINAL pass):
+ * "View full demo" now only renders for a signed-in visitor, and links to
+ * the dedicated /api/sample-preview?id=<canonical-id> route -- never
+ * /api/demo-site?b=<serialized business JSON>. No full serialized
+ * sample-business payload is embedded in this page at all anymore (an
+ * earlier version did, and its server-side classification of that
+ * payload was the very thing the owner correctly rejected as bypassable).
+ * A logged-out visitor sees the same static thumbnail plus a compact
+ * "Full demo available after sign-in" label -- no link, no button,
+ * nothing to click per card (avoids the visual noise of a disabled
+ * button on all 14 cards) -- and one section-level sign-in CTA does the
+ * actual work. This is a client-side convenience only: the real
+ * enforcement is server-side in api/sample-preview/route.ts, which is
+ * what actually stops a logged-out visitor who types or bookmarks the
+ * preview URL directly, not this page's rendering choice.
  */
 const FEATURED_IDS = ["sample-plumber", "sample-hvac", "sample-electrician", "sample-roofer", "sample-dentist", "sample-med_spa"];
 const FEATURED = FEATURED_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
 const REST = SAMPLE_BUSINESSES.filter((b) => !FEATURED_IDS.includes(b.id));
 
 function SampleThumbnail({ business, isAuthenticated }: { business: Business; isAuthenticated: boolean }) {
-  const url = demoSiteUrl(business, { by: "WebGenie AI", sample: true });
+  const url = `/api/sample-preview?id=${encodeURIComponent(business.id)}`;
   const label = industryLabel(business.industry);
   const shortId = business.id.replace("sample-", "");
   return (

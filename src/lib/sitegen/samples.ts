@@ -33,38 +33,24 @@ export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenInd
 
 /**
  * Public Examples auth gate (WEBGENIE PUBLIC EXAMPLES — AUTHENTICATED
- * FULL-VIEW GATE): whether a decoded `Business` (from /api/demo-site's `b=`
- * param) IS one of these 14 known illustrative fixtures -- checked by deep
- * field comparison against this module's own hardcoded array, never by
- * trusting a single client-asserted field.
- *
- * This deliberately does NOT check `business.source === "sample"` or
- * `business.id.startsWith("sample-")` alone -- see this file's own header
- * comment above for why an isolated field from an unauthenticated,
- * caller-supplied JSON payload is unsound as a security signal (the same
- * lesson already learned and documented for /api/site-lead and
- * /api/site-chat). A full match against every field of a real, known
- * fixture is safe in both directions: a caller who submits data that
- * exactly reproduces one of our own 14 samples already has nothing to
- * gain by it, and no real prospect's data can coincidentally collide with
- * all of a fixture's fields at once.
+ * FULL-VIEW GATE, FINAL pass): an earlier version of this correction
+ * added an `isKnownSampleBusiness()` classifier here -- a full field
+ * match against this array, used by /api/demo-site to decide whether an
+ * unauthenticated request should be allowed through. The owner correctly
+ * rejected that approach: classifying a client-supplied payload, no
+ * matter how strict the match, still has a payload the classifier
+ * doesn't recognize as its failure mode -- a single altered field (a
+ * typo'd rating, a re-ordered field that still round-trips through
+ * JSON.parse identically, or simply a caller who never bothers copying
+ * every field) makes the request fail classification and fall straight
+ * through to /api/demo-site's normal unauthenticated rendering. That is
+ * a bypass, not a hardening. Sample authorization now lives entirely in
+ * the dedicated /api/sample-preview route: it takes only a canonical
+ * `id`, resolves the complete business from THIS array server-side, and
+ * never decodes or trusts any client-supplied business JSON at all --
+ * see that route's own header for the full design. This file goes back
+ * to being pure fixture data, nothing else.
  */
-export function isKnownSampleBusiness(b: Partial<Business> | null | undefined): boolean {
-  if (!b) return false;
-  return SAMPLE_BUSINESSES.some(
-    (sample) =>
-      sample.id === b.id &&
-      sample.name === b.name &&
-      sample.industry === b.industry &&
-      sample.city === b.city &&
-      sample.state === b.state &&
-      sample.phone === b.phone &&
-      sample.address === b.address &&
-      sample.rating === b.rating &&
-      sample.reviewCount === b.reviewCount &&
-      sample.source === b.source
-  );
-}
 
 /**
  * Sample-site safety note: an earlier version of this fix exported a
