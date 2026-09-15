@@ -204,8 +204,18 @@ const NAME_NOISE_WORDS = new Set([
  * actually round-the-clock, which is the distinction the "no 24/7 coverage"
  * pitch point depends on.
  */
-export function isOpen24Hours(weekdayDescriptions?: string[]): boolean {
-  if (!weekdayDescriptions || weekdayDescriptions.length < 7) return false;
+/**
+ * Three-state, not two: `undefined` means "no real hours data to judge from"
+ * -- genuinely unknown, never coerced into "confirmed not 24/7" the way this
+ * function used to (Finder website-preview signals master prompt, Phase 4:
+ * "Fix the existing hours interpretation so missing business hours return
+ * Unknown, not false"). `Business.open24Hours` is already typed optional
+ * (`open24Hours?: boolean`) specifically so this three-state result has
+ * somewhere truthful to live on the wire -- both call sites already just
+ * assign this return value directly, no caller-side change needed.
+ */
+export function isOpen24Hours(weekdayDescriptions?: string[]): boolean | undefined {
+  if (!weekdayDescriptions || weekdayDescriptions.length < 7) return undefined;
   return weekdayDescriptions.every((d) => /open 24 hours/i.test(d));
 }
 

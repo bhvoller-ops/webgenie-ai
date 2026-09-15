@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { JSDOM } from "jsdom";
 import type { CaptureProvider, CaptureRequest, CaptureResult } from "./types";
-import { validatePublicUrl } from "@/lib/security/url-validation";
+import { validatePublicUrl, CAPTURE_MAX_RESPONSE_BYTES, CAPTURE_MAX_REDIRECTS } from "@/lib/security/url-validation";
 
 // Hotfix (2026-09-11, docs/history.md): literal title/text signatures for
 // the bot-detection interstitials real captures have actually returned in
@@ -49,23 +49,57 @@ export class PlaywrightCaptureProvider implements CaptureProvider {
           "Mozilla/5.0 (compatible; WebGenieBot/1.0; +https://webgenie.ai)"
       });
 
+      const page = await context.newPage();
+
+      // Finder website-preview hardening: main-frame navigations count as
+      // redirect hops (Playwright's route interceptor sees each hop of a
+      // server-side redirect chain as its own request against the same
+      // frame) -- capped independently of the browser's own much looser
+      // default, so a redirect loop or an unusually long chain fails fast
+      // and safely rather than eventually timing out.
+      let mainFrameNavigations = 0;
+      let responseTooLarge = false;
+
       await context.route("**/*", async (route) => {
-        const requestUrl = route.request().url();
+        const req = route.request();
+        const requestUrl = req.url();
 
         if (/^(data|blob|about):/i.test(requestUrl)) {
           await route.continue();
           return;
         }
 
+        if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
+          mainFrameNavigations += 1;
+          if (mainFrameNavigations > CAPTURE_MAX_REDIRECTS + 1) {
+            await route.abort("blockedbyclient");
+            return;
+          }
+        }
+
         try {
           await validatePublicUrl(requestUrl);
-          await route.continue();
         } catch {
           await route.abort("blockedbyclient");
+          return;
         }
+
+        await route.continue().catch(() => {
+          // Route already handled/aborted by a concurrent handler -- ignore.
+        });
       });
 
-      const page = await context.newPage();
+      // Response-size bound: inspected via the real, already-arrived
+      // response headers (a route handler can't see these before deciding
+      // whether to continue) -- a server that omits Content-Length isn't
+      // caught here, but every response that DOES declare one over the
+      // limit flags the whole capture, checked below before the result is
+      // ever treated as usable.
+      page.on("response", (res) => {
+        const len = res.headers()["content-length"];
+        if (len && Number(len) > CAPTURE_MAX_RESPONSE_BYTES) responseTooLarge = true;
+      });
+
       const response = await page.goto(validated.normalizedUrl, {
         waitUntil: "domcontentloaded",
         timeout: timeoutMs
@@ -109,7 +143,8 @@ export class PlaywrightCaptureProvider implements CaptureProvider {
         language,
         screenshotBuffer,
         capturedAt: new Date().toISOString(),
-        likelyBlocked: looksLikeBotChallenge(title, wordCount, statusCode)
+        likelyBlocked: looksLikeBotChallenge(title, wordCount, statusCode),
+        responseTooLarge
       };
     } finally {
       await browser.close();
