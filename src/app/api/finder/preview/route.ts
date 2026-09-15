@@ -16,6 +16,14 @@ import { peekPreview, generatePreview } from "@/lib/prospect/finder-preview-capt
  * capture). POST generates on demand, once, with the storage-lock guard in
  * finder-preview-capture.ts preventing a concurrent duplicate for the same
  * (organization, url).
+ *
+ * requireAdminApi() here does exactly two jobs: reject an unauthenticated
+ * caller (401, before anything else runs) and resolve the real
+ * organizationId server-side. Its own `supabase` (a session-scoped client)
+ * is deliberately never passed down to finder-preview-capture.ts --
+ * storage access below is admin-client-mediated internally, or resolved
+ * (see finder-preview-storage.ts's own header for why the existing
+ * website-captures bucket's RLS doesn't cover this path shape).
  */
 const bodySchema = z.object({
   url: z.string().min(1).max(2048),
@@ -27,7 +35,7 @@ const bodySchema = z.object({
 export async function GET(request: Request) {
   const { ctx, response } = await requireAdminApi();
   if (response) return response;
-  const { supabase, organizationId } = ctx;
+  const { organizationId } = ctx;
 
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
@@ -36,7 +44,7 @@ export async function GET(request: Request) {
   const open24HoursParam = searchParams.get("open24Hours");
   const hasCompletedAuditParam = searchParams.get("hasCompletedAudit");
 
-  const result = await peekPreview(supabase, {
+  const result = await peekPreview({
     organizationId,
     rawUrl: url,
     open24Hours: open24HoursParam === "true" ? true : open24HoursParam === "false" ? false : undefined,
@@ -48,12 +56,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { ctx, response } = await requireAdminApi();
   if (response) return response;
-  const { supabase, organizationId } = ctx;
+  const { organizationId } = ctx;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const result = await generatePreview(supabase, {
+  const result = await generatePreview({
     organizationId,
     rawUrl: parsed.data.url,
     open24Hours: parsed.data.open24Hours,

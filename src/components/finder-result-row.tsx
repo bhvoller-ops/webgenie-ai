@@ -137,7 +137,20 @@ function PreviewPane({
       <div className="flex flex-col gap-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-faint">Current website preview</p>
         <div className="overflow-hidden rounded-lg border border-hairline bg-canvas">
-          {/* Real, already-cropped/optimized capture -- plain img, not next/image, since the source is a short-lived signed URL, not a static asset. */}
+          {/*
+            Deliberate plain <img>, not next/image (P0 owner-review correction).
+            state.signedImageUrl is a short-lived (5 min) Supabase Storage
+            signed URL -- its host is our own project's storage domain, but
+            next/image's optimizer would still require adding that host to
+            next.config's images.remotePatterns, broadening the app's remote-
+            image allowlist repo-wide for the sake of one already-optimized,
+            already-cropped screenshot next/image would gain nothing
+            re-processing. A narrowly scoped suppression on this exact
+            element is the safer trade: the allowlist stays as narrow as it
+            is today, and this is the only place in the codebase that opts
+            out, not a repo-wide rule change.
+          */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={state.signedImageUrl} alt="Screenshot of the business's current website homepage, as last captured" className="aspect-[4/3] w-full object-cover object-top" />
         </div>
         <p className="text-[10px] text-faint">

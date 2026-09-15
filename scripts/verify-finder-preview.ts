@@ -96,7 +96,7 @@ async function main() {
     const routeSrc = src("src/app/api/finder/preview/route.ts");
     check("GET calls requireAdminApi() before anything else", /export async function GET[\s\S]{0,120}requireAdminApi\(\)/.test(routeSrc));
     check("POST calls requireAdminApi() before anything else", /export async function POST[\s\S]{0,120}requireAdminApi\(\)/.test(routeSrc));
-    check("organizationId comes only from ctx (requireAdminApi's own session-derived context), never from the request body schema", !/organizationId.*z\.string/.test(routeSrc) && /const \{ supabase, organizationId \} = ctx/.test(routeSrc));
+    check("organizationId comes only from ctx (requireAdminApi's own session-derived context), never from the request body schema", !/organizationId.*z\.string/.test(routeSrc) && /const \{ organizationId \} = ctx/.test(routeSrc));
   }
 
   console.log("\n7. Cross-tenant preview access is rejected (storage-path design; a real cross-org fetch is exercised for real once a disposable test project is available, same split as every other tenant-isolation check in this repo)");
