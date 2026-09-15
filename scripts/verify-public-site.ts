@@ -416,12 +416,21 @@ console.log("\n17. Owner-review finding -- real, sanitized product screenshots r
     return !/<RedactedScreenshotCaption/.test(finderBlock);
   })());
   check("Prospect Detail is never used anywhere on the public page (rejected by the owner even after redaction)", !/prospect-detail/i.test(pageSrc3));
-  // Composition pass: the illustrative Website Health score moved from a
-  // full-size ScoreRing product-proof card to a small ScoreBar supporting
-  // element inside the Verify workflow phase, specifically so it can't
-  // visually compete with the real screenshots -- still labeled exactly
-  // "Illustrative workflow", never "Illustrative example".
-  check("the one remaining constructed (non-screenshot) representation -- the illustrative Website Health score -- is a compact ScoreBar labeled exactly \"Illustrative workflow\", not a full-size ScoreRing", /<ScoreBar score=\{46\}/.test(pageSrc3) && /Illustrative workflow/.test(pageSrc3) && !/<ScoreRing/.test(pageSrc3));
+  // PR #32 owner correction: the illustrative Website Health score --
+  // previously a full-size ScoreRing product-proof card, then downsized to
+  // a small ScoreBar inside the Verify workflow phase -- is now removed
+  // from the page entirely, with no replacement illustration, score, or
+  // decorative card. Verify stays concise and text-based like every other
+  // phase.
+  check(
+    "no constructed (non-screenshot) score/progress visual remains anywhere on the page -- no ScoreBar, no ScoreRing, no 'Illustrative workflow' label",
+    !/<ScoreBar/.test(pageSrc3) && !/<ScoreRing/.test(pageSrc3) && !/Illustrative workflow/.test(pageSrc3) && !/score-ring/.test(pageSrc3)
+  );
+  check("the Verify phase card has no supporting visual element at all -- just its own icon, title and body, like Find/Prepare/Act", (() => {
+    const verifyIdx = pageSrc3.indexOf('title: "Verify"');
+    const verifyBlock = pageSrc3.slice(pageSrc3.indexOf("function ProductWorkflow"), pageSrc3.indexOf("function ProductProof"));
+    return verifyIdx > -1 && !/mt-auto rounded-lg border border-hairline bg-canvas/.test(verifyBlock);
+  })());
   check("ProductScreenshot renders next/image with explicit width+height (the source file's own intrinsic pixels, so it scales responsively without stretching or cropping)", /function ProductScreenshot\(/.test(pageSrc3) && /width=\{1200\}|width=\{1400\}/.test(pageSrc3) && /height=\{633\}|height=\{708\}|height=\{827\}/.test(pageSrc3));
 
   check("all 3 approved product-proof images exist on disk", ["finder.jpg", "daily-queue.jpg", "playbook.jpg"].every((f) => fs.existsSync(path.join(__dirname, "..", "public", "product-proof", f))));
@@ -449,7 +458,11 @@ console.log("\n18. Owner-review finding -- final composition pass (page length, 
 
   check("the standalone TrustStrip section is gone (its claims were pure repetition of the hero's own trailing line and the FAQ)", !/function TrustStrip\(/.test(s4));
   check("the standalone WhoItsFor section is gone; its two audiences are folded into CoreProblem's own paragraph instead", !/function WhoItsFor\(/.test(s4) && !/id="who-its-for"/.test(s4) && /just starting an agency or already running one/.test(s4));
-  check("CoreProblem is tightened to one headline, one paragraph, three failure points, and one transition sentence into the workflow", /Good work isn&apos;t the hard part\. Finding who to do it for is\./.test(s4) && /replaces the guessing with one connected process/.test(s4));
+  // PR #32 owner correction: restore the exact required title, verbatim.
+  check(
+    "CoreProblem is tightened to one headline, one paragraph, three failure points, and one transition sentence into the workflow, using the owner's exact required title",
+    /Starting an agency is easy\. Finding clients is the hard part\./.test(s4) && /replaces the guessing with one connected process/.test(s4)
+  );
 
   check("the workflow is four marketing phases (Find/Verify/Prepare/Act), not the old six (Find/Verify/Prepare/Contact/Follow up/Win & hand off)", /const WORKFLOW_PHASES = \[/.test(s4) && !/const WORKFLOW_STAGES = \[/.test(s4) && !/title: "Contact"/.test(s4) && !/title: "Follow up"/.test(s4) && !/title: "Win & hand off"/.test(s4));
   check("each workflow phase renders as a substantial `.card` (border+surface+padding), not bare icon+text in a thin row", /WORKFLOW_PHASES\.map\(\(phase, i\) => \(\s*<li key=\{phase\.title\} className="card/.test(s4));

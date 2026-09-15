@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, Panel } from "@/components/ui";
-import { ScoreBar } from "@/components/score-ring";
 import { getAccessContext } from "@/lib/auth/access";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
@@ -294,7 +293,7 @@ function CoreProblem() {
     <div className={SECTION_PLAIN}>
       <div className="mx-auto max-w-[62ch] text-center">
         <h2 className="text-display-md font-semibold text-ink">
-          Good work isn&apos;t the hard part. Finding who to do it for is.
+          Starting an agency is easy. Finding clients is the hard part.
         </h2>
         <p className="mx-auto mt-4 max-w-[62ch] text-base leading-relaxed text-ink/80">
           Whether you&apos;re just starting an agency or already running one, the bottleneck is
@@ -329,11 +328,15 @@ function CoreProblem() {
  * in their own column, as supporting language inside one phase. Each
  * phase is a real `.card` now (border/surface/padding) instead of bare
  * icon+text in a thin 6-up grid, so four phases read as substantial, not
- * small. The illustrative Website Health score (previously an equal,
- * 140px product-proof card of its own) now lives here instead, as a
- * small supporting element inside Verify only -- ScoreBar, not the full
- * ScoreRing, specifically so it can't visually dominate the real product
- * screenshots in the section below.
+ * small.
+ *
+ * PR #32 owner correction: the constructed illustrative Website Health
+ * score/progress visual that used to live inside the Verify card (first
+ * a full-size product-proof card of its own, then downsized here) is
+ * removed entirely, per the owner's explicit instruction -- it was a
+ * fabricated score with nothing behind it, and no replacement illustration,
+ * score, or decorative card takes its place. Verify stays concise and
+ * text-based, matching the other three phases.
  */
 const WORKFLOW_PHASES = [
   { icon: ScanLine, title: "Find", body: "Search a market with Finder — every result comes back scored, not just no-website businesses." },
@@ -362,15 +365,6 @@ function ProductWorkflow() {
               </div>
             </div>
             <p className="text-sm leading-relaxed text-ink/80">{phase.body}</p>
-            {phase.title === "Verify" ? (
-              <div className="mt-auto rounded-lg border border-hairline bg-canvas/60 p-3">
-                <div className="flex items-center justify-between gap-2 text-[13px]">
-                  <span className="font-medium text-ink">Website Health</span>
-                  <span className="font-mono text-faint">46/100 · Illustrative workflow</span>
-                </div>
-                <ScoreBar score={46} className="mt-2" />
-              </div>
-            ) : null}
           </li>
         ))}
       </ol>
@@ -394,10 +388,10 @@ function ProductWorkflow() {
  * the full ambient-glow treatment; Finder stays visibly secondary -- its
  * screenshot is capped narrower within its own column, and its copy
  * doesn't claim "results" since the approved screenshot is Finder's empty
- * pre-search state. The illustrative Website Health score no longer
- * appears here at all -- it moved to a small supporting spot inside the
- * Verify phase above, per the owner's requirement that it never compete
- * with the real product screens for attention.
+ * pre-search state. The illustrative Website Health score never appears
+ * here (PR #32: it's now removed from the page entirely, see
+ * ProductWorkflow's own comment) -- nothing here ever competed with the
+ * real product screens for attention in the first place.
  */
 function ProductProof() {
   return (
