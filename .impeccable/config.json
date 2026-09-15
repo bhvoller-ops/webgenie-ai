@@ -66,6 +66,15 @@
         ],
         "createdAt": "2026-09-04T18:48:24.912Z",
         "reason": "same photo-legibility scrim gradient, second stop"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "scripts/verify-public-site.ts"
+        ],
+        "createdAt": "2026-09-15T10:54:57.008Z",
+        "reason": "false positive: line is a regex literal /<img\\b/ inside a test-assertion string checking another file's source text for an <img> tag, not real rendered markup in this script"
       }
     ]
   }

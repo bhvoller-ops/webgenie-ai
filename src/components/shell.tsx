@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui";
 import { NavGroup, type NavGroupItem } from "@/components/nav-group";
 import { MobileNav } from "@/components/mobile-nav";
+import { PublicNav } from "@/components/public-nav";
 import { signOut } from "@/app/actions";
 import { cn } from "@/lib/format";
 import type { AccessRole } from "@/lib/auth/access";
@@ -174,42 +175,57 @@ const RESOURCES_ITEMS: NavGroupItem[] = [
   },
 ];
 
+/**
+ * Public SaaS Impeccable rebuild (P0 centering pass): the public site's
+ * shared responsive side padding -- 16-20px mobile, 24-32px tablet, 32-48px
+ * desktop -- replacing the previous flat `px-6` (24px at every width) on
+ * every guest surface (TopBar, Footer, PageShell's <main>). Authenticated
+ * chrome keeps its own unchanged `px-6` literal, kept as a separate string
+ * on purpose so a future public-only padding change can't silently reach
+ * the authenticated app.
+ */
+export const PUBLIC_SHELL_PADDING = "px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12";
+
 export function TopBar({ role = "guest" }: { role?: AccessRole }) {
-  const contentWidth = role === "guest" ? "max-w-[1400px]" : "max-w-[1280px]";
+  const contentWidth = "max-w-[1280px]";
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-void/75 backdrop-blur-xl">
-      <div className={cn("relative mx-auto flex h-16 items-center gap-6 px-6", contentWidth)}>
+      <div className={cn("relative mx-auto flex h-16 items-center gap-6", role === "guest" ? PUBLIC_SHELL_PADDING : "px-6", contentWidth)}>
         <Logo />
-        <nav className="hidden items-center gap-1 md:flex">
-          {role === "admin" ? (
-            <>
-              <NavGroup label="Work" items={WORK_ITEMS} />
-              <NavGroup label="Outreach" items={OUTREACH_ITEMS} />
-              <NavGroup label="Delivery" items={DELIVERY_ITEMS} />
-              {/* Deliberately last and unstyled-different from the others in
-                  every way except position -- still a full NavGroup (current-
-                  page indication included), just never first in reading
-                  order, so it can't visually compete with Work/Outreach. */}
-              <NavGroup label="Resources" items={RESOURCES_ITEMS} />
-            </>
-          ) : null}
-          {role === "partner" ? (
-            <Link
-              href="/partners/portal"
-              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              My Referrals
-            </Link>
-          ) : null}
-          {role === "beta" ? (
-            <Link
-              href="/trial/portal"
-              className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
-            >
-              My Trials
-            </Link>
-          ) : null}
-        </nav>
+        {role === "guest" ? (
+          <PublicNav />
+        ) : (
+          <nav className="hidden items-center gap-1 md:flex">
+            {role === "admin" ? (
+              <>
+                <NavGroup label="Work" items={WORK_ITEMS} />
+                <NavGroup label="Outreach" items={OUTREACH_ITEMS} />
+                <NavGroup label="Delivery" items={DELIVERY_ITEMS} />
+                {/* Deliberately last and unstyled-different from the others in
+                    every way except position -- still a full NavGroup (current-
+                    page indication included), just never first in reading
+                    order, so it can't visually compete with Work/Outreach. */}
+                <NavGroup label="Resources" items={RESOURCES_ITEMS} />
+              </>
+            ) : null}
+            {role === "partner" ? (
+              <Link
+                href="/partners/portal"
+                className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                My Referrals
+              </Link>
+            ) : null}
+            {role === "beta" ? (
+              <Link
+                href="/trial/portal"
+                className="focus-ring rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+              >
+                My Trials
+              </Link>
+            ) : null}
+          </nav>
+        )}
         <div className="ml-auto flex items-center gap-3">
           <MobileNav role={role} workItems={WORK_ITEMS} outreachItems={OUTREACH_ITEMS} deliveryItems={DELIVERY_ITEMS} resourcesItems={RESOURCES_ITEMS} />
           {role === "admin" ? (
@@ -239,7 +255,7 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
               >
                 Sign in
               </Link>
-              <Button href="/signup">Get started free</Button>
+              <Button href="/signup">Start Free</Button>
             </>
           ) : (
             <form action={signOut}>
@@ -257,17 +273,75 @@ export function TopBar({ role = "guest" }: { role?: AccessRole }) {
   );
 }
 
+/**
+ * P0 (VibeLabs brand-relationship pass): rebuilt as a structured
+ * multi-column footer -- brand+description, then grouped Product/Account
+ * columns, then a Company column naming the real VibeLabs relationship
+ * (an external link to vibelabsagency.com, not copied VibeLabs copy) --
+ * inspired by vibelabsagency.com's own footer structure. Still no
+ * Privacy/Terms links: neither route exists on this app yet, and copying
+ * VibeLabs' legal links here would misrepresent WebGenie's own state, so
+ * this phase still does not fabricate one.
+ */
+const FOOTER_COLUMNS = [
+  {
+    heading: "Product",
+    links: [
+      { href: "/#product", label: "Product" },
+      { href: "/#how-it-works", label: "How It Works" },
+      { href: "/gallery", label: "Examples" },
+      { href: "/#plans", label: "Plans" },
+    ],
+  },
+  {
+    heading: "Account",
+    links: [
+      { href: "/signup", label: "Start Free" },
+      { href: "/login", label: "Sign In" },
+      { href: "/support", label: "Support" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [{ href: "https://www.vibelabsagency.com/", label: "VibeLabs Agency", external: true }],
+  },
+] as const;
+
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-hairline">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-6 py-8">
-        <div className="flex items-center gap-3">
-          <Logo compact />
-          <span className="text-xs text-faint">
-            Website intelligence, blueprints, and build-ready prompt packages.
-          </span>
+      <div className={cn("mx-auto max-w-[1280px] py-12", PUBLIC_SHELL_PADDING)}>
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
+          <div className="max-w-sm">
+            <Logo compact />
+            <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+              The client-acquisition workspace for agencies — find the right prospects, verify the
+              opportunity, and prepare the work before you ever pick up the phone.
+            </p>
+          </div>
+          {FOOTER_COLUMNS.map((col) => (
+            <nav key={col.heading} aria-label={col.heading}>
+              <p className="text-[13px] font-semibold text-ink">{col.heading}</p>
+              <ul className="mt-3 space-y-2.5">
+                {col.links.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      {...("external" in link && link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      className="focus-ring rounded text-[13.5px] text-muted transition-colors hover:text-ink"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
-        <span className="font-mono text-[11px] text-faint">SimpleOS · WebGenie AI</span>
+        <div className="mt-10 flex flex-col gap-2 border-t border-hairline pt-6 text-[12px] text-faint sm:flex-row sm:items-center sm:justify-between">
+          <span>© {new Date().getFullYear()} VibeLabs Agency. All rights reserved.</span>
+          <span>WebGenie AI is a product built and operated by VibeLabs Agency.</span>
+        </div>
       </div>
     </footer>
   );
@@ -293,15 +367,17 @@ function AuthenticatedFooter() {
 }
 
 export function PageShell({ children, role = "guest" }: { children: ReactNode; role?: AccessRole }) {
-  // UI clarity correction: authenticated workspace pages get a tighter
-  // 1280px content column and less vertical padding than the public
-  // marketing site's 1400px/py-10 (unchanged for role="guest") — an
-  // operational page reads as a workspace, not a landing page.
-  const contentWidth = role === "guest" ? "max-w-[1400px] py-10" : "max-w-[1280px] py-8";
+  // Public SaaS Impeccable rebuild (Phase 9): the guest content column was
+  // tightened from 1400px to 1280px to match the spec'd max content width
+  // (~1200-1280px) for the public site. Authenticated workspace pages keep
+  // their own unchanged 1280px/py-8 — same number, but a separate literal,
+  // deliberately not shared, so a future public-only width change can't
+  // silently touch the authenticated app.
+  const contentWidth = role === "guest" ? "max-w-[1280px] py-10" : "max-w-[1280px] py-8";
   return (
     <div className="min-h-screen">
       <TopBar role={role} />
-      <main className={cn("mx-auto px-6", contentWidth)}>{children}</main>
+      <main className={cn("mx-auto", role === "guest" ? PUBLIC_SHELL_PADDING : "px-6", contentWidth)}>{children}</main>
       {role === "guest" ? <Footer /> : <AuthenticatedFooter />}
     </div>
   );

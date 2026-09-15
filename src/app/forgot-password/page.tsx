@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Panel } from "@/components/ui";
-import { Logo } from "@/components/shell";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -33,10 +32,9 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-6">
-      <Panel className="w-full max-w-md">
-        <Logo />
-        <h1 className="mt-6 text-display-md font-semibold text-ink">Reset your password</h1>
+    <AuthShell>
+      <div className="mt-6 w-full">
+        <h1 className="text-display-md font-semibold text-ink">Reset your password</h1>
         <p className="mt-2 text-sm text-muted">Enter your account email and we&apos;ll send you a reset link.</p>
 
         {!done ? (
@@ -62,12 +60,16 @@ export default function ForgotPasswordPage() {
           </form>
         ) : null}
 
-        {message ? <p className="mt-4 text-sm text-muted">{message}</p> : null}
+        {message ? (
+          <p role="status" className="mt-4 text-sm text-muted">
+            {message}
+          </p>
+        ) : null}
 
         <Link href="/login" className="mt-6 inline-block text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-ink">
           Back to sign in
         </Link>
-      </Panel>
-    </main>
+      </div>
+    </AuthShell>
   );
 }

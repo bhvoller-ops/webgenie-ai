@@ -20,12 +20,17 @@ export function encodeBusiness(b: Business): string {
 
 export function demoSiteUrl(
   b: Business,
-  opts: { by?: string; download?: boolean; badge?: boolean; org?: string } = {}
+  opts: { by?: string; download?: boolean; badge?: boolean; org?: string; sample?: boolean } = {}
 ) {
   const params = new URLSearchParams({ b: encodeBusiness(b) });
   if (opts.by) params.set("by", opts.by);
   if (opts.download) params.set("download", "1");
   if (opts.badge === false) params.set("badge", "0");
   if (opts.org) params.set("org", opts.org);
+  // Sample-site safety (Phase 7): an explicit, intentional marker for the
+  // small set of illustrative fixture businesses (/samples, the homepage
+  // preview) -- distinct from `badge`, which only toggles the "preview
+  // built for X" ribbon real prospects see. See SiteOptions.isSample.
+  if (opts.sample) params.set("sample", "1");
   return `/api/demo-site?${params.toString()}`;
 }

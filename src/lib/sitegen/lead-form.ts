@@ -2,12 +2,17 @@ import { safeJson } from "@/lib/sitegen/chat-widget";
 
 /**
  * The hero quote-request card — the primary conversion point on every
- * generated site. Posts to /api/site-lead on the main WebGenie deployment,
+ * generated site. Posts to /api/site-lead (real sites) or /api/sample-lead
+ * (illustrative sample sites, isSample: true -- structurally never
+ * persists, see that route's own comment) on the main WebGenie deployment,
  * same cross-origin pattern as the chat widget (generated sites are static
- * HTML with no server of their own).
+ * HTML with no server of their own). Which endpoint gets embedded is
+ * decided server-side, at generation time, by generate.ts -- never by
+ * anything the resulting page's own client-side JS could alter.
  */
 import { SITE_ORIGIN } from "@/lib/site-url";
 const LEAD_API_URL = `${SITE_ORIGIN}/api/site-lead`;
+const SAMPLE_LEAD_API_URL = `${SITE_ORIGIN}/api/sample-lead`;
 
 export function leadFormStyles(): string {
   return `
@@ -56,13 +61,14 @@ export function leadFormMarkup(builtBy?: string): string {
 
 export function leadFormScript(
   business: { name: string; industryLabel: string; phone: string },
-  organizationId?: string
+  organizationId?: string,
+  isSample?: boolean
 ): string {
   return `
 (function(){
   var BUSINESS = ${safeJson(business)};
   var ORG_ID = ${safeJson(organizationId ?? null)};
-  var API_URL = ${safeJson(LEAD_API_URL)};
+  var API_URL = ${safeJson(isSample ? SAMPLE_LEAD_API_URL : LEAD_API_URL)};
   var form = document.getElementById('wg-quote-form');
   var submitBtn = document.getElementById('wg-quote-submit');
   var msgEl = document.getElementById('wg-quote-msg');

@@ -234,6 +234,18 @@ export interface SiteOptions {
   organizationId?: string;
   /** White-label branding kit — see SiteBranding. */
   branding?: SiteBranding;
+  /**
+   * PUBLIC SAAS IMPECCABLE REBUILD (Phase 7, sample-site safety): true only
+   * for the small set of fixture businesses used as illustrative demos --
+   * /samples' SAMPLE_BUSINESSES and the public homepage's single preview
+   * business. Every real generated site (Finder, Projects, Audit) already
+   * carries a real `organizationId` at generation time; this flag is the
+   * explicit, intentional signal (not an inference from a missing org id)
+   * that renders a clear illustrative-demo banner and tells /api/site-lead
+   * and /api/site-chat to never persist a real chat_leads row for this
+   * site, regardless of any organizationId that happens to be present.
+   */
+  isSample?: boolean;
 }
 
 export interface GeneratedSite {

@@ -7,6 +7,7 @@ import { Menu, Settings, X } from "lucide-react";
 import { signOut } from "@/app/actions";
 import type { AccessRole } from "@/lib/auth/access";
 import type { NavGroupItem as NavItem } from "@/components/nav-group";
+import { PublicMobileNavLinks } from "@/components/public-nav";
 import { cn } from "@/lib/format";
 
 /**
@@ -68,7 +69,11 @@ export function MobileNav({
   const close = () => setOpen(false);
 
   return (
-    <div className="md:hidden">
+    // P0 (centering pass): guest's hamburger stays visible until `lg`
+    // (matching PublicNav's own lg:flex handoff) since the 5 flat public
+    // nav items need more room at md than the authenticated NavGroup
+    // dropdowns this same breakpoint still works fine for.
+    <div className={role === "guest" ? "lg:hidden" : "md:hidden"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -82,6 +87,7 @@ export function MobileNav({
       {open ? (
         <div className="absolute inset-x-0 top-full z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-hairline bg-canvas px-4 py-4 shadow-xl">
           <nav className="flex flex-col gap-1">
+            {role === "guest" ? <PublicMobileNavLinks onClose={close} /> : null}
             {role === "admin" ? (
               <>
                 <GroupLabel>Work</GroupLabel>
@@ -126,7 +132,7 @@ export function MobileNav({
               {role === "guest" ? (
                 <div className="space-y-2">
                   <Link href="/signup" onClick={close} className="focus-ring block rounded-lg bg-iris px-3 py-2.5 text-center text-sm font-semibold text-white">
-                    Get started free
+                    Start Free
                   </Link>
                   <Link href="/login" onClick={close} className="focus-ring block rounded-lg border border-hairline px-3 py-2.5 text-center text-sm text-muted hover:text-ink">
                     Sign in

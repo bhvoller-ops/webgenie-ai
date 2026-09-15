@@ -17,6 +17,28 @@ import { getDefaultOrganizationId } from "@/lib/organizations";
  * 033_default_organization.sql) rather than "whichever organization comes
  * back first," still loudly logged so a stale/broken embed stays visible
  * instead of silently misattributing a lead.
+ *
+ * Sample-site safety, corrected (owner-review finding, second pass): this
+ * route previously tried to detect and skip sample submissions itself --
+ * first via a client-submitted `isSample` flag, then via checking
+ * `business.id` against a fixed sample-id allowlist. BOTH are unsound:
+ * this is an unauthenticated, cross-origin endpoint, and `business.id` is
+ * just another field in the POST body -- `/api/demo-site`'s `b=` param is
+ * base64url of caller-supplied JSON with no validation beyond `name` and
+ * `industry`, so a caller can submit an allowlisted sample id alongside
+ * completely different, real-looking business/visitor data. Checking the
+ * id here would (and, briefly, did) let that request skip persistence for
+ * what could be a genuine lead.
+ *
+ * The fix: this route no longer tries to detect samples at all. It ALWAYS
+ * persists a real lead, unconditionally -- no request-supplied flag, id,
+ * or missing organizationId can suppress that. Illustrative sample sites
+ * (/samples, the homepage preview) are generated with `isSample: true`
+ * (see SiteOptions.isSample), which routes their embedded form to the
+ * separate, structurally non-persisting /api/sample-lead endpoint instead
+ * of this one -- see lib/sitegen/lead-form.ts. The separation is
+ * architectural, not a runtime check: this file contains no code path
+ * that skips the insert below.
  */
 const schema = z.object({
   business: z.object({

@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
-import { Panel } from "@/components/ui";
-import { Logo } from "@/components/shell";
+import { AuthShell } from "@/components/auth-shell";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,10 +34,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-6">
-      <Panel className="w-full max-w-md">
-        <Logo />
-        <h1 className="mt-6 text-display-md font-semibold text-ink">Sign in</h1>
+    <AuthShell>
+      <div className="mt-6 w-full">
+        <h1 className="text-display-md font-semibold text-ink">Sign in</h1>
         <p className="mt-2 text-sm text-muted">Enter your email and password to sign in.</p>
 
         <div className="mt-7">
@@ -47,7 +45,7 @@ export default function LoginPage() {
 
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-hairline" />
-          <span className="text-xs text-faint">or</span>
+          <span className="text-sm text-faint">or</span>
           <div className="h-px flex-1 bg-hairline" />
         </div>
 
@@ -85,7 +83,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {message ? <p className="mt-4 text-sm text-signal-bad">{message}</p> : null}
+        {message ? (
+          <p role="alert" className="mt-4 text-sm text-signal-bad">
+            {message}
+          </p>
+        ) : null}
 
         <div className="mt-6 flex items-center justify-between text-sm">
           <Link href="/forgot-password" className="text-muted underline decoration-dotted underline-offset-4 hover:text-ink">
@@ -95,7 +97,7 @@ export default function LoginPage() {
             Create an account
           </Link>
         </div>
-      </Panel>
-    </main>
+      </div>
+    </AuthShell>
   );
 }
