@@ -61,6 +61,14 @@ export async function validatePublicUrl(input: string): Promise<ValidatedUrl> {
     throw new Error("UNSUPPORTED_PROTOCOL");
   }
 
+  // Finder website-preview hardening: embedded userinfo (`https://user:pass@host/`)
+  // is never legitimate for a business's own public website and is a classic
+  // SSRF/credential-leak vector (some HTTP clients interpret it, some ignore
+  // it inconsistently) -- reject outright rather than silently stripping it.
+  if (url.username || url.password) {
+    throw new Error("CREDENTIALS_IN_URL");
+  }
+
   const hostname = url.hostname.toLowerCase();
 
   if (
@@ -89,4 +97,20 @@ export async function validatePublicUrl(input: string): Promise<ValidatedUrl> {
     hostname,
     resolvedAddresses: addresses
   };
+}
+
+/**
+ * Finder website-preview hardening -- shared bounds any capture-triggering
+ * caller (currently only lib/prospect/finder-preview-capture.ts) applies to
+ * every request the underlying headless browser makes, main document and
+ * subresources alike. Centralized here, not duplicated per caller, so a
+ * future capture path can't accidentally launch without them.
+ */
+export const CAPTURE_MAX_RESPONSE_BYTES = 15 * 1024 * 1024; // 15 MB -- generous for a real marketing page, not for an arbitrary large file.
+export const CAPTURE_MAX_REDIRECTS = 5;
+
+/** True only for a response whose Content-Type genuinely looks like an HTML document -- never assumed, always read from the real header. A capture that lands on a PDF, an image, or a JSON API response should report "unavailable," not screenshot garbage or feed non-HTML into the HTML feature extractor. */
+export function isHtmlLikeContentType(contentType: string | null | undefined): boolean {
+  if (!contentType) return false;
+  return /^text\/html\b|^application\/xhtml\+xml\b/i.test(contentType.trim());
 }

@@ -12,6 +12,20 @@ export interface ExtractedFeatures {
   hasChatWidget: boolean;
   hasBookingWidget: boolean;
   hasMobileViewport: boolean;
+  /** Finder website-preview signals: a real `tel:` link anywhere in the document -- a deterministic presence check, same class as hasChatWidget/hasBookingWidget, never a phone-number-format guess. */
+  hasClickToCall: boolean;
+  /** Same pattern, for `mailto:`. */
+  hasEmailLink: boolean;
+  /**
+   * Finder website-preview signals: the WEBSITE's own text claims 24/7
+   * availability -- deliberately a distinct signal from Business.open24Hours
+   * (which comes from Google's structured hours data, not page text). A
+   * site can say "Available 24/7" in marketing copy while Google shows
+   * normal business hours, or vice versa; collapsing these into one
+   * "24/7 coverage" signal would misstate which one is which (master
+   * prompt Phase 4).
+   */
+  claims24_7: boolean;
   /**
    * Hotfix (2026-09-11, docs/history.md): false when this extraction hit
    * the exact anomaly confirmed twice in real production data -- a large,
@@ -80,6 +94,13 @@ const BOOKING_WIDGET_SIGNATURES = [
   "schedulicity.com",
   "10to8.com"
 ];
+
+// Finder website-preview signals: literal phrase match only, no scoring --
+// same discipline as the widget signatures above. Deliberately narrow
+// (requires "24" and "7" adjacent with a separator, or "24 hours" combined
+// with an availability word) so it doesn't fire on unrelated uses of "24"
+// or "7" elsewhere on the page.
+const CLAIMS_24_7_PATTERNS = [/\b24\s*\/\s*7\b/i, /\b24[-\s]?hours?\b.{0,20}\b(a day|service|available|availability|emergency|support)\b/i, /\bavailable\b.{0,20}\b24[-\s]?hours?\b/i];
 
 export function extractFeatures(html: string, pageUrl: string): ExtractedFeatures {
   const dom = new JSDOM(html, { url: pageUrl });
@@ -184,6 +205,9 @@ export function extractFeatures(html: string, pageUrl: string): ExtractedFeature
   const hasMobileViewport = Boolean(
     document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("width=device-width")
   );
+  const hasClickToCall = Array.from(document.querySelectorAll("a[href]")).some((a) => (a.getAttribute("href") ?? "").toLowerCase().startsWith("tel:"));
+  const hasEmailLink = Array.from(document.querySelectorAll("a[href]")).some((a) => (a.getAttribute("href") ?? "").toLowerCase().startsWith("mailto:"));
+  const claims24_7 = CLAIMS_24_7_PATTERNS.some((pattern) => pattern.test(bodyText));
 
   const internalLinksArray = [...internalLinks].slice(0, 500);
 
@@ -199,6 +223,9 @@ export function extractFeatures(html: string, pageUrl: string): ExtractedFeature
     hasChatWidget,
     hasBookingWidget,
     hasMobileViewport,
+    hasClickToCall,
+    hasEmailLink,
+    claims24_7,
     extractionReliable: !isExtractionAnomalous(html, { headings, forms, internalLinks: internalLinksArray, trustSignals })
   };
 }

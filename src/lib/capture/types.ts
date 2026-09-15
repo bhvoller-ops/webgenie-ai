@@ -27,6 +27,17 @@ export interface CaptureResult {
    * never as evidence an element is absent.
    */
   likelyBlocked: boolean;
+  /**
+   * Finder website-preview hardening: true if any response during this
+   * capture (main document or a subresource) declared a Content-Length
+   * over CAPTURE_MAX_RESPONSE_BYTES (lib/security/url-validation.ts).
+   * `html`/`text`/`screenshotBuffer` above still reflect whatever Chromium
+   * had rendered at that point -- a caller that must not accept a partial/
+   * truncated capture (the Finder preview path does; the existing audit
+   * pipeline doesn't check this field, unaffected) should treat this as a
+   * capture failure, not use the partial result.
+   */
+  responseTooLarge: boolean;
 }
 
 export interface CaptureProvider {
