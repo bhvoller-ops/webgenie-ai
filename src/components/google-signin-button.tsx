@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/client";
  * unlike the hash-fragment shape that bit password reset — see CLAUDE.md's
  * known-traps section).
  */
-export function GoogleSignInButton({ label = "Continue with Google" }: { label?: string }) {
+export function GoogleSignInButton({ label = "Continue with Google", returnTo }: { label?: string; returnTo?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -21,9 +21,15 @@ export function GoogleSignInButton({ label = "Continue with Google" }: { label?:
     setError("");
     try {
       const supabase = createClient();
+      // Public Examples auth gate: `returnTo` (already sanitized by the
+      // caller via sanitizeReturnPath()) rides through the OAuth round
+      // trip as a query param so /auth/callback can send the user back to
+      // the protected full-view URL they actually asked for, not always "/".
+      const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+      if (returnTo) callbackUrl.searchParams.set("returnTo", returnTo);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: { redirectTo: callbackUrl.toString() },
       });
       if (error) {
         setError(error.message);

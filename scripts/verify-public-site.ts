@@ -167,7 +167,14 @@ console.log("\n7. Sample-site safety -- architectural separation, no client-cont
   check("generate.ts passes options.isSample into both leadFormScript() and chatWidgetScript() (decides which endpoint gets embedded, at generation time)", /leadFormScript\(\{[^}]*\}, options\.organizationId, options\.isSample\)/.test(generateSrc) && /chatWidgetScript\(business, p, options\.organizationId, options\.isSample\)/.test(generateSrc));
 
   check("/samples passes sample:true to demoSiteUrl()", /demoSiteUrl\([^)]*sample: true/.test(src("src/app/samples/page.tsx")));
-  check("the homepage's demo preview passes sample:true to demoSiteUrl()", (src("src/app/page.tsx").match(/demoSiteUrl\([^)]*sample: true/g) ?? []).length >= 1);
+  // Public Examples auth gate (owner-directed correction, post-PR#32):
+  // the homepage's Examples section no longer calls demoSiteUrl() at all
+  // -- it renders static thumbnails only, with no "View full demo" link
+  // for its always-logged-out audience (see HomePage()'s own redirects,
+  // verified in scripts/verify-public-examples-auth-gate.ts). /samples
+  // (checked above) is the one surface that still calls demoSiteUrl()
+  // directly, for its authenticated-only link.
+  check("the homepage's Examples section no longer calls demoSiteUrl() at all (by design -- no unauthenticated full-view link renders there anymore)", !/demoSiteUrl\(/.test(src("src/app/page.tsx")));
 }
 
 console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor business.id (both client-controlled) gate persistence on the real endpoints");
@@ -256,7 +263,12 @@ console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor bus
 console.log("\n8. Login/signup/password-reset route preservation -- visual-only change, auth logic byte-identical");
 {
   for (const [name, file, mustContain] of [
-    ["login", "src/app/login/page.tsx", ["supabase.auth.signInWithPassword({ email, password })", 'window.location.href = "/"']],
+    // Public Examples auth gate (owner-directed correction, post-PR#32):
+    // login now navigates to a sanitized `?returnTo=` instead of always
+    // "/" -- see scripts/verify-public-examples-auth-gate.ts item 12/13
+    // for the real executed proof that sanitizeReturnPath() rejects an
+    // open redirect. The auth call itself is unchanged.
+    ["login", "src/app/login/page.tsx", ["supabase.auth.signInWithPassword({ email, password })", "window.location.href = returnTo", "sanitizeReturnPath("]],
     ["signup", "src/app/signup/page.tsx", ["/api/auth/create-account", "supabase.auth.signInWithPassword({ email, password })", "/api/auth/bootstrap"]],
     ["forgot-password", "src/app/forgot-password/page.tsx", ["/api/auth/request-reset"]],
     ["reset-password", "src/app/reset-password/page.tsx", ["supabase.auth.setSession(", "supabase.auth.updateUser({ password })"]]
@@ -399,7 +411,12 @@ console.log("\n16. Owner-review finding -- iframe overload corrected: static opt
 
   check("a documented, reusable regeneration script exists for the thumbnails (not a one-off throwaway)", fs.existsSync(path.join(__dirname, "..", "scripts", "generate-sample-thumbnails.mjs")));
 
-  check("\"View full demo\" links still point at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(pageSrc2) && /target="_blank"/.test(pageSrc2));
+  // Public Examples auth gate (owner-directed correction, post-PR#32): the
+  // homepage itself no longer renders this link at all (every visitor who
+  // reaches it is logged out, by HomePage()'s own redirects) -- /samples
+  // is the surface that still renders the real link, gated to a signed-in
+  // visitor. See scripts/verify-public-examples-auth-gate.ts items 1/11.
+  check("/samples' \"View full demo\" link (rendered only for a signed-in visitor) still points at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(samplesSrc3) && /target="_blank"/.test(samplesSrc3));
 }
 
 console.log("\n17. Owner-review finding -- real, sanitized product screenshots replace the illustrative hero/product-proof mockups");

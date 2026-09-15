@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Lock } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Button, SectionHeading } from "@/components/ui";
 import { industryLabel } from "@/lib/sitegen/industry-lookup";
@@ -30,12 +31,23 @@ export const dynamic = "force-dynamic";
  * (public/sample-previews/, see scripts/generate-sample-thumbnails.mjs).
  * "View full demo" still opens the real, live, fully-interactive site --
  * as a full top-level page navigation, never an embedded iframe here.
+ *
+ * PUBLIC EXAMPLES AUTH GATE (owner-directed correction): "View full demo"
+ * now only renders for a signed-in visitor. A logged-out visitor sees the
+ * same static thumbnail plus a compact "Full demo available after
+ * sign-in" label -- no link, no button, nothing to click per card (avoids
+ * the visual noise of a disabled button on all 14 cards) -- and one
+ * section-level sign-in CTA does the actual work. This is a client-side
+ * convenience only: the real enforcement is server-side in
+ * /api/demo-site/route.ts (isKnownSampleBusiness()), which is what
+ * actually stops a logged-out visitor who types or bookmarks the demo URL
+ * directly, not this page's rendering choice.
  */
 const FEATURED_IDS = ["sample-plumber", "sample-hvac", "sample-electrician", "sample-roofer", "sample-dentist", "sample-med_spa"];
 const FEATURED = FEATURED_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
 const REST = SAMPLE_BUSINESSES.filter((b) => !FEATURED_IDS.includes(b.id));
 
-function SampleThumbnail({ business }: { business: Business }) {
+function SampleThumbnail({ business, isAuthenticated }: { business: Business; isAuthenticated: boolean }) {
   const url = demoSiteUrl(business, { by: "WebGenie AI", sample: true });
   const label = industryLabel(business.industry);
   const shortId = business.id.replace("sample-", "");
@@ -56,22 +68,30 @@ function SampleThumbnail({ business }: { business: Business }) {
         <p className="mt-0.5 text-sm text-faint">
           {business.city}, {business.state} · Illustrative example
         </p>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="focus-ring mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-iris-soft transition-colors hover:text-iris"
-        >
-          View full demo
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-        </a>
+        {isAuthenticated ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-iris-soft transition-colors hover:text-iris"
+          >
+            View full demo
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        ) : (
+          <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-faint">
+            <Lock className="h-3.5 w-3.5" aria-hidden />
+            Full demo available after sign-in
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
 export default async function SamplesPage() {
-  const { role } = await getAccessContext();
+  const { role, user } = await getAccessContext();
+  const isAuthenticated = Boolean(user);
   return (
     <PageShell role={role}>
       <SectionHeading
@@ -80,17 +100,26 @@ export default async function SamplesPage() {
         description="Illustrative example businesses, built by the real WebGenie generator — not real prospects. Use these to judge design quality, or pull one up mid-call as a reference."
       />
 
+      {!isAuthenticated ? (
+        <p className="mx-auto mt-6 max-w-md text-center text-sm text-faint">
+          Sign in to view full demos.{" "}
+          <Link href="/login?returnTo=/samples" className="font-medium text-iris-soft underline decoration-dotted underline-offset-4 hover:text-iris">
+            Sign in
+          </Link>
+        </p>
+      ) : null}
+
       <p className="mt-8 text-[13px] font-semibold uppercase tracking-wide text-faint">Featured examples</p>
       <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURED.map((business) => (
-          <SampleThumbnail key={business.id} business={business} />
+          <SampleThumbnail key={business.id} business={business} isAuthenticated={isAuthenticated} />
         ))}
       </div>
 
       <p className="mt-12 text-[13px] font-semibold uppercase tracking-wide text-faint">All industries</p>
       <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REST.map((business) => (
-          <SampleThumbnail key={business.id} business={business} />
+          <SampleThumbnail key={business.id} business={business} isAuthenticated={isAuthenticated} />
         ))}
       </div>
 

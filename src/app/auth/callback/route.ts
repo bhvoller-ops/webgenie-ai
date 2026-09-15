@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAccessContext } from "@/lib/auth/access";
+import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  // Public Examples auth gate: sanitized the same way /login sanitizes its
+  // own `?returnTo=` -- never trusted as-is, since this is still a
+  // caller-suppliable query param on a public callback URL.
+  const returnTo = sanitizeReturnPath(requestUrl.searchParams.get("returnTo"));
 
   if (code) {
     const supabase = await createClient();
@@ -23,5 +28,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(new URL(returnTo, request.url));
 }

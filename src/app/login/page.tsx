@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleSignInButton } from "@/components/google-signin-button";
 import { AuthShell } from "@/components/auth-shell";
+import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+/**
+ * Public Examples auth gate: `?returnTo=` (set by /api/demo-site and
+ * /api/gallery-preview when an unauthenticated visitor hits a protected
+ * full-view URL directly) sends the user back to exactly what they asked
+ * for after a real sign-in, instead of always landing on "/" -- sanitized
+ * through sanitizeReturnPath() so this can never become an open redirect.
+ */
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const returnTo = sanitizeReturnPath(searchParams.get("returnTo"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -26,7 +45,7 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.href = returnTo;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Something went wrong.");
       setLoading(false);
@@ -40,7 +59,7 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-muted">Enter your email and password to sign in.</p>
 
         <div className="mt-7">
-          <GoogleSignInButton />
+          <GoogleSignInButton returnTo={returnTo} />
         </div>
 
         <div className="my-6 flex items-center gap-3">

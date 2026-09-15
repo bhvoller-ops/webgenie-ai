@@ -32,6 +32,41 @@ export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenInd
 }));
 
 /**
+ * Public Examples auth gate (WEBGENIE PUBLIC EXAMPLES — AUTHENTICATED
+ * FULL-VIEW GATE): whether a decoded `Business` (from /api/demo-site's `b=`
+ * param) IS one of these 14 known illustrative fixtures -- checked by deep
+ * field comparison against this module's own hardcoded array, never by
+ * trusting a single client-asserted field.
+ *
+ * This deliberately does NOT check `business.source === "sample"` or
+ * `business.id.startsWith("sample-")` alone -- see this file's own header
+ * comment above for why an isolated field from an unauthenticated,
+ * caller-supplied JSON payload is unsound as a security signal (the same
+ * lesson already learned and documented for /api/site-lead and
+ * /api/site-chat). A full match against every field of a real, known
+ * fixture is safe in both directions: a caller who submits data that
+ * exactly reproduces one of our own 14 samples already has nothing to
+ * gain by it, and no real prospect's data can coincidentally collide with
+ * all of a fixture's fields at once.
+ */
+export function isKnownSampleBusiness(b: Partial<Business> | null | undefined): boolean {
+  if (!b) return false;
+  return SAMPLE_BUSINESSES.some(
+    (sample) =>
+      sample.id === b.id &&
+      sample.name === b.name &&
+      sample.industry === b.industry &&
+      sample.city === b.city &&
+      sample.state === b.state &&
+      sample.phone === b.phone &&
+      sample.address === b.address &&
+      sample.rating === b.rating &&
+      sample.reviewCount === b.reviewCount &&
+      sample.source === b.source
+  );
+}
+
+/**
  * Sample-site safety note: an earlier version of this fix exported a
  * SAMPLE_BUSINESS_IDS allowlist here and had /api/site-lead / /api/site-chat
  * check a request's business.id against it before skipping persistence.

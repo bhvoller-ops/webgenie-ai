@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Eye, ExternalLink, Search, X } from "lucide-react";
+import Link from "next/link";
+import { Eye, ExternalLink, Lock, Search, X } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Pill, SectionHeading, type PillTone } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { industryList, type IndustryConfig } from "@/data/gallery/industries";
 import { industryCategories, getIndustryCategory, getCategoryCount } from "@/data/gallery/categories";
-import { renderIndustryPage } from "@/lib/renderIndustryPage";
 import { cn } from "@/lib/format";
 import { SITE_ORIGIN } from "@/lib/site-url";
 
@@ -64,11 +64,28 @@ function GalleryThumbImage({ ind }: { ind: IndustryConfig }) {
  * What WAS carried over close to verbatim: renderIndustryPage() (lib/) and
  * the 64 industry configs (data/gallery/) that passed a real visual check —
  * see categories.ts's own comment for why it's 64 and not the source's 84.
+ *
+ * PUBLIC EXAMPLES AUTH GATE (owner-directed correction): the interactive
+ * preview used to call renderIndustryPage() directly in the browser --
+ * a pure function of this same already-bundled industryList, no server
+ * round trip. Full-view access must be checked server-side, so the actual
+ * assembled page HTML now only ever comes from /api/gallery-preview
+ * (a real authenticated request, cookie-checked there), never rendered
+ * here directly. A logged-out visitor gets no modal and no iframe at all
+ * -- cards render as plain, non-interactive thumbnails with a compact
+ * lock label, and one section-level sign-in link does the actual work
+ * (avoids a disabled-looking button on all 64 cards).
+ *
+ * Honest limitation: industryList itself (services/testimonials counts,
+ * hero images, colors) stays in this client bundle regardless -- it's
+ * what the search/filter/thumbnail grid below already needs, and none of
+ * it is private. What's gated is the assembled full-page output and the
+ * one-click/direct-URL path to it, not the underlying static config.
  */
 
 const CATEGORY_TONE: PillTone = "iris";
 
-export function GalleryClient({ role }: { role: AccessRole }) {
+export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isAuthenticated: boolean }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [preview, setPreview] = useState<IndustryConfig | null>(null);
@@ -82,13 +99,18 @@ export function GalleryClient({ role }: { role: AccessRole }) {
     });
   }, [query, category]);
 
+  function galleryPreviewUrl(ind: IndustryConfig) {
+    return `/api/gallery-preview?id=${encodeURIComponent(ind.id)}`;
+  }
+
   function openFullPreview(ind: IndustryConfig) {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.open();
-    w.document.write(renderIndustryPage(ind));
-    w.document.close();
-    w.focus();
+    if (!isAuthenticated) return; // belt-and-suspenders -- the trigger is never rendered logged-out anyway.
+    window.open(galleryPreviewUrl(ind), "_blank", "noopener,noreferrer");
+  }
+
+  function handleCardClick(ind: IndustryConfig) {
+    if (!isAuthenticated) return; // no modal, no iframe for a logged-out visitor.
+    setPreview(ind);
   }
 
   // Public SaaS Impeccable rebuild (Phase 6): the quick-preview modal had no
@@ -108,8 +130,21 @@ export function GalleryClient({ role }: { role: AccessRole }) {
       <SectionHeading
         center
         title="Industry gallery"
-        description={`${industryList.length} illustrative industry website templates — a separate example library from WebGenie's real site generator (see /samples). Click any card to preview the complete page.`}
+        description={
+          isAuthenticated
+            ? `${industryList.length} illustrative industry website templates — a separate example library from WebGenie's real site generator (see /samples). Click any card to preview the complete page.`
+            : `${industryList.length} illustrative industry website templates — a separate example library from WebGenie's real site generator (see /samples).`
+        }
       />
+
+      {!isAuthenticated ? (
+        <p className="mx-auto mt-4 max-w-md text-center text-sm text-faint">
+          Sign in to view full demo pages.{" "}
+          <Link href="/login?returnTo=/gallery" className="font-medium text-iris-soft underline decoration-dotted underline-offset-4 hover:text-iris">
+            Sign in
+          </Link>
+        </p>
+      ) : null}
 
       <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-lg border border-hairline bg-canvas px-4 py-2.5">
         <Search className="h-4 w-4 text-faint" aria-hidden />
@@ -150,32 +185,48 @@ export function GalleryClient({ role }: { role: AccessRole }) {
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((ind) => (
-          <button key={ind.id} onClick={() => setPreview(ind)} className="group flex flex-col overflow-hidden rounded-panel border border-hairline bg-canvas text-left transition-colors hover:border-iris/40">
-            <div className="relative aspect-video w-full overflow-hidden bg-raised">
-              <GalleryThumbImage ind={ind} />
-              <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)" }} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: ind.colors.primary }}>
-                  <span className="text-base font-bold text-white">{ind.industryName.charAt(0)}</span>
+        {filtered.map((ind) => {
+          const CardTag = isAuthenticated ? "button" : "div";
+          return (
+            <CardTag
+              key={ind.id}
+              {...(isAuthenticated ? { onClick: () => handleCardClick(ind) } : {})}
+              className={cn(
+                "group flex flex-col overflow-hidden rounded-panel border border-hairline bg-canvas text-left transition-colors",
+                isAuthenticated && "hover:border-iris/40"
+              )}
+            >
+              <div className="relative aspect-video w-full overflow-hidden bg-raised">
+                <GalleryThumbImage ind={ind} />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)" }} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: ind.colors.primary }}>
+                    <span className="text-base font-bold text-white">{ind.industryName.charAt(0)}</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">{ind.industryName}</h3>
+                  <p className="mt-1 text-xs text-white/70">{ind.businessName}</p>
                 </div>
-                <h3 className="text-sm font-bold text-white">{ind.industryName}</h3>
-                <p className="mt-1 text-xs text-white/70">{ind.businessName}</p>
+                {isAuthenticated ? (
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-900 opacity-0 transition group-hover:opacity-100">
+                    <Eye className="h-3.5 w-3.5" aria-hidden /> Preview
+                  </span>
+                ) : (
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-900">
+                    <Lock className="h-3.5 w-3.5" aria-hidden /> Sign in to view
+                  </span>
+                )}
               </div>
-              <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-900 opacity-0 transition group-hover:opacity-100">
-                <Eye className="h-3.5 w-3.5" aria-hidden /> Preview
-              </span>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: ind.colors.primary }} />
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: ind.colors.accent }} />
-                <h3 className="flex-1 truncate text-sm font-semibold text-ink">{ind.industryName}</h3>
+              <div className="p-4">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: ind.colors.primary }} />
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: ind.colors.accent }} />
+                  <h3 className="flex-1 truncate text-sm font-semibold text-ink">{ind.industryName}</h3>
+                </div>
+                <p className="mt-1 text-sm text-faint">{ind.services.length} services · {ind.testimonials.length} reviews</p>
               </div>
-              <p className="mt-1 text-sm text-faint">{ind.services.length} services · {ind.testimonials.length} reviews</p>
-            </div>
-          </button>
-        ))}
+            </CardTag>
+          );
+        })}
       </div>
 
       {filtered.length === 0 ? (
@@ -217,7 +268,8 @@ export function GalleryClient({ role }: { role: AccessRole }) {
                 </button>
               </div>
             </div>
-            <iframe title="Industry preview" srcDoc={renderIndustryPage(preview)} className="h-full w-full bg-white" />
+            {/* Fetched from the protected /api/gallery-preview route (real, cookie-checked server-side auth) -- this modal only ever opens when isAuthenticated is true (see handleCardClick), never rendered client-side directly. */}
+            <iframe title="Industry preview" src={galleryPreviewUrl(preview)} className="h-full w-full bg-white" />
           </div>
         </div>
       ) : null}
