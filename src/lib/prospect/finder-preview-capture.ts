@@ -1,9 +1,10 @@
 import { PlaywrightCaptureProvider } from "@/lib/capture/playwright-provider";
+import type { CaptureProvider } from "@/lib/capture/types";
 import { extractFeatures } from "@/lib/capture/extract-features";
 import { isHtmlLikeContentType } from "@/lib/security/url-validation";
 import { normalizeWebsiteUrl } from "@/lib/prospect/finder-preview-url";
 import { computeWebsiteCaptureSignals, computeListingSignals, computeAuditSignal, type FinderSignal } from "@/lib/prospect/finder-preview-signals";
-import { hashUrl, readCachedPreview, writePreview, tryAcquireLock, releaseLock, signPreviewImageUrl, type PreviewMetadata } from "@/lib/prospect/finder-preview-storage";
+import { hashUrl, readCachedPreview, writePreview, tryAcquireLock, releaseLock, signPreviewImageUrl, type PreviewMetadata, type StorageClient } from "@/lib/prospect/finder-preview-storage";
 
 /**
  * Finder website-preview orchestration (master prompt Phase 3/6/7). The one
@@ -13,13 +14,33 @@ import { hashUrl, readCachedPreview, writePreview, tryAcquireLock, releaseLock, 
  * this only ever runs when explicitly invoked for one business (Phase 3
  * items 7/8, Phase 9 item 1).
  *
- * Takes no Supabase client -- finder-preview-storage.ts's own functions are
- * admin-client-mediated internally (see that file's header for why: the
- * existing website-captures bucket's RLS only grants SELECT to a narrower
- * path shape than Finder previews use). `organizationId` is the only trust
- * input, and it must always come from the caller's own
- * requireAdminApi()-resolved session context, never client input -- the
- * API route is the one and only place that boundary is enforced.
+ * `organizationId` is the only trust input, and it must always come from
+ * the caller's own requireAdminApi()-resolved session context, never client
+ * input -- the API route is the one and only place that boundary is
+ * enforced.
+ *
+ * Both `client` (a StorageClient, see finder-preview-storage.ts's header
+ * for why the admin client is used internally) and `captureProvider` below
+ * are optional test-injection seams, mirroring finder-preview-storage.ts's
+ * own `client` parameter: production (the API route) never passes either,
+ * so it always gets the real createAdminClient() and a real
+ * PlaywrightCaptureProvider. Tests inject an in-memory mock for each,
+ * making it possible to execute peekPreview()/generatePreview() for real
+ * -- including the fail-closed lock/cache branching and the finally-block
+ * lock cleanup -- without touching production Supabase Storage or
+ * launching a real browser.
+ *
+ * FAIL-CLOSED STATE HANDLING (P1 owner-review correction, second pass):
+ * readCachedPreview() and tryAcquireLock() return a real discriminated
+ * result -- "hit"/"miss"/"error" and "acquired"/"busy"/"error" -- and this
+ * file branches on `status` explicitly everywhere. Playwright is launched
+ * (`provider.capture(...)` below) in exactly one place, guarded by exactly
+ * one condition: `lockResult.status === "acquired"`. A storage "error"
+ * (missing bucket, permission denied, network outage) always returns
+ * state "failed" with the safe, generic reason from finder-preview-
+ * storage.ts -- never "capturing" (that would misreport a request that
+ * can never resolve as one merely waiting its turn) and never proceeds to
+ * capture.
  */
 export type PreviewState = "available" | "capturing" | "unavailable" | "failed" | "not_generated";
 
@@ -39,37 +60,41 @@ function mergeSignals(websiteSignals: FinderSignal[], open24Hours: boolean | und
   return [...websiteSignals, ...computeListingSignals({ open24Hours }), computeAuditSignal(hasCompletedAudit)];
 }
 
+function emptyResult(state: PreviewState, input: { open24Hours: boolean | undefined; hasCompletedAudit: boolean }, extra?: Partial<PreviewResult>): PreviewResult {
+  return {
+    state,
+    capturedAt: null,
+    isStale: false,
+    signedImageUrl: null,
+    signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit),
+    finalUrl: null,
+    ...extra
+  };
+}
+
 /** Cache-only read -- never triggers a capture. Used to render a result row's initial state without eagerly generating anything (Phase 9). */
 export async function peekPreview(input: {
   organizationId: string;
   rawUrl: string | null | undefined;
   open24Hours: boolean | undefined;
   hasCompletedAudit: boolean;
+  client?: StorageClient;
 }): Promise<PreviewResult> {
   const normalized = normalizeWebsiteUrl(input.rawUrl);
-  if ("error" in normalized) {
-    return {
-      state: "unavailable",
-      capturedAt: null,
-      isStale: false,
-      signedImageUrl: null,
-      signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit),
-      finalUrl: null
-    };
-  }
+  if ("error" in normalized) return emptyResult("unavailable", input);
+
   const urlHash = hashUrl(normalized.url);
-  const cached = await readCachedPreview(input.organizationId, urlHash);
-  if (!cached) {
-    return {
-      state: "not_generated",
-      capturedAt: null,
-      isStale: false,
-      signedImageUrl: null,
-      signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit),
-      finalUrl: null
-    };
+  const cacheResult = await readCachedPreview(input.organizationId, urlHash, input.client);
+
+  if (cacheResult.status === "error") {
+    return emptyResult("failed", input, { failureReason: cacheResult.error });
   }
-  const signedImageUrl = cached.metadata.failureReason ? null : await signPreviewImageUrl(input.organizationId, urlHash);
+  if (cacheResult.status === "miss") {
+    return emptyResult("not_generated", input);
+  }
+
+  const cached = cacheResult.preview;
+  const signedImageUrl = cached.metadata.failureReason ? null : await signPreviewImageUrl(input.organizationId, urlHash, 300, input.client);
   return {
     state: cached.metadata.failureReason ? "failed" : "available",
     capturedAt: cached.metadata.capturedAt,
@@ -81,33 +106,49 @@ export async function peekPreview(input: {
   };
 }
 
-/** Generates (or regenerates, if `forceRefresh`) a real preview. The only function in this module that ever launches a browser. */
+/** Generates (or regenerates, if `forceRefresh`) a real preview. The only function in this module that ever launches a browser -- and only after a real lock "acquired" result. */
 export async function generatePreview(input: {
   organizationId: string;
   rawUrl: string | null | undefined;
   open24Hours: boolean | undefined;
   hasCompletedAudit: boolean;
   forceRefresh?: boolean;
+  client?: StorageClient;
+  captureProvider?: CaptureProvider;
 }): Promise<PreviewResult> {
   const normalized = normalizeWebsiteUrl(input.rawUrl);
-  if ("error" in normalized) {
-    return { state: "unavailable", capturedAt: null, isStale: false, signedImageUrl: null, signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit), finalUrl: null };
-  }
+  if ("error" in normalized) return emptyResult("unavailable", input);
 
   const urlHash = hashUrl(normalized.url);
 
   if (!input.forceRefresh) {
-    const cached = await readCachedPreview(input.organizationId, urlHash);
-    if (cached && !cached.isStale) return peekPreview(input);
+    const cacheResult = await readCachedPreview(input.organizationId, urlHash, input.client);
+    if (cacheResult.status === "error") {
+      // A genuine storage problem, not an ordinary cache miss -- report it
+      // honestly rather than silently falling through to attempt a capture
+      // that would very likely also fail against the same broken storage.
+      return emptyResult("failed", input, { failureReason: cacheResult.error });
+    }
+    if (cacheResult.status === "hit" && !cacheResult.preview.isStale) {
+      return peekPreview(input);
+    }
+    // "miss", or a stale hit -- fall through to lock + capture.
   }
 
-  const gotLock = await tryAcquireLock(input.organizationId, urlHash);
-  if (!gotLock) {
-    return { state: "capturing", capturedAt: null, isStale: false, signedImageUrl: null, signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit), finalUrl: null };
+  const lockResult = await tryAcquireLock(input.organizationId, urlHash, input.client);
+  if (lockResult.status === "busy") {
+    return emptyResult("capturing", input);
+  }
+  if (lockResult.status === "error") {
+    // Never reported as "capturing" -- nothing is actually in flight, and
+    // telling the user to wait for a request that can never resolve would
+    // be worse than a clear failure. Playwright is never launched here.
+    return emptyResult("failed", input, { failureReason: lockResult.error });
   }
 
+  // lockResult.status === "acquired" -- the only path that ever reaches here.
   try {
-    const provider = new PlaywrightCaptureProvider();
+    const provider = input.captureProvider ?? new PlaywrightCaptureProvider();
     let capture;
     try {
       capture = await provider.capture({ url: normalized.url, screenshot: true, timeoutMs: CAPTURE_TIMEOUT_MS });
@@ -123,8 +164,8 @@ export async function generatePreview(input: {
         signals: [],
         failureReason: err instanceof Error ? err.message : "CAPTURE_FAILED"
       };
-      await writePreview(input.organizationId, urlHash, metadata, null);
-      return { state: "failed", capturedAt: metadata.capturedAt, isStale: false, signedImageUrl: null, signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit), finalUrl: null, failureReason: metadata.failureReason };
+      await writePreview(input.organizationId, urlHash, metadata, null, input.client);
+      return emptyResult("failed", input, { capturedAt: metadata.capturedAt, failureReason: metadata.failureReason });
     }
 
     const contentTypeOk = isHtmlLikeContentType(capture.contentType);
@@ -143,8 +184,8 @@ export async function generatePreview(input: {
         signals: [],
         failureReason: reason
       };
-      await writePreview(input.organizationId, urlHash, metadata, null);
-      return { state: "failed", capturedAt: metadata.capturedAt, isStale: false, signedImageUrl: null, signals: mergeSignals([], input.open24Hours, input.hasCompletedAudit), finalUrl: capture.finalUrl, failureReason: reason };
+      await writePreview(input.organizationId, urlHash, metadata, null, input.client);
+      return emptyResult("failed", input, { capturedAt: metadata.capturedAt, finalUrl: capture.finalUrl, failureReason: reason });
     }
 
     const features = extractFeatures(capture.html, capture.finalUrl);
@@ -160,12 +201,20 @@ export async function generatePreview(input: {
       contentTypeOk: true,
       signals: websiteSignals
     };
-    const { error } = await writePreview(input.organizationId, urlHash, metadata, capture.screenshotBuffer as Buffer);
+    const { error } = await writePreview(input.organizationId, urlHash, metadata, capture.screenshotBuffer as Buffer, input.client);
     if (error) {
-      return { state: "failed", capturedAt: metadata.capturedAt, isStale: false, signedImageUrl: null, signals: mergeSignals(websiteSignals, input.open24Hours, input.hasCompletedAudit), finalUrl: capture.finalUrl, failureReason: "STORAGE_WRITE_FAILED" };
+      return {
+        state: "failed",
+        capturedAt: metadata.capturedAt,
+        isStale: false,
+        signedImageUrl: null,
+        signals: mergeSignals(websiteSignals, input.open24Hours, input.hasCompletedAudit),
+        finalUrl: capture.finalUrl,
+        failureReason: "STORAGE_WRITE_FAILED"
+      };
     }
 
-    const signedImageUrl = await signPreviewImageUrl(input.organizationId, urlHash);
+    const signedImageUrl = await signPreviewImageUrl(input.organizationId, urlHash, 300, input.client);
     return {
       state: "available",
       capturedAt: metadata.capturedAt,
@@ -175,6 +224,6 @@ export async function generatePreview(input: {
       finalUrl: capture.finalUrl
     };
   } finally {
-    await releaseLock(input.organizationId, urlHash);
+    await releaseLock(input.organizationId, urlHash, input.client);
   }
 }

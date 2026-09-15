@@ -158,7 +158,7 @@ async function main() {
   {
     const captureSrc = src("src/lib/prospect/finder-preview-capture.ts");
     const storageSrc = src("src/lib/prospect/finder-preview-storage.ts");
-    check("generatePreview() checks the cache and returns the cached result when fresh, before ever launching a browser", /if \(!input\.forceRefresh\)[\s\S]{0,300}if \(cached && !cached\.isStale\)/.test(captureSrc));
+    check("generatePreview() checks the cache and returns the cached result when fresh, before ever launching a browser", /if \(!input\.forceRefresh\)[\s\S]{0,600}if \(cacheResult\.status === "hit" && !cacheResult\.preview\.isStale\)/.test(captureSrc));
     check("a storage-object lock prevents two concurrent requests for the same (org, url) from both capturing", /tryAcquireLock/.test(captureSrc) && /LOCK_TTL_MS/.test(storageSrc));
     check("the lock is always released, success or failure (finally block)", /\} finally \{[\s\S]{0,60}releaseLock/.test(captureSrc));
   }

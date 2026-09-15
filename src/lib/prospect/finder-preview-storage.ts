@@ -66,17 +66,32 @@ export interface StorageClient {
  * efficiency for what capture concurrency limits (finder-preview-capture.ts)
  * already keep cheap.
  *
- * FAIL-CLOSED: if the `website-captures` bucket itself doesn't exist (or
- * any other storage-level failure occurs), every write function below
- * returns a real, distinguishable error -- readCachedPreview()/
- * tryAcquireLock() surface it as "nothing cached" / "lock not acquired"
- * (safe defaults that block a capture from proceeding rather than assume
- * success), and writePreview() returns { error } which
- * finder-preview-capture.ts turns into a "failed" preview state with
- * failureReason "STORAGE_WRITE_FAILED". Nothing here ever attempts to
+ * FAIL-CLOSED (P1 owner-review correction, second pass): readCachedPreview()
+ * and tryAcquireLock() return an explicit three-state discriminated result
+ * -- never a bare boolean/null -- because collapsing "a real lock is held
+ * by someone else" (busy, healthy, expected, safe to report as "generating,
+ * try again shortly") and "the bucket is missing / permission denied /
+ * storage is unreachable" (error, unhealthy, must never be reported the
+ * same way) into one falsy value was a real bug in the first pass: a
+ * caller receiving that ambiguous `false` had no way to avoid telling the
+ * user "capturing…" for a request that could never actually resolve,
+ * because nothing was ever really capturing. The fix: `LockResult` is
+ * `{status:"acquired"}` | `{status:"busy"}` | `{status:"error", error}`,
+ * and `CacheReadResult` is `{status:"hit", preview}` | `{status:"miss"}` |
+ * `{status:"error", error}` -- finder-preview-capture.ts branches on
+ * `status` explicitly and Playwright is only ever launched after a real
+ * `"acquired"`. A missing bucket, a permission failure, and a network
+ * outage all classify as `"error"` (via classifyDownloadError() below,
+ * message-based since the Supabase Storage JS client doesn't expose a
+ * strongly-typed error discriminant) -- never treated as an ordinary
+ * cache miss or an ordinary busy lock. Nothing here ever attempts to
  * create, alter, or otherwise provision the bucket -- a missing bucket is
  * an operational error to report and fix out of band, never something
- * this code tries to fix itself.
+ * this code tries to fix itself. The `error` string returned to a caller
+ * is always the generic, safe STORAGE_UNAVAILABLE constant (safeStorageError()
+ * below) -- the real Supabase error message is logged server-side only,
+ * never returned to the client (Phase 6 item 16 in spirit: don't leak
+ * infrastructure detail across the trust boundary).
  */
 const BUCKET = "website-captures";
 const FRESHNESS_MS = 24 * 60 * 60 * 1000; // 24h -- a "reasonable freshness period" (Phase 7 item 7); explicit refresh (Phase 7 item 8) bypasses this.
@@ -85,6 +100,50 @@ const LOCK_TTL_MS = 90 * 1000; // long enough for a real capture (<=30s navigati
 export function hashUrl(url: string): string {
   return createHash("sha256").update(url).digest("hex").slice(0, 32);
 }
+
+/**
+ * A missing object ("Object not found") in a healthy bucket is a normal,
+ * expected outcome -- a cache miss, or no lock currently held. A missing
+ * BUCKET ("Bucket not found"), a permission failure, or any other storage
+ * error is an infrastructure problem that must never be treated the same
+ * way. The Supabase Storage JS client doesn't expose a typed discriminant
+ * for this, so classification is message-based -- deliberately narrow
+ * (only "not found" AND not mentioning "bucket" counts as a real miss;
+ * anything else, including an unrecognized message, fails to "infra_error"
+ * rather than risking a false "miss").
+ */
+export function classifyDownloadError(message: string | null | undefined): "not_found" | "infra_error" {
+  if (!message) return "infra_error";
+  const m = message.toLowerCase();
+  if (m.includes("bucket")) return "infra_error"; // e.g. "Bucket not found"
+  if (m.includes("not found") || m.includes("not_found") || m.includes("404")) return "not_found";
+  return "infra_error"; // permission denied, network failure, rate limit, anything unrecognized -- fail closed
+}
+
+/**
+ * Distinguishes "the object already exists" (the expected rejection an
+ * `upsert: false` upload gets when another request's lock already won --
+ * Supabase Storage enforces this as a single server-side unique-constraint
+ * check on `storage.objects (bucket_id, name)`, genuinely atomic, unlike a
+ * client-side download-then-upload check) from a real infrastructure
+ * problem (missing bucket, permission denied, network outage), which must
+ * never be treated as "someone else already has the lock."
+ */
+export function classifyUploadConflict(message: string | null | undefined): "already_exists" | "infra_error" {
+  if (!message) return "infra_error";
+  const m = message.toLowerCase();
+  if (m.includes("already exists") || m.includes("duplicate")) return "already_exists";
+  return "infra_error";
+}
+
+/** Never the raw Supabase error message -- that could name the bucket, the project, or other infrastructure detail a client has no business seeing. The real message is still logged server-side for operators. */
+function safeStorageError(rawMessage: string): string {
+  console.error(`[finder-preview-storage] storage error: ${rawMessage}`);
+  return "STORAGE_UNAVAILABLE";
+}
+
+export type LockResult = { status: "acquired" } | { status: "busy" } | { status: "error"; error: string };
+export type CacheReadResult = { status: "hit"; preview: StoredPreview } | { status: "miss" } | { status: "error"; error: string };
 
 function basePath(organizationId: string, urlHash: string): string {
   return `finder-previews/${organizationId}/${urlHash}`;
@@ -109,18 +168,28 @@ export interface StoredPreview {
   isStale: boolean;
 }
 
-export async function readCachedPreview(organizationId: string, urlHash: string, client?: StorageClient): Promise<StoredPreview | null> {
+/**
+ * Distinguishes "no cached preview exists yet" (status: "miss" -- normal,
+ * safe to proceed to lock acquisition) from "storage could not be queried"
+ * (status: "error" -- a missing bucket, a permission failure, or a network
+ * outage, none of which may be treated as an ordinary cache miss).
+ */
+export async function readCachedPreview(organizationId: string, urlHash: string, client?: StorageClient): Promise<CacheReadResult> {
   const supabase = client ?? createAdminClient();
   const path = basePath(organizationId, urlHash);
   const { data, error } = await supabase.storage.from(BUCKET).download(`${path}.json`);
-  if (error || !data) return null; // no cache, a genuine storage failure, or a missing bucket all fail the same safe way: "nothing cached, capture fresh."
+  if (error) {
+    if (classifyDownloadError(error.message) === "infra_error") return { status: "error", error: safeStorageError(error.message) };
+    return { status: "miss" }; // a real "Object not found" -- no cache yet, healthy bucket.
+  }
+  if (!data) return { status: "miss" };
   try {
     const text = await data.text();
     const metadata = JSON.parse(text) as PreviewMetadata;
     const ageMs = Date.now() - new Date(metadata.capturedAt).getTime();
-    return { metadata, imagePath: `${path}.png`, isStale: ageMs > FRESHNESS_MS };
+    return { status: "hit", preview: { metadata, imagePath: `${path}.png`, isStale: ageMs > FRESHNESS_MS } };
   } catch {
-    return null;
+    return { status: "miss" }; // corrupted/unparseable sidecar -- safe to treat as no usable cache and regenerate, not an infrastructure error.
   }
 }
 
@@ -155,21 +224,65 @@ export async function signPreviewImageUrl(organizationId: string, urlHash: strin
  * "deterministic caching or idempotency so repeated requests do not
  * generate unnecessary duplicate captures"). A crashed capture's lock
  * self-expires after LOCK_TTL_MS rather than jamming the cache forever.
- * Fails closed: if the lock object can't be written (storage error,
- * missing bucket, ...), tryAcquireLock() returns false -- the caller
- * treats that exactly like "someone else is already capturing" and does
- * not proceed, rather than assuming the lock succeeded.
+ *
+ * Returns a genuine three-state result -- "acquired" (proceed to capture),
+ * "busy" (a real lock is held by someone else; safe, expected, report
+ * "capturing" and don't launch another), or "error" (the bucket is
+ * missing, permission was denied, or storage is unreachable -- this must
+ * NEVER be reported as "busy": nothing is actually capturing, so a caller
+ * that treated this as busy would tell the user "try again shortly"
+ * forever for a request that can never resolve). Playwright is launched
+ * by the caller (finder-preview-capture.ts) only when status is exactly
+ * "acquired".
+ *
+ * TRUE ATOMICITY ON THE COMMON PATH (owner-review correction): the fast
+ * path below is `upload(path, ..., { upsert: false })` FIRST, not a
+ * download-then-upload check-then-act. Supabase Storage enforces object
+ * uniqueness with a Postgres unique constraint on `storage.objects
+ * (bucket_id, name)` server-side, in the single request -- so of any
+ * number of truly concurrent `upsert:false` creates for the same path,
+ * the backend itself guarantees exactly one succeeds; this is not a
+ * client-side race the way a separate download-then-upload pair is.
+ * Only when that fast path reports "the object already exists" does this
+ * function fall back to downloading the existing lock to check whether
+ * it's expired -- a narrower race window than before, but one that only
+ * matters for the rare crashed/abandoned-lock case, not ordinary
+ * contention between two fresh requests.
  */
-export async function tryAcquireLock(organizationId: string, urlHash: string, client?: StorageClient): Promise<boolean> {
+export async function tryAcquireLock(organizationId: string, urlHash: string, client?: StorageClient): Promise<LockResult> {
   const supabase = client ?? createAdminClient();
   const path = `${basePath(organizationId, urlHash)}.lock`;
-  const { data: existing } = await supabase.storage.from(BUCKET).download(path);
+
+  const { error: createError } = await supabase.storage.from(BUCKET).upload(path, String(Date.now()), { contentType: "text/plain", upsert: false });
+  if (!createError) return { status: "acquired" }; // the common case: no lock existed, and creating it was itself the atomic check.
+
+  if (classifyUploadConflict(createError.message) !== "already_exists") {
+    return { status: "error", error: safeStorageError(createError.message) };
+  }
+
+  // A lock object already exists (that's what "already exists" means here)
+  // -- check whether it's expired before deciding whether this is really
+  // "busy" or a stale lock safe to reclaim.
+  const { data: existing, error: downloadError } = await supabase.storage.from(BUCKET).download(path);
+  if (downloadError) {
+    if (classifyDownloadError(downloadError.message) === "infra_error") {
+      return { status: "error", error: safeStorageError(downloadError.message) };
+    }
+    // The create-conflict said it existed a moment ago but it's gone now --
+    // another request's lock just expired and was released between our two
+    // calls. Report "busy" rather than racing to grab it ourselves; the
+    // caller's own next request will acquire it cleanly via the fast path.
+    return { status: "busy" };
+  }
   if (existing) {
     const ts = Number((await existing.text()).trim());
-    if (!Number.isNaN(ts) && Date.now() - ts < LOCK_TTL_MS) return false; // a real capture is already in flight
+    if (!Number.isNaN(ts) && Date.now() - ts < LOCK_TTL_MS) return { status: "busy" }; // a real capture is already in flight
+    // lock object exists but is past its TTL -- treat as expired, fall through and overwrite it.
   }
-  const { error } = await supabase.storage.from(BUCKET).upload(path, String(Date.now()), { contentType: "text/plain", upsert: true });
-  return !error;
+
+  const { error: overwriteError } = await supabase.storage.from(BUCKET).upload(path, String(Date.now()), { contentType: "text/plain", upsert: true });
+  if (overwriteError) return { status: "error", error: safeStorageError(overwriteError.message) };
+  return { status: "acquired" };
 }
 
 export async function releaseLock(organizationId: string, urlHash: string, client?: StorageClient): Promise<void> {
