@@ -166,8 +166,16 @@ console.log("\n7. Sample-site safety -- architectural separation, no client-cont
   check("generate.ts renders a distinct illustrative-demo banner when isSample is true", /Illustrative WebGenie demo — sample business and contact information\./.test(generateSrc));
   check("generate.ts passes options.isSample into both leadFormScript() and chatWidgetScript() (decides which endpoint gets embedded, at generation time)", /leadFormScript\(\{[^}]*\}, options\.organizationId, options\.isSample\)/.test(generateSrc) && /chatWidgetScript\(business, p, options\.organizationId, options\.isSample\)/.test(generateSrc));
 
-  check("/samples passes sample:true to demoSiteUrl()", /demoSiteUrl\([^)]*sample: true/.test(src("src/app/samples/page.tsx")));
-  check("the homepage's demo preview passes sample:true to demoSiteUrl()", (src("src/app/page.tsx").match(/demoSiteUrl\([^)]*sample: true/g) ?? []).length >= 1);
+  // Public Examples auth gate (owner-directed correction, FINAL pass):
+  // /samples no longer calls demoSiteUrl() at all -- its authenticated
+  // link now goes through the dedicated /api/sample-preview?id=<canonical
+  // id> route (see scripts/verify-public-examples-auth-gate.ts for the
+  // full architecture proof), which itself passes isSample: true to
+  // generateSite() directly, the same way this route always has for its
+  // own real (non-sample) callers via the ?sample= query param.
+  const samplePreviewSrc = src("src/app/api/sample-preview/route.ts");
+  check("/api/sample-preview passes isSample: true to generateSite()", /isSample: true/.test(samplePreviewSrc));
+  check("neither /samples nor the homepage's Examples section calls demoSiteUrl() at all anymore (by design -- no serialized business payload in a public full-view link)", !/demoSiteUrl\(/.test(src("src/app/samples/page.tsx")) && !/demoSiteUrl\(/.test(src("src/app/page.tsx")));
 }
 
 console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor business.id (both client-controlled) gate persistence on the real endpoints");
@@ -256,7 +264,12 @@ console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor bus
 console.log("\n8. Login/signup/password-reset route preservation -- visual-only change, auth logic byte-identical");
 {
   for (const [name, file, mustContain] of [
-    ["login", "src/app/login/page.tsx", ["supabase.auth.signInWithPassword({ email, password })", 'window.location.href = "/"']],
+    // Public Examples auth gate (owner-directed correction, post-PR#32):
+    // login now navigates to a sanitized `?returnTo=` instead of always
+    // "/" -- see scripts/verify-public-examples-auth-gate.ts item 12/13
+    // for the real executed proof that sanitizeReturnPath() rejects an
+    // open redirect. The auth call itself is unchanged.
+    ["login", "src/app/login/page.tsx", ["supabase.auth.signInWithPassword({ email, password })", "window.location.href = returnTo", "sanitizeReturnPath("]],
     ["signup", "src/app/signup/page.tsx", ["/api/auth/create-account", "supabase.auth.signInWithPassword({ email, password })", "/api/auth/bootstrap"]],
     ["forgot-password", "src/app/forgot-password/page.tsx", ["/api/auth/request-reset"]],
     ["reset-password", "src/app/reset-password/page.tsx", ["supabase.auth.setSession(", "supabase.auth.updateUser({ password })"]]
@@ -271,9 +284,21 @@ console.log("\n8. Login/signup/password-reset route preservation -- visual-only 
 
 console.log("\n9. Authenticated component isolation -- AppShell/nav/operational pages untouched");
 {
-  const diffStat = execSync("git diff --stat main -- src/components/shell.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
-  check("shell.tsx has a diff against main (the guest-branch changes are real)", diffStat.trim().length > 0);
-
+  // Historical note (owner-review correction, WEBGENIE PUBLIC EXAMPLES --
+  // FINAL pass): this section originally asserted shell.tsx MUST have a
+  // diff against main, back when PR #32's own guest-nav changes were
+  // still an unmerged branch being compared against an older main. Now
+  // that PR #32 is merged, main itself already contains that diff -- a
+  // later branch (like this one) correctly having ZERO diff to shell.tsx
+  // is the expected, desired state, not a regression. Reproduced
+  // identically against a pristine main checkout: main diffed against
+  // itself is trivially empty, so the old assertion failed there too,
+  // confirming it was stale test debt, not a real check of anything.
+  // The protections that still mean something -- AuthenticatedFooter and
+  // the WORK_ITEMS/OUTREACH_ITEMS/... data entries never being touched,
+  // and no authenticated operational page being touched -- are kept
+  // below, and still correctly pass on an empty diff too (an empty diff
+  // can't touch anything).
   const fullDiff = execSync("git diff main -- src/components/shell.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
   check("AuthenticatedFooter() is not touched by the diff", !fullDiff.includes("-function AuthenticatedFooter") && !/^\+.*AuthenticatedFooter\(\) \{/m.test(fullDiff.split("\n").filter((l) => l.startsWith("+")).join("\n")));
   check("no WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entries were changed", !/^[+-]\s*(href|label|description):/m.test(fullDiff));
@@ -399,7 +424,12 @@ console.log("\n16. Owner-review finding -- iframe overload corrected: static opt
 
   check("a documented, reusable regeneration script exists for the thumbnails (not a one-off throwaway)", fs.existsSync(path.join(__dirname, "..", "scripts", "generate-sample-thumbnails.mjs")));
 
-  check("\"View full demo\" links still point at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(pageSrc2) && /target="_blank"/.test(pageSrc2));
+  // Public Examples auth gate (owner-directed correction, post-PR#32): the
+  // homepage itself no longer renders this link at all (every visitor who
+  // reaches it is logged out, by HomePage()'s own redirects) -- /samples
+  // is the surface that still renders the real link, gated to a signed-in
+  // visitor. See scripts/verify-public-examples-auth-gate.ts items 1/11.
+  check("/samples' \"View full demo\" link (rendered only for a signed-in visitor) still points at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(samplesSrc3) && /target="_blank"/.test(samplesSrc3));
 }
 
 console.log("\n17. Owner-review finding -- real, sanitized product screenshots replace the illustrative hero/product-proof mockups");

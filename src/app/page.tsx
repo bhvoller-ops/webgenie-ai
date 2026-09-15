@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   Handshake,
+  Lock,
   Radar,
   Repeat,
   ScanLine,
@@ -18,7 +19,6 @@ import { PageShell } from "@/components/shell";
 import { Button, Panel } from "@/components/ui";
 import { getAccessContext } from "@/lib/auth/access";
 import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
-import { demoSiteUrl } from "@/lib/sitegen/encode";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { industryList as GALLERY_TEMPLATE_LIST } from "@/data/gallery/industries";
 import { cn } from "@/lib/format";
@@ -589,15 +589,27 @@ const EXAMPLE_IDS = ["sample-roofer", "sample-hvac", "sample-plumber", "sample-d
 const EXAMPLE_BUSINESSES = EXAMPLE_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
 
 function Examples() {
+  // PUBLIC EXAMPLES AUTH GATE (owner-directed correction): HomePage()
+  // above already redirects every signed-in visitor away before this ever
+  // renders (admin -> /projects/new, partner -> /partners/portal, beta ->
+  // /trial/portal, anything else -> the "not set up" panel) -- so every
+  // real render of this section is a logged-out visitor, unconditionally.
+  // No "View full demo" link renders here at all; the real enforcement
+  // lives server-side in /api/demo-site/route.ts regardless.
   return (
     <div className={SECTION}>
       <SectionIntro
         title="See the kind of site WebGenie builds"
         description={`Four real demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
       />
+      <p className="mx-auto mt-4 max-w-md text-center text-sm text-faint">
+        Full demos are available inside WebGenie.{" "}
+        <Link href="/login?returnTo=/samples" className="font-medium text-iris-soft underline decoration-dotted underline-offset-4 hover:text-iris">
+          Sign in to view full demos
+        </Link>
+      </p>
       <div className="mx-auto mt-6 grid max-w-5xl gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
         {EXAMPLE_BUSINESSES.map((biz) => {
-          const url = demoSiteUrl(biz, { by: "WebGenie AI", sample: true });
           const label = INDUSTRIES[biz.industry as keyof typeof INDUSTRIES]?.label ?? biz.industry;
           const shortId = biz.id.replace("sample-", "");
           return (
@@ -618,14 +630,10 @@ function Examples() {
                     {label} · Illustrative example
                   </div>
                 </div>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="focus-ring self-start rounded-lg border border-hairline px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-iris/50"
-                >
-                  View full demo
-                </a>
+                <p className="inline-flex items-center gap-1.5 text-sm text-faint">
+                  <Lock className="h-3.5 w-3.5" aria-hidden />
+                  Full demo available after sign-in
+                </p>
               </div>
             </div>
           );
