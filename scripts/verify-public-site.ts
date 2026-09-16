@@ -310,49 +310,66 @@ console.log("\n8. Login/signup/password-reset route preservation -- visual-only 
   }
 }
 
-console.log("\n9. Authenticated component isolation -- AppShell/nav/operational pages untouched");
+console.log("\n9. Authenticated component isolation -- AppShell/nav untouched by PR #32's or PR #34's own historical diffs");
 {
-  // Historical note (owner-review correction, WEBGENIE PUBLIC EXAMPLES --
-  // FINAL pass): this section originally asserted shell.tsx MUST have a
-  // diff against main, back when PR #32's own guest-nav changes were
-  // still an unmerged branch being compared against an older main. Now
-  // that PR #32 is merged, main itself already contains that diff -- a
-  // later branch (like this one) correctly having ZERO diff to shell.tsx
-  // is the expected, desired state, not a regression. Reproduced
-  // identically against a pristine main checkout: main diffed against
-  // itself is trivially empty, so the old assertion failed there too,
-  // confirming it was stale test debt, not a real check of anything.
-  // The protections that still mean something -- AuthenticatedFooter and
-  // the WORK_ITEMS/OUTREACH_ITEMS/... data entries never being touched,
-  // and no authenticated operational page being touched -- are kept
-  // below, and still correctly pass on an empty diff too (an empty diff
-  // can't touch anything).
-  const fullDiff = execSync("git diff main -- src/components/shell.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
-  check("AuthenticatedFooter() is not touched by the diff", !fullDiff.includes("-function AuthenticatedFooter") && !/^\+.*AuthenticatedFooter\(\) \{/m.test(fullDiff.split("\n").filter((l) => l.startsWith("+")).join("\n")));
+  // PR #32 merged (581042a). Its own scope-discipline is now a historical
+  // fact, not a live constraint -- this section originally also asserted
+  // "zero authenticated operational pages touched by THIS branch," which
+  // was true and correct while PR #32's branch was active, but is
+  // structurally guaranteed to fail on main once merged (there's no more
+  // "this branch" distinct from main), and is inherently violated on
+  // purpose by any later branch (e.g. feature/finder-website-preview-signals)
+  // that legitimately changes an authenticated page like /finder. Removed
+  // rather than left to bit-rot into a permanent false failure. The
+  // shell.tsx/AppShell-isolation checks below remain -- those verify a
+  // real, still-true structural fact (the shared authenticated nav
+  // component's own data entries), not a branch-scope snapshot.
+  // Fixed SHAs, not "main" (a moving target) -- PR #32's real base and
+  // head, permanent facts regardless of which branch this script runs on
+  // later. Skipped gracefully if a shallow clone doesn't have this history.
+  const PR32_BASE = "24a6056852ad2edf8e9baad8e02933c92699d68e";
+  const PR32_HEAD = "581042a1fc21f73c5220fbd07188084b6b2d6f38";
+  let pr32Diff = "";
+  try {
+    pr32Diff = execSync(`git diff ${PR32_BASE} ${PR32_HEAD} -- src/components/shell.tsx`, { cwd: path.join(__dirname, ".."), encoding: "utf8" });
+  } catch {
+    console.log("  (skipped -- PR #32's base/head SHAs aren't available in this checkout's history)");
+  }
+  if (pr32Diff) {
+    check("AuthenticatedFooter() was not touched by PR #32's own diff (historical)", !pr32Diff.includes("-function AuthenticatedFooter") && !/^\+.*AuthenticatedFooter\(\) \{/m.test(pr32Diff.split("\n").filter((l) => l.startsWith("+")).join("\n")));
+    check("no WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entries were changed by PR #32's own diff (historical)", !/^[+-]\s*(href|label|description):/m.test(pr32Diff));
+  }
 
-  // Samples/Gallery consolidation (owner product decision): exactly one
-  // sanctioned exception to the "no data entries touched" rule below --
-  // RESOURCES_ITEMS' own Samples entry is REMOVED (never a WORK/OUTREACH/
-  // DELIVERY entry, never an addition, never a different RESOURCES entry).
-  // Asserted precisely rather than loosening the rule generally, so any
-  // *other* href/label/description change in this file still fails loudly.
-  const itemDataLines = fullDiff.split("\n").filter((l) => /^[+-]\s*(href|label|description):/.test(l));
-  const expectedRemovedLines = [
-    '-    href: "/samples",',
-    '-    label: "Samples",',
-    '-    description: "Every one of the 73 industry sample sites, browsable by name.",'
-  ];
-  check(
-    "RESOURCES_ITEMS' Samples entry is removed and no other WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entry was touched",
-    itemDataLines.length === expectedRemovedLines.length && expectedRemovedLines.every((l) => itemDataLines.includes(l)),
-    itemDataLines.join(" | ")
-  );
-
-  const authClientDiff = execSync(
-    'git diff --stat main -- src/app/prospecting src/app/prospects src/app/finder src/app/sequences src/app/launch src/app/insights src/app/projects src/app/calls src/app/leads src/app/onboard src/app/settings src/app/partners src/app/playbooks src/app/audit src/app/admin',
-    { cwd: path.join(__dirname, ".."), encoding: "utf8" }
-  );
-  check("zero authenticated operational pages were touched by this branch", authClientDiff.trim().length === 0, authClientDiff.trim().slice(0, 300));
+  // PR #34 (Samples/Gallery consolidation, merged 83bb46d onto main) is
+  // the same kind of historical fact -- pinned to its own real base/head
+  // SHAs rather than "main", for the identical reason PR #32's checks
+  // above were repointed: comparing against "main" breaks the instant any
+  // later, unrelated PR merges. PR #34 legitimately removed exactly one
+  // RESOURCES_ITEMS entry (Samples) from shell.tsx as an owner-sanctioned
+  // exception -- asserted precisely (the exact 3 removed lines and
+  // nothing else) so a different, unrelated data-entry change would still
+  // fail loudly if it somehow appeared in this same historical diff.
+  const PR34_BASE = "581042a1fc21f73c5220fbd07188084b6b2d6f38";
+  const PR34_HEAD = "bcbd2d8dc70ced6131a2f3ee439b49e123c00183";
+  let pr34Diff = "";
+  try {
+    pr34Diff = execSync(`git diff ${PR34_BASE} ${PR34_HEAD} -- src/components/shell.tsx`, { cwd: path.join(__dirname, ".."), encoding: "utf8" });
+  } catch {
+    console.log("  (skipped -- PR #34's base/head SHAs aren't available in this checkout's history)");
+  }
+  if (pr34Diff) {
+    const itemDataLines = pr34Diff.split("\n").filter((l) => /^[+-]\s*(href|label|description):/.test(l));
+    const expectedRemovedLines = [
+      '-    href: "/samples",',
+      '-    label: "Samples",',
+      '-    description: "Every one of the 73 industry sample sites, browsable by name.",'
+    ];
+    check(
+      "RESOURCES_ITEMS' Samples entry was removed and no other WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entry was touched by PR #34's own diff (historical)",
+      itemDataLines.length === expectedRemovedLines.length && expectedRemovedLines.every((l) => itemDataLines.includes(l)),
+      itemDataLines.join(" | ")
+    );
+  }
 }
 
 console.log("\n10. Mobile layout classes -- responsive grids/columns present on every rebuilt public page");

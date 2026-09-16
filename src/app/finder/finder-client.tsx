@@ -15,16 +15,15 @@ import {
   MessageSquare,
   Radar,
   Search,
-  Star,
   Target,
   Radio,
 } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { PageHeader, SummaryStrip, EmptyState } from "@/components/workspace";
-import { Pill, type PillTone } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
 import { PublishButton } from "@/components/publish-button";
 import { OpportunityPreviewDrawer } from "@/components/opportunity-preview-drawer";
+import { FinderResultRow as FinderResultRowItem } from "@/components/finder-result-row";
 import { IndustryPicker } from "@/components/industry-picker";
 import { industryHeroImage, industryLabel, industrySecondaryImage } from "@/lib/sitegen/industry-lookup";
 import { demoSiteUrl } from "@/lib/sitegen/encode";
@@ -65,13 +64,6 @@ const RADIUS_OPTIONS = [
   { label: "Within 25 miles", value: "25" },
   { label: "Within 31 miles (max)", value: "31" },
 ];
-
-const LEVEL_TONE: Record<string, PillTone> = {
-  high: "good",
-  medium: "warn",
-  low: "neutral",
-  insufficient_data: "info",
-};
 
 const PAGE_SIZES = [25, 50] as const;
 
@@ -476,172 +468,79 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
             </div>
           ) : null}
 
-          <div className="mt-4 overflow-x-auto rounded-panel border border-hairline">
-            <table className="w-full min-w-[1080px] text-left">
-              <thead className="bg-raised">
-                <tr>
-                  <th className="w-10 px-4 py-3.5">
-                    <input
-                      type="checkbox"
-                      checked={pageRows.length > 0 && pageRows.every((r) => selected.has(r.id))}
-                      onChange={toggleSelectAllOnPage}
-                      className="h-3.5 w-3.5 rounded border-hairline"
-                      aria-label="Select all on page"
-                    />
-                  </th>
-                  {["Business", "Website", "Google Reputation", "Opportunity", "Evidence", "Status", "Action"].map((h) => (
-                    <th key={h} className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-widest text-faint">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((raw) => {
-                  const b = withOverrides(raw);
-                  const opp = b.preliminaryOpportunity;
-                  const isImporting = importingIds.has(b.id);
-                  // Real, persisted timestamp (migration 035) once available;
-                  // `importedIds` covers the instant this-session gap between a
-                  // successful import and this page's next full reload.
-                  const importedAt = b.publicProfileFetchedAt ?? (importedIds.has(b.id) ? new Date().toISOString() : null);
-                  const wasImported = Boolean(importedAt);
-                  return (
+          <div className="mt-4 flex items-center gap-2 rounded-t-panel border border-b-0 border-hairline bg-raised px-4 py-2.5">
+            <input
+              type="checkbox"
+              checked={pageRows.length > 0 && pageRows.every((r) => selected.has(r.id))}
+              onChange={toggleSelectAllOnPage}
+              className="h-3.5 w-3.5 rounded border-hairline"
+              aria-label="Select all on page"
+            />
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-faint">Select all on page</span>
+          </div>
+          {/* One grouped result surface with dividers, not a dense multi-column
+              table -- each result is a single compact row with three zones
+              (identity / current-website preview / signals + primary action),
+              per the Finder website-preview master prompt's Phase 2. */}
+          <ul className="rounded-b-panel border border-hairline">
+            {pageRows.map((raw) => {
+              const b = withOverrides(raw);
+              const isImporting = importingIds.has(b.id);
+              const importedAt = b.publicProfileFetchedAt ?? (importedIds.has(b.id) ? new Date().toISOString() : null);
+              const wasImported = Boolean(importedAt);
+              return (
+                <FinderResultRowItem
+                  key={b.id}
+                  business={b}
+                  selected={selected.has(b.id)}
+                  onToggleSelect={() => toggleSelected(b.id)}
+                  onViewOpportunity={() => setPreviewRow(b)}
+                  secondaryActions={
                     <>
-                    <tr key={b.id} className="border-t border-hairline transition-colors hover:bg-raised/40">
-                      <td className="px-4 py-4 align-top">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(b.id)}
-                          onChange={() => toggleSelected(b.id)}
-                          className="h-3.5 w-3.5 rounded border-hairline"
-                        />
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex items-start gap-3">
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-iris/30 bg-iris/10 text-[13px] font-semibold text-iris-soft">
-                            {b.name.charAt(0)}
-                          </span>
-                          <div className="min-w-0">
-                            <span className="block text-[13px] font-medium text-ink">{b.name}</span>
-                            <span className="block text-[11.5px] text-faint">
-                              {industryLabel(b.industry)} · {b.city}
-                              {b.state ? `, ${b.state}` : ""}
-                            </span>
-                            {b.isLikelyChain ? (
-                              <Pill tone="neutral" className="mt-1 text-[10px]">Possible chain</Pill>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <Pill tone={b.website ? "good" : "neutral"} className="text-[11px]">
-                          {opp.websiteStatus === "present" ? "Present" : opp.websiteStatus === "absent" ? "No Website" : "Unknown"}
-                        </Pill>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        {typeof b.rating === "number" ? (
-                          <span className="inline-flex items-center gap-1.5 text-[12px]">
-                            <Star className="h-3 w-3 fill-signal-warn text-signal-warn" aria-hidden />
-                            <span className="font-mono text-ink">{b.rating}</span>
-                            <span className="text-faint">({b.reviewCount ?? 0})</span>
-                          </span>
-                        ) : (
-                          <span className="text-[12px] text-faint">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex flex-col items-start gap-1">
-                          <Pill tone={LEVEL_TONE[opp.level]} className="text-[11px]">
-                            {PRELIMINARY_LEVEL_LABELS[opp.level]}
-                          </Pill>
-                          <span className="text-[10.5px] text-faint">{opp.confidence} confidence</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex max-w-[220px] flex-wrap gap-1">
-                          {opp.evidence
-                            .filter((e) => e.type !== "website_status")
-                            .slice(0, 3)
-                            .map((e, i) => (
-                              <span
-                                key={i}
-                                className="rounded-full border border-hairline bg-raised px-2 py-0.5 text-[10px] text-muted"
-                              >
-                                {e.label}
-                              </span>
-                            ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <Pill tone="neutral" className="text-[11px]">{statusLabel(b)}</Pill>
-                        {wasImported && importedAt ? (
-                          <span className="mt-1 block text-[10px] text-signal-good">
-                            GMB data imported · Updated {formatRelativeTime(importedAt)}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex flex-col items-start gap-2">
-                          <button
-                            onClick={() => setPreviewRow(b)}
-                            className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-iris to-iris-deep px-3 py-2 text-[12px] font-semibold text-white shadow-[0_6px_20px_-10px_rgba(124,92,255,.9)] transition-all hover:brightness-110"
-                          >
-                            <Target className="h-3 w-3" aria-hidden />
-                            View Opportunity
-                          </button>
-
-                          {/* Secondary actions — visually subordinate, section 9 */}
-                          <div className="flex flex-wrap items-center gap-1">
-                            <button
-                              onClick={() => importGmb([b])}
-                              disabled={isImporting || b.source !== "places"}
-                              title="Import publicly available Google Business Profile / Maps data."
-                              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink disabled:opacity-40"
-                            >
-                              {isImporting ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden /> : <Radio className="h-2.5 w-2.5" aria-hidden />}
-                              GMB
-                            </button>
-                            {b.phone ? (
-                              <a
-                                href={smsHref(b)}
-                                title="Text this business's demo link"
-                                className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
-                              >
-                                <MessageSquare className="h-2.5 w-2.5" aria-hidden />
-                              </a>
-                            ) : null}
-                            <a
-                              href={demoSiteUrl(b, { by: agency, org: organizationId })}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Preview a generated demo site"
-                              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
-                            >
-                              <ExternalLink className="h-2.5 w-2.5" aria-hidden />
-                            </a>
-                            <button
-                              onClick={() => copy(b.phone || "", b.id + "p")}
-                              title="Copy phone number"
-                              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
-                            >
-                              {copied === b.id + "p" ? <Check className="h-2.5 w-2.5 text-signal-good" aria-hidden /> : <Copy className="h-2.5 w-2.5" aria-hidden />}
-                            </button>
-                            <button
-                              onClick={() => setEditingId(editingId === b.id ? null : b.id)}
-                              title="Swap the header/in-action photo"
-                              className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
-                            >
-                              <ImageIcon className="h-2.5 w-2.5" aria-hidden />
-                            </button>
-                            <PublishButton business={b} className="!px-2 !py-1 !text-[10.5px]" />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                    {editingId === b.id ? (
-                      <tr className="border-t border-hairline bg-raised/30">
-                        <td colSpan={8} className="px-5 py-5">
+                      <button
+                        onClick={() => importGmb([b])}
+                        disabled={isImporting || b.source !== "places"}
+                        title="Import publicly available Google Business Profile / Maps data."
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink disabled:opacity-40"
+                      >
+                        {isImporting ? <Loader2 className="h-2.5 w-2.5 animate-spin" aria-hidden /> : <Radio className="h-2.5 w-2.5" aria-hidden />}
+                        GMB
+                      </button>
+                      {wasImported && importedAt ? (
+                        <span className="text-[10px] text-signal-good">Imported {formatRelativeTime(importedAt)}</span>
+                      ) : null}
+                      <span className="text-[10.5px] text-faint">· {statusLabel(b)}</span>
+                      {b.phone ? (
+                        <a href={smsHref(b)} title="Text this business's demo link" className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink">
+                          <MessageSquare className="h-2.5 w-2.5" aria-hidden />
+                        </a>
+                      ) : null}
+                      <a
+                        href={demoSiteUrl(b, { by: agency, org: organizationId })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Preview a generated demo site"
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
+                      >
+                        <ExternalLink className="h-2.5 w-2.5" aria-hidden />
+                      </a>
+                      <button
+                        onClick={() => copy(b.phone || "", b.id + "p")}
+                        title="Copy phone number"
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
+                      >
+                        {copied === b.id + "p" ? <Check className="h-2.5 w-2.5 text-signal-good" aria-hidden /> : <Copy className="h-2.5 w-2.5" aria-hidden />}
+                      </button>
+                      <button
+                        onClick={() => setEditingId(editingId === b.id ? null : b.id)}
+                        title="Swap the header/in-action photo"
+                        className="focus-ring inline-flex items-center gap-1 rounded-md border border-hairline bg-raised px-2 py-1 text-[10.5px] text-faint transition-colors hover:text-ink"
+                      >
+                        <ImageIcon className="h-2.5 w-2.5" aria-hidden />
+                      </button>
+                      <PublishButton business={b} className="!px-2 !py-1 !text-[10.5px]" />
+                      {editingId === b.id ? (
+                        <div className="mt-2 w-full rounded-lg border border-hairline bg-raised/30 p-4">
                           <div className="grid gap-4 sm:grid-cols-2">
                             <PhotoOverrideInput
                               label="Header photo URL"
@@ -657,19 +556,17 @@ export function FinderClient({ role, organizationId }: { role: AccessRole; organ
                             />
                           </div>
                           <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
-                            Leave blank to use the default {industryLabel(b.industry).toLowerCase()} photo.
-                            Paste any direct image link — free stock (Pexels, Unsplash) or one the business
-                            sent you.
+                            Leave blank to use the default {industryLabel(b.industry).toLowerCase()} photo. Paste any
+                            direct image link — free stock (Pexels, Unsplash) or one the business sent you.
                           </p>
-                        </td>
-                      </tr>
-                    ) : null}
+                        </div>
+                      ) : null}
                     </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  }
+                />
+              );
+            })}
+          </ul>
 
           {/* Pagination */}
           {sorted.length > pageRows.length || sorted.length > 0 ? (
