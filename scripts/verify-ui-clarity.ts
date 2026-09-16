@@ -52,7 +52,11 @@ console.log("1. Navigation destinations -- every real existing route is reachabl
   check("WORK group exists with Daily Queue, Finder, Find Audits", /const WORK_ITEMS/.test(shellSrc) && /href: "\/prospecting"/.test(shellSrc) && /href: "\/finder"/.test(shellSrc) && /href: "\/audit"/.test(shellSrc));
   check("OUTREACH group exists with Sequences, Launch, Insights", /const OUTREACH_ITEMS/.test(shellSrc) && /href: "\/sequences"/.test(shellSrc) && /href: "\/launch"/.test(shellSrc) && /href: "\/insights"/.test(shellSrc));
   check("DELIVERY group exists with Projects, Call Tracker, Leads, Onboard", /const DELIVERY_ITEMS/.test(shellSrc) && /href: "\/projects\/new"/.test(shellSrc) && /href: "\/calls"/.test(shellSrc) && /href: "\/leads"/.test(shellSrc) && /href: "\/onboard"/.test(shellSrc));
-  check("RESOURCES group exists and contains Samples/Gallery (de-emphasized, not competing with WORK)", /const RESOURCES_ITEMS/.test(shellSrc) && /href: "\/samples"/.test(shellSrc) && /href: "\/gallery"/.test(shellSrc));
+  // Samples/Gallery consolidation (owner product decision): /samples is
+  // gone as a distinct product area (it redirects to /gallery -- see
+  // next.config.ts and scripts/verify-public-examples-auth-gate.ts), so
+  // RESOURCES now carries Gallery alone, still de-emphasized/last.
+  check("RESOURCES group exists and contains Gallery (de-emphasized, not competing with WORK), and no longer a separate Samples entry", /const RESOURCES_ITEMS/.test(shellSrc) && /href: "\/gallery"/.test(shellSrc) && !/href: "\/samples"/.test(shellSrc));
   check("RESOURCES is rendered last among the NavGroups (never first/most prominent)", (() => {
     const navBlock = shellSrc.slice(shellSrc.indexOf("<nav"), shellSrc.indexOf("</nav>"));
     const workIdx = navBlock.indexOf('label="Work"');

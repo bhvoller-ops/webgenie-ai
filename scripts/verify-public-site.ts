@@ -35,6 +35,10 @@ function check(label: string, condition: boolean, detail?: string) {
 function src(relPath: string): string {
   return fs.readFileSync(path.join(__dirname, "..", relPath), "utf8");
 }
+/** Strips comments so a text search can't false-positive on a doc comment explaining what was removed. */
+function withoutComments(s: string): string {
+  return s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
 
 console.log("1. Public navigation -- credible SaaS header, guest-only, current-page state");
 {
@@ -45,7 +49,11 @@ console.log("1. Public navigation -- credible SaaS header, guest-only, current-p
     const itemsBlock = navSrc.slice(navSrc.indexOf("PUBLIC_NAV_ITEMS = ["), navSrc.indexOf("] as const"));
     return /"Product"/.test(itemsBlock) && /"How It Works"/.test(itemsBlock) && /"Examples"/.test(itemsBlock) && /"Plans"/.test(itemsBlock) && !/who-its-for/.test(itemsBlock);
   })());
-  check("Examples links to the real /gallery route, active on both /gallery and /samples", /href: "\/gallery"/.test(navSrc) && /matchAlso: \["\/samples"\]/.test(navSrc));
+  // Samples/Gallery consolidation (owner product decision): /samples no
+  // longer exists as a distinct destination (it 308s to /gallery -- see
+  // next.config.ts and section 5 below), so Examples only needs to match
+  // /gallery, and the old matchAlso: ["/samples"] escape hatch is gone.
+  check("Examples links to the real /gallery route", /href: "\/gallery"/.test(navSrc) && !/matchAlso/.test(navSrc));
   check("PublicNav reads the real current pathname (usePathname), not a hardcoded value", /usePathname\(\)/.test(navSrc));
 
   const shellSrc = src("src/components/shell.tsx");
@@ -124,18 +132,41 @@ console.log("\n4. Claim/count reconciliation -- counts derived from canonical so
   check("gallery header distinguishes its illustrative template library from the real generator's samples", /separate example library from WebGenie's real site generator/.test(galleryClientSrc));
 }
 
-console.log("\n5. Samples vs Gallery -- distinct purposes, both real, neither hardcodes a conflicting count");
+console.log("\n5. Samples/Gallery consolidation -- /samples removed, /gallery is the one examples destination");
 {
-  const samplesSrc = src("src/app/samples/page.tsx");
-  check("/samples leads with a curated \"Featured examples\" subset, not a flat 14-card grid", /Featured examples/.test(samplesSrc) && /FEATURED_IDS/.test(samplesSrc));
-  check("/samples still keeps every real industry reachable in \"All industries\" (preserves the authenticated pull-up-on-a-call reference use)", /All industries/.test(samplesSrc) && /const REST = SAMPLE_BUSINESSES\.filter/.test(samplesSrc));
-  check("/samples renders real generator-output thumbnails (static images, not text-only cards)", /<Image\b/.test(samplesSrc) && /sample-previews/.test(samplesSrc));
-  check("/samples has a closing CTA to start using WebGenie", /Start Free/.test(samplesSrc));
+  // Owner product decision: Samples duplicated Gallery, so it's gone as a
+  // distinct product area. /samples must still 308 to /gallery (not 404)
+  // to preserve old bookmarks -- verified as a real config-level redirect,
+  // not a page-level one, so it can never require auth or leak a query
+  // string (see next.config.ts's own comment for the full reasoning).
+  check("the /samples page route no longer exists on disk", !fs.existsSync(path.join(__dirname, "..", "src", "app", "samples", "page.tsx")));
+  check("no /api/sample-preview route exists on disk (auth logic that existed only for /samples is gone with it)", !fs.existsSync(path.join(__dirname, "..", "src", "app", "api", "sample-preview")));
+
+  const nextConfigSrc = src("next.config.ts");
+  check("next.config.ts declares a real redirects() entry from /samples to /gallery", /source: "\/samples"/.test(nextConfigSrc) && /destination: "\/gallery"/.test(nextConfigSrc));
+  check("the /samples redirect is marked permanent (308, Next's convention for a permanent route consolidation)", /source: "\/samples"[\s\S]{0,80}permanent: true/.test(nextConfigSrc));
+  check("the redirect entry is a plain source/destination pair -- no :path*/query-forwarding capture that could carry an arbitrary return target through", !/\/samples\/:path/.test(nextConfigSrc));
+
+  const shellSrc2 = src("src/components/shell.tsx");
+  check("no authenticated nav (RESOURCES_ITEMS) links to /samples anymore", !/href: "\/samples"/.test(shellSrc2));
+  const navSrc2 = src("src/components/public-nav.tsx");
+  check("the public nav's Examples item has no /samples reference left (code only, not the doc comment explaining the removal)", !/\/samples/.test(withoutComments(navSrc2)));
+  check("the homepage has no /samples link or Samples-as-a-separate-area copy (code only, not the doc comment explaining the removal)", !/\/samples/.test(withoutComments(src("src/app/page.tsx"))) && !/curated sample set/.test(src("src/app/page.tsx")));
 
   const gallerySrc = src("src/app/gallery/gallery-client.tsx");
   check("/gallery grid is 3-col desktop / 2-col tablet / 1-col mobile (no 4-col xl)", /grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"/.test(gallerySrc) && !/xl:grid-cols-4/.test(gallerySrc));
   check("/gallery shows a live filtered result count", /Showing \{filtered\.length\} of \{industryList\.length\}/.test(gallerySrc));
   check("/gallery keeps search + category filters + quick preview modal", /<input/.test(gallerySrc) && /industryCategories\.map/.test(gallerySrc) && /setPreview\(ind\)/.test(gallerySrc));
+  // GalleryThumbImage lives in its own plain (non-"use client") component
+  // file, not inside gallery-client.tsx -- a real bug was hit and fixed
+  // here: the full IndustryConfig (whose services/whyUs arrays embed real
+  // React component references, i.e. functions) cannot be passed as a
+  // prop from a Server Component into a Client Component, which is what
+  // gallery-client.tsx's "use client" directive would have made this. The
+  // shared file takes only the two string fields it needs.
+  check("GalleryThumbImage lives in its own plain component file (importable by both the Server Component homepage and the Client Component gallery grid), not inside gallery-client.tsx", /export function GalleryThumbImage/.test(src("src/components/gallery-thumb-image.tsx")) && !/export function GalleryThumbImage/.test(gallerySrc));
+  check("GalleryThumbImage's own file carries no \"use client\" directive (it has no hooks/state -- purely presentational, safe to run in either environment)", !/^"use client"/m.test(src("src/components/gallery-thumb-image.tsx")));
+  check("GalleryThumbImage takes only heroImage/industryName (both strings), never a whole IndustryConfig object -- the fix makes the whole class of non-serializable-prop failure structurally impossible, not just avoided this once", /\{ heroImage, industryName \}: \{ heroImage: string; industryName: string \}/.test(src("src/components/gallery-thumb-image.tsx")));
 }
 
 console.log("\n6. Illustrative labeling -- fictional sample businesses never implied to be real prospects");
@@ -144,7 +175,6 @@ console.log("\n6. Illustrative labeling -- fictional sample businesses never imp
     ["homepage HeroProductScreenshot", "src/app/page.tsx"],
     ["homepage ProductProof", "src/app/page.tsx"],
     ["homepage Examples", "src/app/page.tsx"],
-    ["/samples", "src/app/samples/page.tsx"],
     ["AuthShell value panel", "src/components/auth-shell.tsx"]
   ] as const) {
     check(`${name} contains explicit "Illustrative example" labeling`, /Illustrative [Ee]xample/.test(src(file)), file);
@@ -166,16 +196,14 @@ console.log("\n7. Sample-site safety -- architectural separation, no client-cont
   check("generate.ts renders a distinct illustrative-demo banner when isSample is true", /Illustrative WebGenie demo — sample business and contact information\./.test(generateSrc));
   check("generate.ts passes options.isSample into both leadFormScript() and chatWidgetScript() (decides which endpoint gets embedded, at generation time)", /leadFormScript\(\{[^}]*\}, options\.organizationId, options\.isSample\)/.test(generateSrc) && /chatWidgetScript\(business, p, options\.organizationId, options\.isSample\)/.test(generateSrc));
 
-  // Public Examples auth gate (owner-directed correction, FINAL pass):
-  // /samples no longer calls demoSiteUrl() at all -- its authenticated
-  // link now goes through the dedicated /api/sample-preview?id=<canonical
-  // id> route (see scripts/verify-public-examples-auth-gate.ts for the
-  // full architecture proof), which itself passes isSample: true to
-  // generateSite() directly, the same way this route always has for its
-  // own real (non-sample) callers via the ?sample= query param.
-  const samplePreviewSrc = src("src/app/api/sample-preview/route.ts");
-  check("/api/sample-preview passes isSample: true to generateSite()", /isSample: true/.test(samplePreviewSrc));
-  check("neither /samples nor the homepage's Examples section calls demoSiteUrl() at all anymore (by design -- no serialized business payload in a public full-view link)", !/demoSiteUrl\(/.test(src("src/app/samples/page.tsx")) && !/demoSiteUrl\(/.test(src("src/app/page.tsx")));
+  // Samples/Gallery consolidation: /api/sample-preview (the dedicated
+  // authenticated route a previous pass built specifically for /samples)
+  // is deleted along with the page it existed for -- isSample/SAMPLE_LEAD/
+  // SAMPLE_CHAT infrastructure above is generic to generateSite() (still
+  // exercised by /api/demo-site's own ?sample= param for any old
+  // already-shared link, see that route's own doc comment) and stays.
+  check("no /api/sample-preview route exists anymore", !fs.existsSync(path.join(__dirname, "..", "src", "app", "api", "sample-preview")));
+  check("the homepage's Examples section calls no demoSiteUrl() (by design -- it links to /gallery, never a serialized business payload)", !/demoSiteUrl\(/.test(src("src/app/page.tsx")));
 }
 
 console.log("\n7b. Owner-review finding, SECOND PASS -- neither isSample nor business.id (both client-controlled) gate persistence on the real endpoints");
@@ -301,7 +329,24 @@ console.log("\n9. Authenticated component isolation -- AppShell/nav/operational 
   // can't touch anything).
   const fullDiff = execSync("git diff main -- src/components/shell.tsx", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
   check("AuthenticatedFooter() is not touched by the diff", !fullDiff.includes("-function AuthenticatedFooter") && !/^\+.*AuthenticatedFooter\(\) \{/m.test(fullDiff.split("\n").filter((l) => l.startsWith("+")).join("\n")));
-  check("no WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entries were changed", !/^[+-]\s*(href|label|description):/m.test(fullDiff));
+
+  // Samples/Gallery consolidation (owner product decision): exactly one
+  // sanctioned exception to the "no data entries touched" rule below --
+  // RESOURCES_ITEMS' own Samples entry is REMOVED (never a WORK/OUTREACH/
+  // DELIVERY entry, never an addition, never a different RESOURCES entry).
+  // Asserted precisely rather than loosening the rule generally, so any
+  // *other* href/label/description change in this file still fails loudly.
+  const itemDataLines = fullDiff.split("\n").filter((l) => /^[+-]\s*(href|label|description):/.test(l));
+  const expectedRemovedLines = [
+    '-    href: "/samples",',
+    '-    label: "Samples",',
+    '-    description: "Every one of the 73 industry sample sites, browsable by name.",'
+  ];
+  check(
+    "RESOURCES_ITEMS' Samples entry is removed and no other WORK_ITEMS/OUTREACH_ITEMS/DELIVERY_ITEMS/RESOURCES_ITEMS data entry was touched",
+    itemDataLines.length === expectedRemovedLines.length && expectedRemovedLines.every((l) => itemDataLines.includes(l)),
+    itemDataLines.join(" | ")
+  );
 
   const authClientDiff = execSync(
     'git diff --stat main -- src/app/prospecting src/app/prospects src/app/finder src/app/sequences src/app/launch src/app/insights src/app/projects src/app/calls src/app/leads src/app/onboard src/app/settings src/app/partners src/app/playbooks src/app/audit src/app/admin',
@@ -317,8 +362,8 @@ console.log("\n10. Mobile layout classes -- responsive grids/columns present on 
   // mobile, two-by-two at tablet, four across at large desktop, per the
   // owner's explicit layout requirement.
   check("homepage's four-phase workflow is one column on mobile, two-by-two at tablet, four-up at large desktop", /grid-cols-1[^"]*sm:grid-cols-2[^"]*lg:grid-cols-4/.test(src("src/app/page.tsx")) && /sm:grid-cols-2/.test(src("src/app/page.tsx")));
-  check("/samples grid is responsive (sm:/lg:)", /sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/samples/page.tsx")));
   check("/gallery grid collapses to 1 column on mobile", /grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3/.test(src("src/app/gallery/gallery-client.tsx")));
+  check("homepage's featured Examples grid is responsive (sm:/lg:)", /sm:grid-cols-2 lg:grid-cols-4/.test(src("src/app/page.tsx")));
   check("AuthShell's value panel is hidden below lg (mobile prioritizes the form)", /hidden overflow-hidden border-l border-hairline bg-canvas\/60 lg:flex/.test(src("src/components/auth-shell.tsx")));
 }
 
@@ -390,16 +435,24 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
 console.log("\n16. Owner-review finding -- iframe overload corrected: static optimized thumbnails, zero iframes on initial load");
 {
   const pageSrc2 = src("src/app/page.tsx");
-  const samplesSrc3 = src("src/app/samples/page.tsx");
   const authShellSrc2 = src("src/components/auth-shell.tsx");
 
-  check("homepage's Examples section uses next/image against a static /sample-previews/*.jpg file, not a live iframe", /import Image from "next\/image"/.test(pageSrc2) && /src=\{`\/sample-previews\/\$\{shortId\}\.jpg`\}/.test(pageSrc2) && !/<iframe/.test(pageSrc2));
-  check("/samples' thumbnail component uses next/image against a static file, not a live iframe", /import Image from "next\/image"/.test(samplesSrc3) && /src=\{`\/sample-previews\/\$\{shortId\}\.jpg`\}/.test(samplesSrc3) && !/<iframe/.test(samplesSrc3));
+  // Samples/Gallery consolidation: the homepage's featured Examples section
+  // now renders actual Gallery thumbnails (GalleryThumbImage, reused from
+  // /gallery itself, not a second copy) instead of the old /sample-previews/
+  // screenshots -- still zero iframes, still no live embed.
+  check("homepage's Examples section reuses the shared GalleryThumbImage component (not the /gallery client-file version, and not a live iframe)", /import \{ GalleryThumbImage \} from "@\/components\/gallery-thumb-image"/.test(pageSrc2) && /<GalleryThumbImage heroImage=\{template\.heroImage\} industryName=\{template\.industryName\}/.test(pageSrc2) && !/<iframe/.test(pageSrc2));
   check("AuthShell's value panel uses next/image against a static file, not a live iframe", /import Image from "next\/image"/.test(authShellSrc2) && /src="\/sample-previews\/dentist\.jpg"/.test(authShellSrc2) && !/<iframe/.test(authShellSrc2));
-  check("gallery's grid still uses plain <img> thumbnails (unchanged) and its live preview stays inside the on-demand modal only", /<img\b/.test(src("src/app/gallery/gallery-client.tsx")) && /<iframe\b/.test(src("src/app/gallery/gallery-client.tsx")));
+  check("gallery's grid still renders the plain <img> fallback (now inside the shared GalleryThumbImage file, unchanged behavior) and its live preview stays inside the on-demand modal only", /<img\b/.test(src("src/components/gallery-thumb-image.tsx")) && /<iframe\b/.test(src("src/app/gallery/gallery-client.tsx")));
 
-  check("every static thumbnail has a real, descriptive alt string derived from the actual business/industry/location, not empty or decorative", /alt=\{`Preview of the generated demo site for/.test(pageSrc2) && /alt=\{`Preview of the generated demo site for/.test(samplesSrc3) && /alt=\{`Preview of the generated demo site for/.test(authShellSrc2));
+  check("AuthShell's static thumbnail has a real, descriptive alt string derived from the actual business/industry/location, not empty or decorative", /alt=\{`Preview of the generated demo site for/.test(authShellSrc2));
 
+  // The 14 sample-preview thumbnails are kept as generated-site QA fixtures
+  // (a regression guard on the real generator's output across all 14 real
+  // industries -- see scripts/generate-sample-thumbnails.mjs), independent
+  // of /samples' removal: only AuthShell's dentist.jpg is still linked from
+  // any page today, and that's fine -- this check is about the generator's
+  // output quality, not about how many pages currently display it.
   check("all 14 sample-preview thumbnail files exist on disk (real, optimized JPEGs)", (() => {
     const dir = path.join(__dirname, "..", "public", "sample-previews");
     if (!fs.existsSync(dir)) return false;
@@ -424,12 +477,12 @@ console.log("\n16. Owner-review finding -- iframe overload corrected: static opt
 
   check("a documented, reusable regeneration script exists for the thumbnails (not a one-off throwaway)", fs.existsSync(path.join(__dirname, "..", "scripts", "generate-sample-thumbnails.mjs")));
 
-  // Public Examples auth gate (owner-directed correction, post-PR#32): the
-  // homepage itself no longer renders this link at all (every visitor who
-  // reaches it is logged out, by HomePage()'s own redirects) -- /samples
-  // is the surface that still renders the real link, gated to a signed-in
-  // visitor. See scripts/verify-public-examples-auth-gate.ts items 1/11.
-  check("/samples' \"View full demo\" link (rendered only for a signed-in visitor) still points at the real, live, fully-interactive generated site (a full top-level navigation, not an on-page iframe)", /href=\{url\}/.test(samplesSrc3) && /target="_blank"/.test(samplesSrc3));
+  // Samples/Gallery consolidation: the "signed-in visitor gets a real
+  // full-view link" surface is /gallery now (via /api/gallery-preview, a
+  // full top-level navigation opened from openFullPreview() -- see that
+  // function's own "_blank" call in gallery-client.tsx). /samples' own
+  // equivalent link/route no longer exists to check.
+  check("gallery's authenticated full-view action opens a real top-level navigation (window.open ... \"_blank\"), not an on-page iframe substitute", /window\.open\(galleryPreviewUrl\(ind\), "_blank"/.test(src("src/app/gallery/gallery-client.tsx")));
 }
 
 console.log("\n17. Owner-review finding -- real, sanitized product screenshots replace the illustrative hero/product-proof mockups");
@@ -507,13 +560,16 @@ console.log("\n18. Owner-review finding -- final composition pass (page length, 
 
   check("the homepage's own top-level H1/H2 headings show real alternating rhythm, not the same centered treatment repeated verbatim for every section (left/right feature copy exists alongside centered section intros)", /lg:order-1/.test(s4) && /lg:order-2/.test(s4));
 
-  check("the generated-site Examples section is unchanged in count (still exactly 4), keeps its Illustrative example labeling, and its sample-preview images stay default-lazy (no priority prop)", (() => {
-    const idsOk = /const EXAMPLE_IDS = \["sample-roofer", "sample-hvac", "sample-plumber", "sample-dentist"\]/.test(s4);
+  // Samples/Gallery consolidation: the section now shows 4 curated Gallery
+  // templates (FEATURED_GALLERY_IDS) instead of 4 SAMPLE_BUSINESSES, and
+  // renders them through GalleryThumbImage (see section 16) rather than a
+  // direct <Image> -- no priority prop to check here since that component
+  // never accepts or sets one for either of its two image paths.
+  check("the featured Examples section is unchanged in count (still exactly 4) and keeps its Illustrative example labeling", (() => {
+    const idsOk = /const FEATURED_GALLERY_IDS = \[[^\]]*\]/.exec(s4)?.[0];
+    const idsCountOk = idsOk ? idsOk.split(",").length === 4 : false;
     const labelOk = /Illustrative example/.test(s4);
-    const exampleFnBlock = s4.slice(s4.indexOf("function Examples()"), s4.indexOf("function Plans()"));
-    const imageBlock = exampleFnBlock.slice(exampleFnBlock.indexOf("<Image"), exampleFnBlock.indexOf("<Image") + 400);
-    const noPriority = !/\bpriority\b/.test(imageBlock);
-    return idsOk && labelOk && noPriority;
+    return idsCountOk && labelOk;
   })());
 
   check("the comparison table still distinguishes positive/negative by icon shape (X vs Check), not color alone", /<X className="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-signal-bad"/.test(s4) && /<Check className="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-signal-good"/.test(s4));

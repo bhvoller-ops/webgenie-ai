@@ -18,9 +18,9 @@ import {
 import { PageShell } from "@/components/shell";
 import { Button, Panel } from "@/components/ui";
 import { getAccessContext } from "@/lib/auth/access";
-import { SAMPLE_BUSINESSES } from "@/lib/sitegen/samples";
 import { INDUSTRIES } from "@/lib/sitegen/industries";
 import { industryList as GALLERY_TEMPLATE_LIST } from "@/data/gallery/industries";
+import { GalleryThumbImage } from "@/components/gallery-thumb-image";
 import { cn } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -570,23 +570,28 @@ function Differentiation() {
 /* ------------------------------------------------------------------ */
 
 /**
- * Curated per PRODUCT.md's Motion A verticals — Roofing/HVAC/Plumbing/
- * Dental, matching the four labels the task named.
+ * Samples/Gallery consolidation (owner product decision): /samples is gone
+ * as a distinct product area -- Gallery is now the only user-facing
+ * examples destination, and this section is a small, static preview of
+ * it, not a second, parallel example set. The 4 featured ids below are
+ * just diverse picks from the same GALLERY_TEMPLATE_LIST /gallery itself
+ * renders from (one per category: health-wellness, home-services,
+ * pet-services, creative-events) -- there is no dedicated "featured" flag
+ * on IndustryConfig, so this is the same kind of curated constant /gallery
+ * used to keep for its old Featured/All split.
  *
- * P0 (iframe-overload correction): these were 4 always-loaded live
- * iframes on initial page load -- 4 full generated-site documents,
- * running their own lead-form/chat-widget scripts, just to render a
- * thumbnail. Replaced with static, pre-optimized screenshots
- * (public/sample-previews/, generated once from the real running
- * generator via scripts/generate-sample-thumbnails.mjs -- genuine
- * output, not a mock, just captured ahead of time instead of re-rendered
- * live on every visit). Zero iframes load on initial render now; "View
- * full demo" still opens the real, live, fully-interactive generated
- * site -- as a full top-level page navigation, not an embedded iframe on
- * this page.
+ * These are illustrative industry TEMPLATES (stock photo + copy, rendered
+ * by renderIndustryPage() -- see /gallery), not live output of the real
+ * site generator (generateSite(), Finder/Projects/Audit) -- copy here is
+ * deliberately worded to match, never "real demo site."
+ *
+ * P0 (iframe-overload correction, still true here): zero iframes load on
+ * initial render -- GalleryThumbImage renders a static image exactly like
+ * /gallery's own thumbnail grid does, reusing that same component rather
+ * than a second copy of its host-detection logic.
  */
-const EXAMPLE_IDS = ["sample-roofer", "sample-hvac", "sample-plumber", "sample-dentist"];
-const EXAMPLE_BUSINESSES = EXAMPLE_IDS.map((id) => SAMPLE_BUSINESSES.find((b) => b.id === id)!);
+const FEATURED_GALLERY_IDS = ["dental", "restoration", "veterinary-clinic", "restaurants-cafes"];
+const FEATURED_GALLERY_TEMPLATES = FEATURED_GALLERY_IDS.map((id) => GALLERY_TEMPLATE_LIST.find((ind) => ind.id === id)!);
 
 function Examples() {
   // PUBLIC EXAMPLES AUTH GATE (owner-directed correction): HomePage()
@@ -595,61 +600,48 @@ function Examples() {
   // /trial/portal, anything else -> the "not set up" panel) -- so every
   // real render of this section is a logged-out visitor, unconditionally.
   // No "View full demo" link renders here at all; the real enforcement
-  // lives server-side in /api/demo-site/route.ts regardless.
+  // lives server-side in /api/gallery-preview/route.ts regardless.
   return (
     <div className={SECTION}>
       <SectionIntro
-        title="See the kind of site WebGenie builds"
-        description={`Four real demo sites — illustrative businesses, real generator output. The product builds a site like this for ${REAL_INDUSTRY_COUNT} industries today.`}
+        title="Browse our industry example gallery"
+        description={`A few of our ${GALLERY_TEMPLATE_COUNT} illustrative industry templates. Sign in to open a full preview of any of them.`}
       />
       <p className="mx-auto mt-4 max-w-md text-center text-sm text-faint">
-        Full demos are available inside WebGenie.{" "}
-        <Link href="/login?returnTo=/samples" className="font-medium text-iris-soft underline decoration-dotted underline-offset-4 hover:text-iris">
-          Sign in to view full demos
+        Full previews are available inside WebGenie.{" "}
+        <Link href="/login?returnTo=/gallery" className="font-medium text-iris-soft underline decoration-dotted underline-offset-4 hover:text-iris">
+          Sign in to view full previews
         </Link>
       </p>
       <div className="mx-auto mt-6 grid max-w-5xl gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
-        {EXAMPLE_BUSINESSES.map((biz) => {
-          const label = INDUSTRIES[biz.industry as keyof typeof INDUSTRIES]?.label ?? biz.industry;
-          const shortId = biz.id.replace("sample-", "");
-          return (
-            <div key={biz.id} className="card overflow-hidden p-0">
-              <div className="relative h-28 w-full overflow-hidden bg-white">
-                <Image
-                  src={`/sample-previews/${shortId}.jpg`}
-                  alt={`Preview of the generated demo site for ${biz.name}, a ${label.toLowerCase()} in ${biz.city}, ${biz.state}`}
-                  fill
-                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                  className="object-cover object-top"
-                />
-              </div>
-              <div className="flex flex-col gap-2 p-3">
-                <div>
-                  <div className="text-sm font-medium text-ink">{biz.name}</div>
-                  <div className="mt-0.5 text-[13px] text-faint">
-                    {label} · Illustrative example
-                  </div>
-                </div>
-                <p className="inline-flex items-center gap-1.5 text-sm text-faint">
-                  <Lock className="h-3.5 w-3.5" aria-hidden />
-                  Full demo available after sign-in
-                </p>
-              </div>
+        {FEATURED_GALLERY_TEMPLATES.map((template) => (
+          <div key={template.id} className="card overflow-hidden p-0">
+            <div className="relative h-28 w-full overflow-hidden bg-raised">
+              <GalleryThumbImage heroImage={template.heroImage} industryName={template.industryName} />
             </div>
-          );
-        })}
+            <div className="flex flex-col gap-2 p-3">
+              <div>
+                <div className="text-sm font-medium text-ink">{template.businessName}</div>
+                <div className="mt-0.5 text-[13px] text-faint">
+                  {template.industryName} · Illustrative example
+                </div>
+              </div>
+              <p className="inline-flex items-center gap-1.5 text-sm text-faint">
+                <Lock className="h-3.5 w-3.5" aria-hidden />
+                Full preview available after sign-in
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
       <div className="mt-6 text-center">
         <Button href="/gallery" variant="secondary">
           Explore All Examples
         </Button>
         <p className="mx-auto mt-3 max-w-lg text-sm text-faint">
-          Want more? The example gallery has {GALLERY_TEMPLATE_COUNT} illustrative templates
-          across dozens of additional business types.{" "}
-          <Link href="/samples" className="focus-ring underline decoration-dotted underline-offset-4 hover:text-muted">
-            Or browse the curated sample set
-          </Link>
-          .
+          The example gallery has {GALLERY_TEMPLATE_COUNT} illustrative templates across dozens of
+          business types — the product itself builds a real, live site for {REAL_INDUSTRY_COUNT}{" "}
+          industries today.
         </p>
       </div>
     </div>

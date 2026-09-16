@@ -16,8 +16,11 @@ import { cn } from "@/lib/format";
  * ids on the homepage; from any other guest page they still resolve
  * correctly (Next.js navigates to `/` and the browser scrolls to the
  * hash). "Examples" is a real route (`/gallery`, the full library) rather
- * than a homepage anchor, and is shown active from either `/gallery` or
- * `/samples` — the two example-browsing destinations.
+ * than a homepage anchor.
+ *
+ * Samples/Gallery consolidation (owner product decision): /samples no
+ * longer exists as a distinct destination (it 308s to /gallery -- see
+ * next.config.ts), so "Examples" only ever needs to match /gallery now.
  *
  * Composition pass: the standalone "Who WebGenie is built for" section
  * this nav used to link to (`/#who-its-for`) was removed -- its two
@@ -28,15 +31,13 @@ import { cn } from "@/lib/format";
 export const PUBLIC_NAV_ITEMS = [
   { href: "/#product", label: "Product" },
   { href: "/#how-it-works", label: "How It Works" },
-  { href: "/gallery", label: "Examples", matchAlso: ["/samples"] },
+  { href: "/gallery", label: "Examples" },
   { href: "/#plans", label: "Plans" },
 ] as const;
 
 function isNavItemActive(pathname: string | null, item: (typeof PUBLIC_NAV_ITEMS)[number]): boolean {
   if (item.href.startsWith("/#")) return false;
-  if (pathname === item.href) return true;
-  const matchAlso = "matchAlso" in item ? item.matchAlso : undefined;
-  return Boolean(matchAlso?.some((path) => pathname === path));
+  return pathname === item.href;
 }
 
 export function PublicNav() {

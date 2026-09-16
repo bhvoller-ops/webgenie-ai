@@ -236,9 +236,12 @@ export interface SiteOptions {
   branding?: SiteBranding;
   /**
    * PUBLIC SAAS IMPECCABLE REBUILD (Phase 7, sample-site safety): true only
-   * for the small set of fixture businesses used as illustrative demos --
-   * /samples' SAMPLE_BUSINESSES and the public homepage's single preview
-   * business. Every real generated site (Finder, Projects, Audit) already
+   * for the small set of illustrative fixture businesses in SAMPLE_BUSINESSES
+   * (src/lib/sitegen/samples.ts -- still used by AuthShell's login/signup
+   * preview panel; /samples itself, the page these fixtures were originally
+   * built for, was removed as a distinct product area and now redirects to
+   * /gallery -- see next.config.ts). Every real generated site (Finder,
+   * Projects, Audit) already
    * carries a real `organizationId` at generation time; this flag is the
    * explicit, intentional signal (not an inference from a missing org id)
    * that renders a clear illustrative-demo banner and tells /api/site-lead
