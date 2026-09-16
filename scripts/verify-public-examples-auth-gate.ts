@@ -210,8 +210,19 @@ console.log("\n11. Return paths reject open redirects -- REAL execution of sanit
   check("/api/gallery-preview's own returnTo (its own current URL) is embedded via encodeURIComponent before being placed in the redirect, matching the same escaping discipline sanitizeReturnPath()'s own callers use elsewhere", /encodeURIComponent\(`\$\{url\.pathname\}\$\{url\.search\}`\)/.test(galleryPreviewSrc2));
 }
 
-console.log("\n12. Finder and PR #33 files remain untouched (zero diff against main)");
+console.log("\n12. Finder files remain untouched by PR #34's own historical diff (PR #33's later, legitimate Finder feature is a separate concern)");
 {
+  // PR #33 (feature/finder-website-preview-signals) legitimately touches
+  // every file below -- that's its entire feature. Once PR #33's own
+  // branch merges updated main (containing PR #34) back into itself, a
+  // "zero diff against main" check for these files would start failing
+  // permanently and for the right reason (Finder SHOULD differ from main
+  // now) -- not a regression. Same fix as verify-public-site.ts section 9:
+  // pin to PR #34's own fixed base/head SHAs, so this stays a permanent,
+  // correct historical record of what PR #34 itself did, independent of
+  // what any later, unrelated branch does to these same files.
+  const PR34_BASE = "581042a1fc21f73c5220fbd07188084b6b2d6f38";
+  const PR34_HEAD = "bcbd2d8dc70ced6131a2f3ee439b49e123c00183";
   for (const file of [
     "src/app/finder/finder-client.tsx",
     "src/lib/prospect/finder.ts",
@@ -219,11 +230,17 @@ console.log("\n12. Finder and PR #33 files remain untouched (zero diff against m
     "src/lib/prospect/finder-preview-storage.ts",
     "src/lib/prospect/finder-preview-capture.ts"
   ]) {
-    const diff = diffAgainstMain(file);
-    check(`${file} has zero diff against main`, diff.trim() === "", diff.slice(0, 200));
+    let diff = "";
+    try {
+      diff = execSync(`git diff ${PR34_BASE} ${PR34_HEAD} -- ${file}`, { cwd: repoRoot, encoding: "utf8" });
+    } catch {
+      console.log(`  (skipped ${file} -- PR #34's base/head SHAs aren't available in this checkout's history)`);
+      continue;
+    }
+    check(`${file} has zero diff in PR #34's own historical diff (581042a..bcbd2d8)`, diff.trim() === "", diff.slice(0, 200));
   }
-  const stat = execSync("git diff --stat main -- supabase/migrations", { cwd: repoRoot, encoding: "utf8" });
-  check("no migration file appears in this branch's diff", stat.trim() === "");
+  const stat = execSync(`git diff --stat 581042a1fc21f73c5220fbd07188084b6b2d6f38 bcbd2d8dc70ced6131a2f3ee439b49e123c00183 -- supabase/migrations`, { cwd: repoRoot, encoding: "utf8" });
+  check("no migration file appeared in PR #34's own historical diff", stat.trim() === "");
 }
 
 console.log("\n13. No billing, project, audit, outreach, suppression, sequence, or evidence semantics change (zero diff against main)");
