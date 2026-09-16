@@ -50,7 +50,9 @@ export const dentalConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/dental.jpg`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/dental.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/dental.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'Accepting New Patients • Most Insurance Accepted',
   ctaPrimary: 'Book Appointment',
   ctaSecondary: 'View Services',

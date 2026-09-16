@@ -53,7 +53,9 @@ export const pestControlConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/pest-control.jpg`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/pest-control.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/pest-control.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'Licensed & Insured • Family & Pet Safe Treatments',
   ctaPrimary: 'Get Free Inspection',
   ctaSecondary: 'View Services',

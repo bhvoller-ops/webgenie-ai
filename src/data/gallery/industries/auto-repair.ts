@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -55,7 +56,10 @@ export const autoRepairConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}3802570/pexels-photo-3802570.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/auto-repair.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/auto-repair.webp`,
+  heroImagePosition: 'left top',
+  heroImagePositionMobile: '65% center',
   heroBadge: 'ASE Certified • 12-Month Warranty',
   ctaPrimary: 'Book Appointment',
   ctaSecondary: 'View Services',

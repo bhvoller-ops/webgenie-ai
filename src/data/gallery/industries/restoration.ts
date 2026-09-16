@@ -54,7 +54,9 @@ export const restorationConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/restoration.jpg`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/restoration-water-damage.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/restoration-water-damage.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'IICRC Certified • 24/7 Emergency Response',
   ctaPrimary: 'Call 24/7 Emergency Line',
   ctaSecondary: 'View Services',

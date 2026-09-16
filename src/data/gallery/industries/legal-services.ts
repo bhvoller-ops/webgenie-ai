@@ -15,6 +15,7 @@ import {
   Landmark,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -55,7 +56,9 @@ export const legalServicesConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}5668772/pexels-photo-5668772.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/legal-services.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/legal-services.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'AV-Rated • 25+ Years of Trial Experience',
   ctaPrimary: 'Schedule a Consultation',
   ctaSecondary: 'View Practice Areas',

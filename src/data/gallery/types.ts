@@ -73,6 +73,17 @@ export interface IndustryConfig {
 
   navLinks: NavLink[];
   heroImage: string;
+  /** CSS `object-position` for the hero background image. Defaults to `"center"` when absent. */
+  heroImagePosition?: string;
+  /** Mobile-viewport override for `heroImagePosition` (applied under a max-width media query). Defaults to `heroImagePosition` when absent. */
+  heroImagePositionMobile?: string;
+  /**
+   * A separate, smaller derivative for the /gallery grid card — deliberately
+   * distinct from heroImage so the thumbnail grid never has to download the
+   * full-resolution hero payload. Falls back to heroImage when absent (the
+   * pre-refresh behavior every not-yet-updated template still gets).
+   */
+  thumbnailImage?: string;
   heroBadge: string;
   ctaPrimary: string;
   ctaSecondary: string;

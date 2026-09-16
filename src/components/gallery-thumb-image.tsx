@@ -16,18 +16,33 @@ import { SITE_ORIGIN } from "@/lib/site-url";
  * Samples/Gallery consolidation: pulled out of gallery-client.tsx (a "use
  * client" file) into its own plain, environment-agnostic component so the
  * homepage's featured Examples section (a Server Component) can render it
- * too. This only takes the two string fields it actually needs, not a
+ * too. This only takes the string fields it actually needs, not a
  * whole IndustryConfig -- that config's `services`/`whyUs` arrays embed
  * real React component references (Lucide icons) that a Server Component
  * cannot pass as a prop into a Client Component (a real bug hit and fixed
  * here: passing the full config from page.tsx into the old, "use
  * client"-file version of this component failed in production with
  * "Functions cannot be passed directly to Client Components"). Taking
- * only heroImage/industryName makes that whole class of failure
- * structurally impossible, not just avoided this one time.
+ * only heroImage/thumbnailImage/industryName makes that whole class of
+ * failure structurally impossible, not just avoided this one time.
+ *
+ * Gallery hero-image refresh: `thumbnailImage` (IndustryConfig's optional
+ * field) is a separate, smaller derivative for exactly this card -- when a
+ * template has one, this card must never request the full-resolution hero
+ * payload just to render a small grid thumbnail. Falls back to `heroImage`
+ * for the templates that don't have one yet, so nothing else changes.
  */
-export function GalleryThumbImage({ heroImage, industryName }: { heroImage: string; industryName: string }) {
-  const isSelfHosted = heroImage.startsWith(SITE_ORIGIN);
+export function GalleryThumbImage({
+  heroImage,
+  thumbnailImage,
+  industryName,
+}: {
+  heroImage: string;
+  thumbnailImage?: string;
+  industryName: string;
+}) {
+  const src = thumbnailImage ?? heroImage;
+  const isSelfHosted = src.startsWith(SITE_ORIGIN);
   if (isSelfHosted) {
     // next/image only treats a RELATIVE path as automatically local/
     // optimizable with zero config -- an absolute URL is checked against
@@ -37,7 +52,7 @@ export function GalleryThumbImage({ heroImage, industryName }: { heroImage: stri
     // relative path sidesteps that entirely, since these files are
     // genuinely served from this app's own public/ directory regardless
     // of which domain is currently serving the request.
-    const relativePath = heroImage.slice(SITE_ORIGIN.length);
+    const relativePath = src.slice(SITE_ORIGIN.length);
     return (
       <Image
         src={relativePath}
@@ -48,5 +63,5 @@ export function GalleryThumbImage({ heroImage, industryName }: { heroImage: stri
       />
     );
   }
-  return <img src={heroImage} alt={industryName} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />;
+  return <img src={src} alt={industryName} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />;
 }

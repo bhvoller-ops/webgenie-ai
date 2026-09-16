@@ -617,7 +617,7 @@ function Examples() {
         {FEATURED_GALLERY_TEMPLATES.map((template) => (
           <div key={template.id} className="card overflow-hidden p-0">
             <div className="relative h-28 w-full overflow-hidden bg-raised">
-              <GalleryThumbImage heroImage={template.heroImage} industryName={template.industryName} />
+              <GalleryThumbImage heroImage={template.heroImage} thumbnailImage={template.thumbnailImage} industryName={template.industryName} />
             </div>
             <div className="flex flex-col gap-2 p-3">
               <div>

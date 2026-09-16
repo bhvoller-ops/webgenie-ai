@@ -14,6 +14,7 @@ import {
   PawPrint,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const petBoardingConfig: IndustryConfig = {
   id: 'pet-boarding',
@@ -52,7 +53,10 @@ export const petBoardingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://images.pexels.com/photos/16465605/pexels-photo-16465605.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: `${SITE_ORIGIN}/gallery-photos/pet-boarding.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/pet-boarding.webp`,
+  heroImagePosition: 'center',
+  heroImagePositionMobile: 'center 30%',
   heroBadge: 'Climate-Controlled • Live Webcams',
   ctaPrimary: 'Book a Stay',
   ctaSecondary: 'View Services',

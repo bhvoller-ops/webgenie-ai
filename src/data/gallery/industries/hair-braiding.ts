@@ -15,6 +15,7 @@ import {
   Scissors,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
+import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -55,7 +56,9 @@ export const hairBraidingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}3993465/pexels-photo-3993465.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/hair-braiding.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/hair-braiding.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'Natural Hair Specialists • 14+ Years',
   ctaPrimary: 'Book Your Appointment',
   ctaSecondary: 'View Styles',

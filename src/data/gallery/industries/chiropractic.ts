@@ -50,7 +50,9 @@ export const chiropracticConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/chiropractic.jpg`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/chiropractic.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/chiropractic.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'Licensed Chiropractor • Most Insurance Accepted',
   ctaPrimary: 'Book Free Consultation',
   ctaSecondary: 'View Services',

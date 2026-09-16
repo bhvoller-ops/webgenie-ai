@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "worker": "tsx src/workers/analysis-worker.ts"
+    "worker": "tsx src/workers/analysis-worker.ts",
+    "gallery:refresh-images": "tsx scripts/gallery-hero-refresh/process-images.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -36,6 +37,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.22",
     "postcss": "^8.4.49",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

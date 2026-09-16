@@ -261,7 +261,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;color:${c.text};line-height:1.7
 /* Hero */
 .hero{position:relative;min-height:580px;display:flex;align-items:center;overflow:hidden;background:${c.primaryDark}}
 .hero-bg{position:absolute;inset:0}
-.hero-bg img{width:100%;height:100%;object-fit:cover}
+.hero-bg img{width:100%;height:100%;object-fit:cover;object-position:${cfg.heroImagePosition ?? "center"}}
+${cfg.heroImagePositionMobile && cfg.heroImagePositionMobile !== (cfg.heroImagePosition ?? "center") ? `@media (max-width:640px){.hero-bg img{object-position:${cfg.heroImagePositionMobile}}}` : ""}
 .hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0.4) 50%,rgba(0,0,0,0.15) 100%)}
 .hero-content{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:80px 20px}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:9999px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:.85rem;font-weight:500;margin-bottom:24px;backdrop-filter:blur(4px)}

@@ -50,7 +50,9 @@ export const medSpaConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/med-spa.jpg`,
+  heroImage: `${SITE_ORIGIN}/gallery-photos/med-spa.webp`,
+  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/med-spa.webp`,
+  heroImagePosition: 'center',
   heroBadge: 'Medical Director Supervised • Licensed Professionals',
   ctaPrimary: 'Book Free Consultation',
   ctaSecondary: 'View Services',
