@@ -46,7 +46,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
  * (WORK -> OUTREACH -> DELIVERY), replacing the previous "Prospector" /
  * "Dashboard" split that mixed operational areas, project creation, and
  * public marketing resources at the same level. Public-facing reference
- * material (Samples, Gallery) moves to its own low-emphasis RESOURCES
+ * material (Gallery) moves to its own low-emphasis RESOURCES
  * group below so it stops competing visually with Daily Queue and
  * Finder — see RESOURCES_ITEMS.
  *
@@ -135,7 +135,7 @@ const DELIVERY_ITEMS: NavGroupItem[] = [
 ];
 
 /**
- * Low-emphasis reference material -- public-facing (Samples, Gallery) and
+ * Low-emphasis reference material -- public-facing (Gallery) and
  * account-adjacent (Partners, Playbooks, Support) destinations that don't
  * belong beside Daily Queue/Finder but still need to stay reachable.
  * Deliberately still a NavGroup (so it gets the same current-page
@@ -160,12 +160,6 @@ const RESOURCES_ITEMS: NavGroupItem[] = [
     label: "Support",
     description: "Open a ticket — real people, not a bot.",
     icon: <LifeBuoy className="h-4 w-4" aria-hidden />,
-  },
-  {
-    href: "/samples",
-    label: "Samples",
-    description: "Every one of the 73 industry sample sites, browsable by name.",
-    icon: <Sparkles className="h-4 w-4" aria-hidden />,
   },
   {
     href: "/gallery",

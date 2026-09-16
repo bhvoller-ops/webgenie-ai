@@ -136,7 +136,7 @@ export function SectionHeading({
   action?: ReactNode;
   /**
    * Public SaaS Impeccable rebuild (P0 centering pass): opt-in centered
-   * variant for guest pages (/samples, /gallery) -- defaults to false so
+   * variant for guest pages (/gallery) -- defaults to false so
    * every authenticated usage (admin/support, calls, leads, partners,
    * playbooks, projects, settings, trial/portal) renders exactly as
    * before, unchanged.

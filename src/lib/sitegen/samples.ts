@@ -32,6 +32,27 @@ export const SAMPLE_BUSINESSES: Business[] = (Object.keys(SAMPLES) as SiteGenInd
 }));
 
 /**
+ * Public Examples auth gate (WEBGENIE PUBLIC EXAMPLES — AUTHENTICATED
+ * FULL-VIEW GATE, FINAL pass): an earlier version of this correction
+ * added an `isKnownSampleBusiness()` classifier here -- a full field
+ * match against this array, used by /api/demo-site to decide whether an
+ * unauthenticated request should be allowed through. The owner correctly
+ * rejected that approach: classifying a client-supplied payload, no
+ * matter how strict the match, still has a payload the classifier
+ * doesn't recognize as its failure mode -- a single altered field (a
+ * typo'd rating, a re-ordered field that still round-trips through
+ * JSON.parse identically, or simply a caller who never bothers copying
+ * every field) makes the request fail classification and fall straight
+ * through to /api/demo-site's normal unauthenticated rendering. That is
+ * a bypass, not a hardening. Sample authorization now lives entirely in
+ * the dedicated /api/sample-preview route: it takes only a canonical
+ * `id`, resolves the complete business from THIS array server-side, and
+ * never decodes or trusts any client-supplied business JSON at all --
+ * see that route's own header for the full design. This file goes back
+ * to being pure fixture data, nothing else.
+ */
+
+/**
  * Sample-site safety note: an earlier version of this fix exported a
  * SAMPLE_BUSINESS_IDS allowlist here and had /api/site-lead / /api/site-chat
  * check a request's business.id against it before skipping persistence.
