@@ -13,6 +13,20 @@ const nextConfig: NextConfig = {
     "/playbooks/**": ["./launch-kit/**"],
     "/api/playbooks/**": ["./launch-kit/**"]
   },
+  // Samples/Gallery consolidation (owner product decision): /samples is
+  // gone as a distinct product area -- Gallery is the only user-facing
+  // examples destination now. A config-level redirect (not a page-level
+  // permanentRedirect()) is deliberate: it's resolved by Next's routing
+  // layer before any page/auth code runs, so an old bookmark can never hit
+  // a login check, can never carry an arbitrary query string through (a
+  // plain source/destination pair drops the query string entirely, unlike
+  // a `:path*` capture), and can't cross origins (the destination is a
+  // relative path). `permanent: true` is Next's documented convention for
+  // exactly this "old route folded into a new one" case -- it emits a 308,
+  // not the 307 an ordinary redirect() call would.
+  async redirects() {
+    return [{ source: "/samples", destination: "/gallery", permanent: true }];
+  },
   // jsdom (used directly by lib/capture/ for the audit engine, NOT by
   // playbooks anymore — that switched to sanitize-html, which has no jsdom
   // dependency at all, see lib/playbooks/content.ts) ships non-JS assets

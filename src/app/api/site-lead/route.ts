@@ -33,8 +33,8 @@ import { getDefaultOrganizationId } from "@/lib/organizations";
  * The fix: this route no longer tries to detect samples at all. It ALWAYS
  * persists a real lead, unconditionally -- no request-supplied flag, id,
  * or missing organizationId can suppress that. Illustrative sample sites
- * (/samples, the homepage preview) are generated with `isSample: true`
- * (see SiteOptions.isSample), which routes their embedded form to the
+ * are generated with `isSample: true` (see SiteOptions.isSample), which
+ * routes their embedded form to the
  * separate, structurally non-persisting /api/sample-lead endpoint instead
  * of this one -- see lib/sitegen/lead-form.ts. The separation is
  * architectural, not a runtime check: this file contains no code path

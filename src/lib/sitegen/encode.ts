@@ -28,9 +28,14 @@ export function demoSiteUrl(
   if (opts.badge === false) params.set("badge", "0");
   if (opts.org) params.set("org", opts.org);
   // Sample-site safety (Phase 7): an explicit, intentional marker for the
-  // small set of illustrative fixture businesses (/samples, the homepage
-  // preview) -- distinct from `badge`, which only toggles the "preview
-  // built for X" ribbon real prospects see. See SiteOptions.isSample.
+  // small set of illustrative fixture businesses -- distinct from `badge`,
+  // which only toggles the "preview built for X" ribbon real prospects
+  // see. See SiteOptions.isSample. No current caller passes sample: true
+  // (the old /samples and homepage-preview callers were removed along
+  // with /samples itself -- see next.config.ts's /samples->/gallery
+  // redirect); the option stays because /api/demo-site's own `?sample=1`
+  // query param (read independently of this function, see that route's
+  // own comment) still must keep working for any already-shared link.
   if (opts.sample) params.set("sample", "1");
   return `/api/demo-site?${params.toString()}`;
 }
