@@ -72,7 +72,9 @@ console.log("\n2. Homepage section structure -- all nine sections present, in or
   // and the standalone WhoItsFor section (folded into CoreProblem's own
   // copy) are both intentionally removed -- see section 18 below for the
   // dedicated checks on that removal.
-  const order = ["<Hero", "<CoreProblem", "<ProductWorkflow", "<ProductProof", "<Differentiation", "<Examples", "<Plans", "<Faq", "<FinalCta"];
+  // Owner request (2026-09-17): Examples moved to sit directly after
+  // ProductProof, above Differentiation -- was previously the reverse.
+  const order = ["<Hero", "<CoreProblem", "<ProductWorkflow", "<ProductProof", "<Examples", "<Differentiation", "<Plans", "<Faq", "<FinalCta"];
   let lastIndex = -1;
   let inOrder = true;
   for (const tag of order) {
@@ -430,7 +432,11 @@ console.log("\n15. P0 -- centered public shell, VibeLabs-inspired composition, W
 
   const pageSrc = src("src/app/page.tsx");
   check("Hero is a centered composition (text-center), not left-column/right-card", /function Hero\(\)[\s\S]{0,120}text-center/.test(pageSrc));
-  check("Hero headline uses the P0-directed copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Find the right business\.[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductScreenshot"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
+  // Copy updated per owner request (2026-09-17): "Launch your AI Powered
+  // Agency in 3 Days, Not in 3 months" replaces the original P0 copy -- the
+  // underlying design invariant (solid violet accent span, no gradient
+  // text, no VibeLabs cyan literal) is unchanged and still asserted here.
+  check("Hero headline uses the owner-approved copy with WebGenie's own solid violet accent (no gradient text -- Impeccable finish review finding, emphasis by color/weight only), never a VibeLabs cyan literal", /Launch your AI Powered Agency[\s\S]{0,40}text-iris-soft/.test(pageSrc) && !/gradient-text/.test(pageSrc.slice(pageSrc.indexOf("function Hero()"), pageSrc.indexOf("function HeroProductScreenshot"))) && !/#22D3EE|cyan-400|text-cyan/.test(pageSrc));
   // Superseded by the owner's screenshot-gate approval (see section 17):
   // the four-stage illustrative walkthrough this check used to assert on
   // was replaced with a real, substantial, centered screenshot panel at
@@ -569,7 +575,19 @@ console.log("\n18. Owner-review finding -- final composition pass (page length, 
   check("the workflow is four marketing phases (Find/Verify/Prepare/Act), not the old six (Find/Verify/Prepare/Contact/Follow up/Win & hand off)", /const WORKFLOW_PHASES = \[/.test(s4) && !/const WORKFLOW_STAGES = \[/.test(s4) && !/title: "Contact"/.test(s4) && !/title: "Follow up"/.test(s4) && !/title: "Win & hand off"/.test(s4));
   check("each workflow phase renders as a substantial `.card` (border+surface+padding), not bare icon+text in a thin row", /WORKFLOW_PHASES\.map\(\(phase, i\) => \(\s*<li key=\{phase\.title\} className="card/.test(s4));
 
-  check("product proof no longer puts three equal-weight cards in one row -- it's alternating full-width feature sections", !/mt-10 grid gap-4 text-left lg:grid-cols-3/.test(s4) && /Feature 1 -- Daily Queue/.test(s4) && /Feature 2 -- Finder/.test(s4) && /Feature 3 -- Live Outreach Playbook/.test(s4));
+  // Owner request (2026-09-17): the "Daily Queue" feature block that used to
+  // open ProductProof was removed -- the Daily Queue screenshot still
+  // appears once, in the hero (HeroProductScreenshot), so this only checks
+  // it's gone from ProductProof specifically, not from the whole page.
+  check("product proof no longer puts three equal-weight cards in one row -- it's alternating full-width feature sections, and the Daily Queue block is gone from this section", (() => {
+    const productProofBlock = s4.slice(s4.indexOf("function ProductProof()"), s4.indexOf("/* E. Differentiation"));
+    return (
+      !/mt-10 grid gap-4 text-left lg:grid-cols-3/.test(s4) &&
+      !/-- Daily Queue/.test(productProofBlock) &&
+      /Feature 1 -- Finder/.test(productProofBlock) &&
+      /Feature 2 -- Live Outreach Playbook/.test(productProofBlock)
+    );
+  })());
   check("Finder's screenshot column is capped narrower than Daily Queue's/Playbook's (deliberately secondary, not equal prominence)", (() => {
     const finderCap = /Finder[\s\S]{0,200}?max-w-\[(\d+)px\]/.exec(s4)?.[1];
     const dqCap = /daily-queue\.jpg[\s\S]{0,400}/.exec(s4) ? /max-w-\[(\d+)px\][\s\S]{0,600}daily-queue\.jpg/.exec(s4)?.[1] : undefined;

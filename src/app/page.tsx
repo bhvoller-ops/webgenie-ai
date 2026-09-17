@@ -7,8 +7,9 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  Copy,
+  Eye,
   Handshake,
-  Lock,
   Radar,
   Repeat,
   ScanLine,
@@ -93,10 +94,10 @@ export default async function HomePage() {
         <ProductWorkflow />
       </Band>
       <ProductProof />
+      <Examples />
       <Band tone="soft">
         <Differentiation />
       </Band>
-      <Examples />
       <Plans />
       <Band tone="soft">
         <Faq />
@@ -144,8 +145,9 @@ function Hero() {
         style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(900px 420px at 50% -10%, #000, transparent)" }}
         aria-hidden
       />
-      <h1 className="mx-auto max-w-3xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
-        Find the right business. <span className="text-iris-soft">Start with something real.</span>
+      <h1 className="mx-auto max-w-6xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
+        <span className="block">Launch your AI Powered Agency</span>
+        <span className="block text-iris-soft">In 3 Days, Not 3 Months</span>
       </h1>
       <p className="mx-auto mt-6 max-w-[720px] text-base leading-relaxed text-ink/80 sm:text-lg">
         WebGenie helps agencies find local prospects, verify the opportunity, prepare
@@ -379,19 +381,22 @@ function ProductWorkflow() {
 /**
  * Composition pass: replaces three equal, same-weight cards (which put a
  * full-size illustrative ScoreRing on equal visual footing with two real
- * screenshots) with three substantial alternating feature sections --
- * copy and screenshot swap sides each time for rhythm, and each section
- * gets exactly one headline, one paragraph, and up to three benefits.
- * Daily Queue (prominent, real, also the hero image -- deliberately shown
- * again here with room to actually explain it) and the Playbook (real,
- * shown at a materially larger size than the old 1/3-width card) both get
- * the full ambient-glow treatment; Finder stays visibly secondary -- its
+ * screenshots) with alternating feature sections -- copy and screenshot
+ * swap sides each time for rhythm, and each section gets exactly one
+ * headline, one paragraph, and up to three benefits. The Playbook (real,
+ * shown at a materially larger size than the old 1/3-width card) gets the
+ * full ambient-glow treatment; Finder stays visibly secondary -- its
  * screenshot is capped narrower within its own column, and its copy
  * doesn't claim "results" since the approved screenshot is Finder's empty
  * pre-search state. The illustrative Website Health score never appears
  * here (PR #32: it's now removed from the page entirely, see
  * ProductWorkflow's own comment) -- nothing here ever competed with the
  * real product screens for attention in the first place.
+ *
+ * The Daily Queue feature block that used to open this section was removed
+ * per an explicit owner request (public-page composition pass) -- the Daily
+ * Queue screenshot still appears once, in the hero (see
+ * HeroProductScreenshot), so it isn't gone from the page entirely.
  */
 function ProductProof() {
   return (
@@ -399,46 +404,7 @@ function ProductProof() {
       <SectionIntro title="See it work, not just hear about it" description="Real screens from the actual product, redacted for privacy." />
 
       <div className="mt-6 space-y-6 lg:space-y-10">
-        {/* Feature 1 -- Daily Queue: prominent, text left / image right */}
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-x-0 -inset-y-10 -z-10 bg-iris/[0.06] blur-3xl" aria-hidden />
-          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
-            <div className="text-left">
-              <p className="eyebrow text-iris-soft">Daily Queue</p>
-              <h3 className="mt-2.5 text-display-sm font-semibold text-ink">Know exactly what deserves attention today.</h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-ink/80">
-                Every open item ranked by priority, not by whoever asked last — so the next call
-                is always obvious.
-              </p>
-              <ul className="mt-4 space-y-2">
-                <li className="flex gap-2.5 text-sm leading-relaxed text-ink/80">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-iris-soft" aria-hidden />
-                  Prioritized actions, not a flat list
-                </li>
-                <li className="flex gap-2.5 text-sm leading-relaxed text-ink/80">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-iris-soft" aria-hidden />
-                  Each one shows whether the evidence is ready to pitch
-                </li>
-                <li className="flex gap-2.5 text-sm leading-relaxed text-ink/80">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-iris-soft" aria-hidden />
-                  You decide what happens next — WebGenie prepares, you execute
-                </li>
-              </ul>
-            </div>
-            <div className="mx-auto w-full max-w-[440px]">
-              <ProductScreenshot
-                src="/product-proof/daily-queue.jpg"
-                width={1200}
-                height={633}
-                alt="The Daily Queue: today's prioritized actions, with evidence badges and an Open Playbook action on each card"
-                sizes="(min-width: 1024px) 45vw, 100vw"
-              />
-              <RedactedScreenshotCaption />
-            </div>
-          </div>
-        </div>
-
-        {/* Feature 2 -- Finder: secondary proof, image left / text right, deliberately smaller */}
+        {/* Feature 1 -- Finder: secondary proof, image left / text right, deliberately smaller */}
         <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
           <div className="mx-auto w-full max-w-[330px] lg:order-1">
             <ProductScreenshot
@@ -460,7 +426,7 @@ function ProductProof() {
           </div>
         </div>
 
-        {/* Feature 3 -- Live Outreach Playbook: materially larger, text left / image right */}
+        {/* Feature 2 -- Live Outreach Playbook: materially larger, text left / image right */}
         <div className="relative">
           <div className="pointer-events-none absolute inset-x-0 -inset-y-10 -z-10 bg-iris/[0.06] blur-3xl" aria-hidden />
           <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
@@ -626,10 +592,16 @@ function Examples() {
                   {template.industryName} · Illustrative example
                 </div>
               </div>
-              <p className="inline-flex items-center gap-1.5 text-sm text-faint">
-                <Lock className="h-3.5 w-3.5" aria-hidden />
-                Full preview available after sign-in
-              </p>
+              <div className="flex gap-2">
+                <Button href="/signup" variant="secondary" className="flex-1 gap-1.5 px-2.5 py-1.5 text-sm">
+                  <Eye className="h-3.5 w-3.5" aria-hidden />
+                  Preview
+                </Button>
+                <Button href="/signup" variant="secondary" className="flex-1 gap-1.5 px-2.5 py-1.5 text-sm">
+                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                  Copy Prompt
+                </Button>
+              </div>
             </div>
           </div>
         ))}
