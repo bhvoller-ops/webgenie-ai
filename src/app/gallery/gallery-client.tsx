@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { Eye, ExternalLink, Lock, Search, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Lock, Search, X } from "lucide-react";
 import { PageShell } from "@/components/shell";
 import { Pill, SectionHeading, type PillTone } from "@/components/ui";
 import type { AccessRole } from "@/lib/auth/access";
@@ -10,6 +10,7 @@ import { industryList, type IndustryConfig } from "@/data/gallery/industries";
 import { industryCategories, getIndustryCategory, getCategoryCount } from "@/data/gallery/categories";
 import { cn } from "@/lib/format";
 import { GalleryThumbImage } from "@/components/gallery-thumb-image";
+import { buildGalleryPrompt } from "@/lib/gallery-prompt";
 
 /**
  * Ported from a Bolt.new "Multi-Industry Website Template" export (28 Aug
@@ -52,6 +53,7 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [preview, setPreview] = useState<IndustryConfig | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -74,6 +76,18 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
   function handleCardClick(ind: IndustryConfig) {
     if (!isAuthenticated) return; // no modal, no iframe for a logged-out visitor.
     setPreview(ind);
+  }
+
+  async function handleCopyPrompt(ind: IndustryConfig, event: MouseEvent) {
+    event.stopPropagation(); // don't also trigger the card's own onClick (opens the modal)
+    if (!isAuthenticated) return;
+    try {
+      await navigator.clipboard.writeText(buildGalleryPrompt(ind));
+      setCopiedId(ind.id);
+      setTimeout(() => setCopiedId((current) => (current === ind.id ? null : current)), 2000);
+    } catch {
+      // Clipboard API unavailable or permission denied -- no UI regression, just no confirmation.
+    }
   }
 
   // Public SaaS Impeccable rebuild (Phase 6): the quick-preview modal had no
@@ -149,14 +163,25 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
 
       <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((ind) => {
-          const CardTag = isAuthenticated ? "button" : "div";
           return (
-            <CardTag
+            <div
               key={ind.id}
-              {...(isAuthenticated ? { onClick: () => handleCardClick(ind) } : {})}
+              role={isAuthenticated ? "button" : undefined}
+              tabIndex={isAuthenticated ? 0 : undefined}
+              onClick={isAuthenticated ? () => handleCardClick(ind) : undefined}
+              onKeyDown={
+                isAuthenticated
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleCardClick(ind);
+                      }
+                    }
+                  : undefined
+              }
               className={cn(
                 "group flex flex-col overflow-hidden rounded-panel border border-hairline bg-canvas text-left transition-colors",
-                isAuthenticated && "hover:border-iris/40"
+                isAuthenticated && "focus-ring cursor-pointer hover:border-iris/40"
               )}
             >
               <div className="relative aspect-video w-full overflow-hidden bg-raised">
@@ -170,9 +195,33 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
                   <p className="mt-1 text-xs text-white/70">{ind.businessName}</p>
                 </div>
                 {isAuthenticated ? (
-                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-900 opacity-0 transition group-hover:opacity-100">
-                    <Eye className="h-3.5 w-3.5" aria-hidden /> Preview
-                  </span>
+                  <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 transition group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={(event) => handleCopyPrompt(ind, event)}
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs font-semibold text-slate-900 transition hover:bg-white"
+                    >
+                      {copiedId === ind.id ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" aria-hidden /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" aria-hidden /> Copy Prompt
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openFullPreview(ind);
+                      }}
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs font-semibold text-slate-900 transition hover:bg-white"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden /> Full Preview
+                    </button>
+                  </div>
                 ) : (
                   <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-sm font-semibold text-slate-900">
                     <Lock className="h-3.5 w-3.5" aria-hidden /> Sign in to view
@@ -187,7 +236,7 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
                 </div>
                 <p className="mt-1 text-sm text-faint">{ind.services.length} services · {ind.testimonials.length} reviews</p>
               </div>
-            </CardTag>
+            </div>
           );
         })}
       </div>
