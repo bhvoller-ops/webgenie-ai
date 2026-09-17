@@ -145,8 +145,9 @@ function Hero() {
         style={{ backgroundSize: "56px 56px", maskImage: "radial-gradient(900px 420px at 50% -10%, #000, transparent)" }}
         aria-hidden
       />
-      <h1 className="mx-auto max-w-3xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
-        Launch your AI Powered Agency <span className="text-iris-soft">in 3 Days, Not in 3 months</span>
+      <h1 className="mx-auto max-w-6xl text-[clamp(2.375rem,1.4rem+4vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-ink">
+        <span className="block">Launch your AI Powered Agency</span>
+        <span className="block text-iris-soft">In 3 Days, Not 3 Months</span>
       </h1>
       <p className="mx-auto mt-6 max-w-[720px] text-base leading-relaxed text-ink/80 sm:text-lg">
         WebGenie helps agencies find local prospects, verify the opportunity, prepare
