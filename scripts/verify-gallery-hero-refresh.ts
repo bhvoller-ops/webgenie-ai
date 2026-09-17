@@ -299,6 +299,35 @@ async function main() {
   const migrationDiff = execSync(`git diff --name-only main -- supabase/`, { cwd: ROOT, encoding: "utf8" }).trim();
   check("no supabase/migrations file added or changed", migrationDiff === "", migrationDiff);
 
+  // 23-25. Owner-reported INP investigation (2026-09-17): the "Open full
+  // preview" button and the card-click that opens the preview modal must
+  // stay cheap -- neither should be able to force a recompute of the
+  // 64-card filtered/mapped list or re-run renderIndustryPage() on the
+  // client. Root cause was profiled as browser/tab-focus behavior around
+  // window.open() and live-iframe creation (zero long tasks measured in
+  // either handler), not this code -- these checks guard against a real
+  // future regression introducing exactly that.
+  check(
+    "the 64-card `filtered` list only recomputes on query/category change, never on preview/modal state (so opening a preview cannot force a full-grid re-filter)",
+    /\}, \[query, category\]\);/.test(galleryClientSrc),
+  );
+  check(
+    "openFullPreview() only calls window.open() -- no renderIndustryPage(), no industryList iteration, no synchronous HTML construction on the client",
+    (() => {
+      const start = galleryClientSrc.indexOf("function openFullPreview");
+      const body = galleryClientSrc.slice(start, galleryClientSrc.indexOf("\n  }", start));
+      return /window\.open\(/.test(body) && !/renderIndustryPage|industryList\.(map|filter|forEach)/.test(body);
+    })(),
+  );
+  check(
+    "handleCardClick() only sets preview state -- no renderIndustryPage(), no industryList iteration on the client",
+    (() => {
+      const start = galleryClientSrc.indexOf("function handleCardClick");
+      const body = galleryClientSrc.slice(start, galleryClientSrc.indexOf("\n  }", start));
+      return /setPreview\(/.test(body) && !/renderIndustryPage|industryList\.(map|filter|forEach)/.test(body);
+    })(),
+  );
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
