@@ -55,7 +55,9 @@ export const legalServicesConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}5668772/pexels-photo-5668772.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: '/gallery-photos/legal-services.webp',
+  thumbnailImage: '/gallery-photos/thumbs/legal-services.webp',
+  heroImagePosition: 'center',
   heroBadge: 'AV-Rated • 25+ Years of Trial Experience',
   ctaPrimary: 'Schedule a Consultation',
   ctaSecondary: 'View Practice Areas',

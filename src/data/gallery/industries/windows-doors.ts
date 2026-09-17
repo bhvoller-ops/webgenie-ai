@@ -14,7 +14,6 @@ import {
   Star,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const windowsDoorsConfig: IndustryConfig = {
   id: 'windows-doors',
@@ -53,7 +52,7 @@ export const windowsDoorsConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/restoration.jpg`,
+  heroImage: '/gallery-photos/restoration.jpg',
   heroBadge: 'Licensed & Insured • Free In-Home Consultations',
   ctaPrimary: 'Get Free Estimate',
   ctaSecondary: 'View Services',

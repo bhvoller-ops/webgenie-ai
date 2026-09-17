@@ -53,7 +53,10 @@ export const barberShopConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}1813272/pexels-photo-1813272.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: '/gallery-photos/barber-shop.webp',
+  thumbnailImage: '/gallery-photos/thumbs/barber-shop.webp',
+  heroImagePosition: 'center',
+  heroImagePositionMobile: '65% center',
   heroBadge: 'Master Barbers • Walk-Ins Welcome',
   ctaPrimary: 'Book an Appointment',
   ctaSecondary: 'View Services',

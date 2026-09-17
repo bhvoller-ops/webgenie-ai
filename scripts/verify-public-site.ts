@@ -163,10 +163,12 @@ console.log("\n5. Samples/Gallery consolidation -- /samples removed, /gallery is
   // React component references, i.e. functions) cannot be passed as a
   // prop from a Server Component into a Client Component, which is what
   // gallery-client.tsx's "use client" directive would have made this. The
-  // shared file takes only the two string fields it needs.
+  // shared file takes only the string fields it needs -- widened by the
+  // Gallery hero-image refresh to add an optional thumbnailImage (still a
+  // plain string, so the same serialization-safety property holds).
   check("GalleryThumbImage lives in its own plain component file (importable by both the Server Component homepage and the Client Component gallery grid), not inside gallery-client.tsx", /export function GalleryThumbImage/.test(src("src/components/gallery-thumb-image.tsx")) && !/export function GalleryThumbImage/.test(gallerySrc));
   check("GalleryThumbImage's own file carries no \"use client\" directive (it has no hooks/state -- purely presentational, safe to run in either environment)", !/^"use client"/m.test(src("src/components/gallery-thumb-image.tsx")));
-  check("GalleryThumbImage takes only heroImage/industryName (both strings), never a whole IndustryConfig object -- the fix makes the whole class of non-serializable-prop failure structurally impossible, not just avoided this once", /\{ heroImage, industryName \}: \{ heroImage: string; industryName: string \}/.test(src("src/components/gallery-thumb-image.tsx")));
+  check("GalleryThumbImage takes only heroImage/thumbnailImage/industryName (all strings, thumbnailImage optional), never a whole IndustryConfig object -- the fix makes the whole class of non-serializable-prop failure structurally impossible, not just avoided this once", /heroImage: string;\s*thumbnailImage\?: string;\s*industryName: string;/.test(src("src/components/gallery-thumb-image.tsx")));
 }
 
 console.log("\n6. Illustrative labeling -- fictional sample businesses never implied to be real prospects");
@@ -458,7 +460,7 @@ console.log("\n16. Owner-review finding -- iframe overload corrected: static opt
   // now renders actual Gallery thumbnails (GalleryThumbImage, reused from
   // /gallery itself, not a second copy) instead of the old /sample-previews/
   // screenshots -- still zero iframes, still no live embed.
-  check("homepage's Examples section reuses the shared GalleryThumbImage component (not the /gallery client-file version, and not a live iframe)", /import \{ GalleryThumbImage \} from "@\/components\/gallery-thumb-image"/.test(pageSrc2) && /<GalleryThumbImage heroImage=\{template\.heroImage\} industryName=\{template\.industryName\}/.test(pageSrc2) && !/<iframe/.test(pageSrc2));
+  check("homepage's Examples section reuses the shared GalleryThumbImage component (not the /gallery client-file version, and not a live iframe)", /import \{ GalleryThumbImage \} from "@\/components\/gallery-thumb-image"/.test(pageSrc2) && /<GalleryThumbImage heroImage=\{template\.heroImage\} thumbnailImage=\{template\.thumbnailImage\} industryName=\{template\.industryName\}/.test(pageSrc2) && !/<iframe/.test(pageSrc2));
   check("AuthShell's value panel uses next/image against a static file, not a live iframe", /import Image from "next\/image"/.test(authShellSrc2) && /src="\/sample-previews\/dentist\.jpg"/.test(authShellSrc2) && !/<iframe/.test(authShellSrc2));
   check("gallery's grid still renders the plain <img> fallback (now inside the shared GalleryThumbImage file, unchanged behavior) and its live preview stays inside the on-demand modal only", /<img\b/.test(src("src/components/gallery-thumb-image.tsx")) && /<iframe\b/.test(src("src/app/gallery/gallery-client.tsx")));
 

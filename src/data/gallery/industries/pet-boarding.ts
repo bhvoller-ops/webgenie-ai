@@ -52,7 +52,10 @@ export const petBoardingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://images.pexels.com/photos/16465605/pexels-photo-16465605.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: '/gallery-photos/pet-boarding.webp',
+  thumbnailImage: '/gallery-photos/thumbs/pet-boarding.webp',
+  heroImagePosition: 'center',
+  heroImagePositionMobile: 'center 30%',
   heroBadge: 'Climate-Controlled • Live Webcams',
   ctaPrimary: 'Book a Stay',
   ctaSecondary: 'View Services',

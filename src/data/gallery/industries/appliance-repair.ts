@@ -15,7 +15,6 @@ import {
   Star,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const applianceRepairConfig: IndustryConfig = {
   id: 'appliance-repair',
@@ -54,7 +53,9 @@ export const applianceRepairConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/appliance-repair.jpg`,
+  heroImage: '/gallery-photos/appliance-repair.webp',
+  thumbnailImage: '/gallery-photos/thumbs/appliance-repair.webp',
+  heroImagePosition: 'center',
   heroBadge: 'Same-Day Service • 90-Day Parts Warranty',
   ctaPrimary: 'Schedule Repair',
   ctaSecondary: 'View Services',

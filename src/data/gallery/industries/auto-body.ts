@@ -51,8 +51,9 @@ export const autoBodyConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage:
-    'https://images.pexels.com/photos/4480507/pexels-photo-4480507.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: '/gallery-photos/auto-body.webp',
+  thumbnailImage: '/gallery-photos/thumbs/auto-body.webp',
+  heroImagePosition: 'center',
   heroBadge: 'I-CAR Gold Certified • Insurance Approved',
   ctaPrimary: 'Get Free Estimate',
   ctaSecondary: 'View Services',

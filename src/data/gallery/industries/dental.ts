@@ -11,7 +11,6 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const dentalConfig: IndustryConfig = {
   id: 'dental',
@@ -50,7 +49,9 @@ export const dentalConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/dental.jpg`,
+  heroImage: '/gallery-photos/dental.webp',
+  thumbnailImage: '/gallery-photos/thumbs/dental.webp',
+  heroImagePosition: 'center',
   heroBadge: 'Accepting New Patients • Most Insurance Accepted',
   ctaPrimary: 'Book Appointment',
   ctaSecondary: 'View Services',

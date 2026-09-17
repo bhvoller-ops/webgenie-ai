@@ -56,7 +56,9 @@ export const pressureWashingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}4100431/pexels-photo-4100431.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: '/gallery-photos/pressure-washing.webp',
+  thumbnailImage: '/gallery-photos/thumbs/pressure-washing.webp',
+  heroImagePosition: 'center',
   heroBadge: 'Commercial-Grade Equipment • Satisfaction Guaranteed',
   ctaPrimary: 'Get Free Quote',
   ctaSecondary: 'View Services',

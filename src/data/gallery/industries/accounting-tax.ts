@@ -53,7 +53,9 @@ export const accountingTaxConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://images.pexels.com/photos/7821914/pexels-photo-7821914.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: '/gallery-photos/accounting-tax.webp',
+  thumbnailImage: '/gallery-photos/thumbs/accounting-tax.webp',
+  heroImagePosition: 'center',
   heroBadge: 'CPA-Licensed • Secure & Confidential',
   ctaPrimary: 'Get a Free Consultation',
   ctaSecondary: 'View Services',

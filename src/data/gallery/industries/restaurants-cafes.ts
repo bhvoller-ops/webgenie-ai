@@ -55,7 +55,9 @@ export const restaurantsCafesConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${BASE_URL}67468/pexels-photo-67468.jpeg?auto=compress&cs=tinysrgb&w=1200`,
+  heroImage: '/gallery-photos/restaurants-cafes.webp',
+  thumbnailImage: '/gallery-photos/thumbs/restaurants-cafes.webp',
+  heroImagePosition: 'center',
   heroBadge: 'Farm-to-Table • Open Kitchen',
   ctaPrimary: 'Reserve a Table',
   ctaSecondary: 'View Menu',

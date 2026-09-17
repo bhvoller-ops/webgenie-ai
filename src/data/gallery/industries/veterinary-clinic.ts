@@ -52,7 +52,9 @@ export const veterinaryClinicConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://images.pexels.com/photos/7468978/pexels-photo-7468978.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: '/gallery-photos/veterinary-clinic.webp',
+  thumbnailImage: '/gallery-photos/thumbs/veterinary-clinic.webp',
+  heroImagePosition: 'center',
   heroBadge: 'AAHA Accredited • Emergency Care',
   ctaPrimary: 'Book Appointment',
   ctaSecondary: 'View Services',

@@ -241,11 +241,52 @@ async function main() {
 
   console.log("\n24. Finder billing and limits remain unchanged");
   {
-    const finderDiff = execSync("git diff main -- src/lib/prospect/finder.ts", { cwd: path.join(__dirname, ".."), encoding: "utf8" });
-    check("the search result limit (Math.min(40, ...)) is untouched by this branch", !/^[+-].*Math\.min\(40/m.test(finderDiff));
-    check("fetchPlaceDetails' cost-discipline (never called automatically) is untouched", !/^[+-].*fetchPlaceDetails/m.test(finderDiff));
-    const changedLines = (finderDiff.match(/^[-+](?!\+\+\+|---)/gm) ?? []).length;
-    check("finder.ts's diff against main is small and scoped to isOpen24Hours (the master prompt's own required fix), not a broader rewrite", /isOpen24Hours/.test(finderDiff) && changedLines < 30, `${changedLines} changed lines`);
+    // Corrected 2026-09-17 (WEBGENIE PR #35 correction gate): this section
+    // used to diff finder.ts against `main` and assert on the shape of
+    // that diff. That worked only during the PR that first introduced
+    // isOpen24Hours, while `main` still lacked the fix — the check was a
+    // one-time, PR-review-time guard ("did this specific change stay
+    // small and scoped"), not a standing invariant about finder.ts's
+    // permanent content. Once that PR (#33) merged, `main` already
+    // contains the fix, so `git diff main -- finder.ts` is empty from any
+    // branch (this one included — confirmed zero-diff) and always will be
+    // until finder.ts changes again — the diff-based assertion became
+    // permanently un-satisfiable through no fault of any later branch, not
+    // just temporarily stale. It cannot be "updated" to check a diff that
+    // no longer exists; the only honest fix is to assert the same real
+    // protections against finder.ts's actual current content instead,
+    // which is what actually matters and won't go stale on the next merge
+    // either. isOpen24Hours' own behavior already has five real functional
+    // tests above (section on lines ~192-196) — this section's job was
+    // always just "is finder.ts's search-cost discipline still what it
+    // claims to be," restated below without depending on git history.
+    const finderSrc = readFileSync(path.join(__dirname, "..", "src/lib/prospect/finder.ts"), "utf8");
+
+    // The old literal "Math.min(40, ...)" result cap was already replaced
+    // (in the earlier, already-merged P0.5 rework — see CLAUDE.md: "Finder
+    // now shows every result a search returns, not just no-website") by a
+    // bounded-pagination model. The real cost-discipline invariant today
+    // is that the page count is a small, fixed constant, not unbounded or
+    // caller-controlled.
+    const maxPagesMatch = finderSrc.match(/const MAX_PAGES\s*=\s*(\d+);/);
+    check("Finder's page count is still a small, fixed constant (not unbounded, not caller-controlled)", !!maxPagesMatch && Number(maxPagesMatch[1]) > 0 && Number(maxPagesMatch[1]) <= 10, maxPagesMatch?.[0]);
+    check("each page still requests a bounded maxResultCount from Places, not an unbounded one", /maxResultCount:\s*\d+/.test(finderSrc));
+
+    // fetchPlaceDetails' cost-discipline: it must remain an explicit,
+    // separately-invoked action (today: only /api/prospects/import-gmb),
+    // never something finder.ts calls on the caller's behalf during an
+    // ordinary search.
+    const searchFunctionBody = finderSrc.slice(finderSrc.indexOf("export async function placesSearch"));
+    const nextExportIdx = searchFunctionBody.indexOf("\nexport ", 1);
+    const placesSearchOnly = nextExportIdx === -1 ? searchFunctionBody : searchFunctionBody.slice(0, nextExportIdx);
+    check("fetchPlaceDetails is not called automatically from within the search flow itself (placesSearch)", !/fetchPlaceDetails\(/.test(placesSearchOnly));
+    check("fetchPlaceDetails remains an explicit export, callable only from a dedicated caller (confirmed: only src/app/api/prospects/import-gmb/route.ts calls it)", /export async function fetchPlaceDetails/.test(finderSrc));
+
+    // isOpen24Hours is present and actually wired into both places a
+    // business gets built from a Places result (not just defined and
+    // orphaned).
+    const wiredCount = (finderSrc.match(/isOpen24Hours\(pl\.regularOpeningHours\?\.weekdayDescriptions\)/g) ?? []).length;
+    check("isOpen24Hours is wired into every business-mapping call site (2 today), not just defined", wiredCount >= 2, `found ${wiredCount}`);
   }
 
   console.log("\n25/26. Existing search results remain usable without a preview; preview failure does not hide the result or audit action");

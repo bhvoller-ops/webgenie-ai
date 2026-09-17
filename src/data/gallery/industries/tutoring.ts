@@ -52,7 +52,9 @@ export const tutoringConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: 'https://images.pexels.com/photos/4173338/pexels-photo-4173338.jpeg?auto=compress&cs=tinysrgb&w=1200',
+  heroImage: '/gallery-photos/tutoring.webp',
+  thumbnailImage: '/gallery-photos/thumbs/tutoring.webp',
+  heroImagePosition: 'center',
   heroBadge: 'Certified Tutors • Personalized Plans',
   ctaPrimary: 'Book a Tutor',
   ctaSecondary: 'View Services',

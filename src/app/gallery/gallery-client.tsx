@@ -160,7 +160,7 @@ export function GalleryClient({ role, isAuthenticated }: { role: AccessRole; isA
               )}
             >
               <div className="relative aspect-video w-full overflow-hidden bg-raised">
-                <GalleryThumbImage heroImage={ind.heroImage} industryName={ind.industryName} />
+                <GalleryThumbImage heroImage={ind.heroImage} thumbnailImage={ind.thumbnailImage} industryName={ind.industryName} />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)" }} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                   <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: ind.colors.primary }}>
