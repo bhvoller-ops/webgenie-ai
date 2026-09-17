@@ -15,7 +15,6 @@ import {
   Receipt,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const accountingTaxConfig: IndustryConfig = {
   id: 'accounting-tax',
@@ -54,8 +53,8 @@ export const accountingTaxConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/accounting-tax.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/accounting-tax.webp`,
+  heroImage: '/gallery-photos/accounting-tax.webp',
+  thumbnailImage: '/gallery-photos/thumbs/accounting-tax.webp',
   heroImagePosition: 'center',
   heroBadge: 'CPA-Licensed • Secure & Confidential',
   ctaPrimary: 'Get a Free Consultation',

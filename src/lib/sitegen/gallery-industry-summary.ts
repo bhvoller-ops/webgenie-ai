@@ -47,7 +47,7 @@ export const GALLERY_INDUSTRY_SUMMARY: GalleryIndustrySummary[] = [
   { key: "driving-school", label: "Driving School", heroImage: "https://images.pexels.com/photos/9518244/pexels-photo-9518244.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Education" },
   { key: "drywall", label: "Drywall", heroImage: "https://images.pexels.com/photos/11427055/pexels-photo-11427055.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Home Services" },
   { key: "event-planning", label: "Event Planning", heroImage: "https://images.pexels.com/photos/31107306/pexels-photo-31107306.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Creative & Events" },
-  { key: "financial-advisor", label: "Financial Advisor", heroImage: "https://app.vibelabsagency.com/gallery-photos/financial-advisor.webp", category: "Professional Services" },
+  { key: "financial-advisor", label: "Financial Advisor", heroImage: "https://images.pexels.com/photos/8353820/pexels-photo-8353820.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Professional Services" },
   { key: "flooring", label: "Flooring", heroImage: "https://images.pexels.com/photos/1388944/pexels-photo-1388944.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Home Services" },
   { key: "florist", label: "Florist", heroImage: "https://images.pexels.com/photos/5409690/pexels-photo-5409690.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Creative & Events" },
   { key: "gift-shop", label: "Gift Shop", heroImage: "https://images.pexels.com/photos/8889507/pexels-photo-8889507.jpeg?auto=compress&cs=tinysrgb&w=1200", category: "Retail" },

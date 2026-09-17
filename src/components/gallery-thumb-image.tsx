@@ -31,6 +31,17 @@ import { SITE_ORIGIN } from "@/lib/site-url";
  * template has one, this card must never request the full-resolution hero
  * payload just to render a small grid thumbnail. Falls back to `heroImage`
  * for the templates that don't have one yet, so nothing else changes.
+ *
+ * Origin-portability correction: self-hosted Gallery configs now store a
+ * plain root-relative path ("/gallery-photos/x.webp"), not a
+ * SITE_ORIGIN-prefixed absolute URL -- a hardcoded production origin baked
+ * into the data made renderIndustryPage()'s full-preview hero 404 on
+ * localhost and on every Vercel preview deployment (neither serves
+ * app.vibelabsagency.com's real files). This component already needs the
+ * relative form for next/image (see below), so detection now matches a
+ * leading "/" directly; the SITE_ORIGIN-prefixed form is still accepted as
+ * a defensive fallback in case anything else ever hands this component an
+ * absolute self-hosted URL.
  */
 export function GalleryThumbImage({
   heroImage,
@@ -42,17 +53,16 @@ export function GalleryThumbImage({
   industryName: string;
 }) {
   const src = thumbnailImage ?? heroImage;
-  const isSelfHosted = src.startsWith(SITE_ORIGIN);
+  const isSelfHosted = src.startsWith("/") || src.startsWith(SITE_ORIGIN);
   if (isSelfHosted) {
     // next/image only treats a RELATIVE path as automatically local/
     // optimizable with zero config -- an absolute URL is checked against
     // next.config.ts's images.remotePatterns even when the host happens
     // to equal this deployment's own domain (confirmed: this 400'd
-    // locally against this app's own absolute URL). Stripping back to the
-    // relative path sidesteps that entirely, since these files are
-    // genuinely served from this app's own public/ directory regardless
-    // of which domain is currently serving the request.
-    const relativePath = src.slice(SITE_ORIGIN.length);
+    // locally against this app's own absolute URL). A leading "/" is
+    // already relative; the SITE_ORIGIN-prefixed fallback form is
+    // stripped back to relative the same way it always was.
+    const relativePath = src.startsWith("/") ? src : src.slice(SITE_ORIGIN.length);
     return (
       <Image
         src={relativePath}

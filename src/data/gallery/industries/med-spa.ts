@@ -11,7 +11,6 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const medSpaConfig: IndustryConfig = {
   id: 'med-spa',
@@ -50,8 +49,8 @@ export const medSpaConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/med-spa.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/med-spa.webp`,
+  heroImage: '/gallery-photos/med-spa.webp',
+  thumbnailImage: '/gallery-photos/thumbs/med-spa.webp',
   heroImagePosition: 'center',
   heroBadge: 'Medical Director Supervised • Licensed Professionals',
   ctaPrimary: 'Book Free Consultation',

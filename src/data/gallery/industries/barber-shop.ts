@@ -13,7 +13,6 @@ import {
   Crown,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -54,9 +53,10 @@ export const barberShopConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/barber-shop.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/barber-shop.webp`,
+  heroImage: '/gallery-photos/barber-shop.webp',
+  thumbnailImage: '/gallery-photos/thumbs/barber-shop.webp',
   heroImagePosition: 'center',
+  heroImagePositionMobile: '65% center',
   heroBadge: 'Master Barbers • Walk-Ins Welcome',
   ctaPrimary: 'Book an Appointment',
   ctaSecondary: 'View Services',

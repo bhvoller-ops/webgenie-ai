@@ -13,7 +13,7 @@
       "desktopObjectPosition": "center",
       "mobileObjectPosition": "center",
       "status": "APPROVED_AS_IS",
-      "reviewNote": "Byte-identical source photo to financial-advisor's approved image (confirmed via SHA-256 in the prep report). Each template has its own unambiguous single candidate, so both are included, but the two live templates will show the same photo — flagged for owner awareness, not blocked."
+      "reviewNote": "RESOLVED (WEBGENIE PR #35 correction gate, P1): source photo 'Accounting & Tax.png' is byte-identical (SHA-256 9e57da513454846daf7fdb50ba3dbc2e92afb132195820fe83bf46e90855560c) to the file also saved as 'Financial Advisor.png'. Both photos show a generic professional at a desk with documents/laptop — nothing in the image is specific to either accounting or financial advisory, so there was no compelling evidence to prefer one industry's mapping over the other. Retained here (industry name is the more literal semantic match to a person working with paper documents/receipts vs. financial-advisor's more chart/portfolio-oriented copy); financial-advisor was removed from this manifest and its production hero/thumbnail restored unchanged (see git history — reverted to main's original Pexels URL) rather than shipping the same photo under two templates."
     },
     {
       "templateId": "appliance-repair",
@@ -71,9 +71,9 @@
       "thumbPath": "/gallery-photos/thumbs/barber-shop.webp",
       "altText": "Barber giving a client a precision fade haircut",
       "desktopObjectPosition": "center",
-      "mobileObjectPosition": "center",
-      "status": "APPROVED_AS_IS",
-      "reviewNote": "Three non-identical candidate photos existed for this template ('Barber Shop.png', 'Barbershop.png', 'Barbershop Fade.png'); this one was selected for having the cleanest left-side negative space per the prep report's visual assessment — a reasoned pick, not an owner sign-off. Flagged for owner review; the other two remain available as alternates in the source folder if a different pick is preferred."
+      "mobileObjectPosition": "65% center",
+      "status": "APPROVED_WITH_CROP",
+      "reviewNote": "REVIEWED (WEBGENIE PR #35 correction gate, P1 — see the dedicated contact sheet). Three non-identical candidate photos existed for this template — 'Barber Shop.png' (client in chair, shop shelving visible), 'Barbershop.png' (barber and client mid-conversation, dark ambient background), 'Barbershop Fade.png' (close-up of clippers mid-fade, warm bokeh-lit shop background) — all three are unambiguously barbershop scenes (no other Gallery template competes for any of them), so the ambiguity was strictly which photo, never which industry. 'Barbershop Fade.png' was kept for its clean left-side negative space and warm, on-brand lighting, confirmed superior to the other two on a real rendered desktop screenshot. Its default mobile crop showed only an out-of-focus, unrecognizable bokeh background with no barber/client visible at all — caught via real screenshot, fixed to '65% center' after comparing four variants, now clearly shows the client's face. No signage, text, watermark, or identifiable third-party brand appears in any of the three candidates."
     },
     {
       "templateId": "chiropractic",
@@ -98,18 +98,6 @@
       "mobileObjectPosition": "center",
       "status": "APPROVED_AS_IS",
       "reviewNote": "Exact match. 'Dental Care.png' is an equally clean alternate photo not used this pass. Same GALLERY_INDUSTRY_SUMMARY-exclusion note as chiropractic applies."
-    },
-    {
-      "templateId": "financial-advisor",
-      "sourceFilename": "Financial Advisor.png",
-      "outputBaseName": "financial-advisor",
-      "heroPath": "/gallery-photos/financial-advisor.webp",
-      "thumbPath": "/gallery-photos/thumbs/financial-advisor.webp",
-      "altText": "Financial advisor reviewing charts with a client",
-      "desktopObjectPosition": "center",
-      "mobileObjectPosition": "center",
-      "status": "APPROVED_AS_IS",
-      "reviewNote": "Byte-identical source photo to accounting-tax's approved image — same cross-template duplicate-photo note applies; each template's own mapping is unambiguous."
     },
     {
       "templateId": "hair-braiding",

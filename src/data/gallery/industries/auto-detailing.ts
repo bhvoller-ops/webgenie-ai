@@ -13,7 +13,6 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const autoDetailingConfig: IndustryConfig = {
   id: 'auto-detailing',
@@ -52,7 +51,7 @@ export const autoDetailingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/restoration.jpg`,
+  heroImage: '/gallery-photos/restoration.jpg',
   heroBadge: 'Licensed & Insured • Mobile Service Available',
   ctaPrimary: 'Book Detailing',
   ctaSecondary: 'View Services',

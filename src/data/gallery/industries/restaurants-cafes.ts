@@ -15,7 +15,6 @@ import {
   Star,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -56,8 +55,8 @@ export const restaurantsCafesConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/restaurants-cafes.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/restaurants-cafes.webp`,
+  heroImage: '/gallery-photos/restaurants-cafes.webp',
+  thumbnailImage: '/gallery-photos/thumbs/restaurants-cafes.webp',
   heroImagePosition: 'center',
   heroBadge: 'Farm-to-Table • Open Kitchen',
   ctaPrimary: 'Reserve a Table',

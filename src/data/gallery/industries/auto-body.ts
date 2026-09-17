@@ -13,7 +13,6 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const autoBodyConfig: IndustryConfig = {
   id: 'auto-body',
@@ -52,8 +51,8 @@ export const autoBodyConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/auto-body.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/auto-body.webp`,
+  heroImage: '/gallery-photos/auto-body.webp',
+  thumbnailImage: '/gallery-photos/thumbs/auto-body.webp',
   heroImagePosition: 'center',
   heroBadge: 'I-CAR Gold Certified • Insurance Approved',
   ctaPrimary: 'Get Free Estimate',

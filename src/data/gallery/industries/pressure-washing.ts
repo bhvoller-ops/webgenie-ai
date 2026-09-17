@@ -16,7 +16,6 @@ import {
   Zap,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 const BASE_URL = 'https://images.pexels.com/photos/';
 
@@ -57,8 +56,8 @@ export const pressureWashingConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/pressure-washing.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/pressure-washing.webp`,
+  heroImage: '/gallery-photos/pressure-washing.webp',
+  thumbnailImage: '/gallery-photos/thumbs/pressure-washing.webp',
   heroImagePosition: 'center',
   heroBadge: 'Commercial-Grade Equipment • Satisfaction Guaranteed',
   ctaPrimary: 'Get Free Quote',

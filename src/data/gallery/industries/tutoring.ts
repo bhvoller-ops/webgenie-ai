@@ -14,7 +14,6 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const tutoringConfig: IndustryConfig = {
   id: 'tutoring',
@@ -53,8 +52,8 @@ export const tutoringConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/tutoring.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/tutoring.webp`,
+  heroImage: '/gallery-photos/tutoring.webp',
+  thumbnailImage: '/gallery-photos/thumbs/tutoring.webp',
   heroImagePosition: 'center',
   heroBadge: 'Certified Tutors • Personalized Plans',
   ctaPrimary: 'Book a Tutor',

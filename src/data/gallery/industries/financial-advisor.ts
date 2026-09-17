@@ -15,7 +15,6 @@ import {
   Handshake,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const financialAdvisorConfig: IndustryConfig = {
   id: 'financial-advisor',
@@ -54,9 +53,7 @@ export const financialAdvisorConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/financial-advisor.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/financial-advisor.webp`,
-  heroImagePosition: 'center',
+  heroImage: 'https://images.pexels.com/photos/8353820/pexels-photo-8353820.jpeg?auto=compress&cs=tinysrgb&w=1200',
   heroBadge: 'Fiduciary • Fee-Only • SEC-Registered',
   ctaPrimary: 'Book a Free Consultation',
   ctaSecondary: 'View Services',

@@ -16,6 +16,41 @@ function stars(n: number): string {
 }
 
 /**
+ * Resolves a config image value for embedding in the rendered HTML.
+ *
+ * Self-hosted Gallery assets are stored as root-relative paths (e.g.
+ * "/gallery-photos/dental.webp") precisely so this function has a choice
+ * to make — a hardcoded production origin baked into the data itself
+ * (the pre-refresh convention) made every self-hosted image 404 on
+ * localhost and on a Vercel preview deployment, since neither serves
+ * app.vibelabsagency.com's real files. A remote URL (Pexels, or any
+ * other absolute http(s) reference) is never touched — it already
+ * points at a real host regardless of who is rendering this page.
+ *
+ * `live` distinguishes the two real callers:
+ *  - unset/false — /api/gallery-preview's in-app preview. The HTML is
+ *    served fresh, this same request, from whatever origin the visitor
+ *    is already on (localhost, a preview deployment, or production) —
+ *    a relative path is the *more* correct answer here, not a
+ *    workaround: the browser resolves it against that same origin with
+ *    zero configuration, so it is portable by construction.
+ *  - true — generateGallerySite()'s output, used by the real Vercel
+ *    publisher (a generated client site deployed to a *different*
+ *    domain entirely, which cannot serve this app's /gallery-photos/
+ *    files itself) and by /api/demo-site's `?download=1` file export
+ *    (saved out and potentially opened via file://, emailed, or hosted
+ *    elsewhere later, with no request/origin of its own at that point).
+ *    Both genuinely need a durable, absolute reference back to this
+ *    app's own asset host — SITE_ORIGIN is the correct, deliberate
+ *    choice for that case specifically (see its own doc comment), not
+ *    a leftover global constant to be removed.
+ */
+function resolveAssetUrl(value: string, live: boolean | undefined): string {
+  if (!value.startsWith("/")) return value;
+  return live ? `${SITE_ORIGIN}${value}` : value;
+}
+
+/**
  * The lead form's submit handler. Two very different jobs depending on
  * caller:
  *
@@ -463,7 +498,7 @@ section{padding:64px 20px;max-width:1100px;margin:0 auto}
 <nav class="navbar"><div class="navbar-inner"><a class="navbar-brand" href="#">${escapeHtml(cfg.businessName)}</a><div class="navbar-links">${navLinksHtml}<a href="#lead-form" class="navbar-cta">${escapeHtml(cfg.ctaPrimary)}</a></div></div></nav>
 
 <div class="hero">
-  <div class="hero-bg"><img src="${escapeHtml(cfg.heroImage)}" alt="" /></div>
+  <div class="hero-bg"><img src="${escapeHtml(resolveAssetUrl(cfg.heroImage, opts.live))}" alt="" /></div>
   <div class="hero-overlay"></div>
   <div class="hero-content">
     <div class="hero-badge">${escapeHtml(cfg.heroBadge)}</div>

@@ -15,7 +15,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const interiorDesignConfig: IndustryConfig = {
   id: 'interior-design',
@@ -54,8 +53,8 @@ export const interiorDesignConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/interior-design.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/interior-design.webp`,
+  heroImage: '/gallery-photos/interior-design.webp',
+  thumbnailImage: '/gallery-photos/thumbs/interior-design.webp',
   heroImagePosition: 'center',
   heroBadge: 'Award-Winning • Full-Service Studio',
   ctaPrimary: 'Book a Consultation',

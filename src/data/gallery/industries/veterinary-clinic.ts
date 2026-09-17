@@ -14,7 +14,6 @@ import {
   Activity,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const veterinaryClinicConfig: IndustryConfig = {
   id: 'veterinary-clinic',
@@ -53,8 +52,8 @@ export const veterinaryClinicConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/veterinary-clinic.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/veterinary-clinic.webp`,
+  heroImage: '/gallery-photos/veterinary-clinic.webp',
+  thumbnailImage: '/gallery-photos/thumbs/veterinary-clinic.webp',
   heroImagePosition: 'center',
   heroBadge: 'AAHA Accredited • Emergency Care',
   ctaPrimary: 'Book Appointment',

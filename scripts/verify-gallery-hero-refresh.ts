@@ -15,8 +15,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import * as crypto from "crypto";
 import sharp from "sharp";
 import { industryList as GALLERY_TEMPLATE_LIST } from "../src/data/gallery/industries";
+import { renderIndustryPage } from "../src/lib/renderIndustryPage";
+import { SITE_ORIGIN } from "../src/lib/site-url";
 
 const ROOT = path.join(__dirname, "..");
 const MANIFEST_PATH = path.join(__dirname, "gallery-hero-refresh", "manifest.json");
@@ -104,11 +107,15 @@ async function main() {
     check(`rejected file NOT in manifest: ${rejected}`, !entries.some((e) => e.sourceFilename === rejected));
   }
 
-  // 7. Every changed template's config actually points at the manifest's paths.
+  // 7. Every changed template's config actually points at the manifest's
+  // paths, stored as a plain root-relative string (origin-portability
+  // correction: no SITE_ORIGIN baked into the data -- see
+  // renderIndustryPage.ts's resolveAssetUrl doc comment).
   for (const e of entries) {
     const cfgSrc = src(`src/data/gallery/industries/${e.templateId}.ts`);
-    check(`[${e.templateId}] industries/*.ts heroImage references manifest heroPath`, cfgSrc.includes(`\${SITE_ORIGIN}${e.heroPath}`));
-    check(`[${e.templateId}] industries/*.ts thumbnailImage references manifest thumbPath`, cfgSrc.includes(`\${SITE_ORIGIN}${e.thumbPath}`));
+    check(`[${e.templateId}] industries/*.ts heroImage is the plain relative manifest heroPath (no baked-in origin)`, cfgSrc.includes(`heroImage: '${e.heroPath}'`));
+    check(`[${e.templateId}] industries/*.ts thumbnailImage is the plain relative manifest thumbPath (no baked-in origin)`, cfgSrc.includes(`thumbnailImage: '${e.thumbPath}'`));
+    check(`[${e.templateId}] no longer imports SITE_ORIGIN (heroImage/thumbnailImage are plain relative strings now)`, !/from '@\/lib\/site-url'/.test(cfgSrc));
   }
 
   // 8. Every unchanged template retains a heroImage that is NOT one of this
@@ -124,12 +131,45 @@ async function main() {
     const cfgSrc = src(`src/data/gallery/industries/${id}.ts`);
     check(`[${id}] left unchanged (no new .webp gallery-photos reference)`, !/gallery-photos\/[a-z0-9-]+\.webp/.test(cfgSrc), "found a new-style webp path on a template that should be untouched");
   }
+  // financial-advisor: removed from the manifest during the P1 duplicate-
+  // resolution correction (byte-identical to accounting-tax's chosen
+  // photo) -- must be back to its exact original main content, and must
+  // not appear in the manifest at all.
+  {
+    const diff = execSync("git diff --name-only main -- src/data/gallery/industries/financial-advisor.ts", { cwd: ROOT, encoding: "utf8" }).trim();
+    check("[financial-advisor] restored to byte-identical original main content (zero diff)", diff === "", diff);
+    check("[financial-advisor] does not appear anywhere in the manifest", !entries.some((e) => e.templateId === "financial-advisor"));
+    check("[financial-advisor] gallery-industry-summary.ts entry restored to its original Pexels URL", src("src/lib/sitegen/gallery-industry-summary.ts").includes('{ key: "financial-advisor", label: "Financial Advisor", heroImage: "https://images.pexels.com/photos/8353820/pexels-photo-8353820.jpeg?auto=compress&cs=tinysrgb&w=1200"'));
+  }
+  check("manifest contains exactly 19 approved templates after the P1 duplicate-resolution correction", entries.length === 19, `found ${entries.length}`);
+  {
+    // No two manifest entries' SOURCE PHOTOS (not just their output paths,
+    // already checked above) are byte-identical -- the actual P1 defect
+    // class, verified with real file hashes when the source folder is
+    // available on this machine.
+    if (fs.existsSync(manifest.sourceDir)) {
+      const hashToIds = new Map<string, string[]>();
+      for (const e of entries) {
+        const buf = fs.readFileSync(path.join(manifest.sourceDir, e.sourceFilename));
+        const h = crypto.createHash("sha256").update(buf).digest("hex");
+        hashToIds.set(h, [...(hashToIds.get(h) ?? []), e.templateId]);
+      }
+      const dupeGroups = [...hashToIds.values()].filter((ids) => ids.length > 1);
+      check("no two manifested templates share a byte-identical source photo", dupeGroups.length === 0, JSON.stringify(dupeGroups));
+    } else {
+      console.log("  --   source directory not present on this machine -- skipping cross-template source-hash duplicate check");
+    }
+  }
   // auto-detailing / moving / windows-doors must still share the OLD
   // restoration.jpg placeholder -- proves the new restoration-water-damage
-  // asset didn't silently leak into them.
+  // asset didn't silently leak into them. Their heroImage was normalized
+  // to the same plain-relative-string convention (format only, same file,
+  // same mapping) so the origin-portability fix applies to the whole
+  // Gallery system, not just the 20 templates being visually refreshed.
   for (const id of ["auto-detailing", "moving", "windows-doors"]) {
     const cfgSrc = src(`src/data/gallery/industries/${id}.ts`);
     check(`[${id}] still points at the shared restoration.jpg placeholder, untouched`, cfgSrc.includes("gallery-photos/restoration.jpg"));
+    check(`[${id}] heroImage normalized to a plain relative string (no baked-in origin)`, cfgSrc.includes("heroImage: '/gallery-photos/restoration.jpg'"));
   }
 
   // 9. No template has a missing/empty heroImage.
@@ -168,6 +208,54 @@ async function main() {
     }
   }
 
+  // Origin-portability regression tests: call the real renderIndustryPage()
+  // directly with fabricated configs and assert on its actual output --
+  // functional proof, not a source-text guess, and none of it depends on a
+  // real network request or any real production/preview deployment.
+  {
+    const selfHostedCfg = {
+      ...GALLERY_TEMPLATE_LIST[0],
+      heroImage: "/gallery-photos/portability-test.webp",
+    };
+    const remoteCfg = {
+      ...GALLERY_TEMPLATE_LIST[0],
+      heroImage: "https://images.pexels.com/photos/1/pexels-photo-1.jpeg",
+    };
+
+    const previewHtml = renderIndustryPage(selfHostedCfg); // no `live` -- the /api/gallery-preview shape
+    check(
+      "in-app preview (live unset): self-hosted heroImage renders as a bare relative path -- works on localhost, a Vercel preview, or production identically",
+      previewHtml.includes('src="/gallery-photos/portability-test.webp"') && !previewHtml.includes(SITE_ORIGIN),
+    );
+
+    const liveHtml = renderIndustryPage(selfHostedCfg, { live: true }); // generateGallerySite()'s shape
+    check(
+      "live/published render: self-hosted heroImage is resolved to an absolute SITE_ORIGIN URL -- required for a real published client site and for /api/demo-site's downloadable export, neither of which has a request origin of its own",
+      liveHtml.includes(`src="${SITE_ORIGIN}/gallery-photos/portability-test.webp"`),
+    );
+
+    const remotePreviewHtml = renderIndustryPage(remoteCfg);
+    const remoteLiveHtml = renderIndustryPage(remoteCfg, { live: true });
+    check(
+      "a legitimate remote URL (Pexels) is never rewritten in preview mode",
+      remotePreviewHtml.includes('src="https://images.pexels.com/photos/1/pexels-photo-1.jpeg"'),
+    );
+    check(
+      "a legitimate remote URL (Pexels) is never rewritten in live mode either",
+      remoteLiveHtml.includes('src="https://images.pexels.com/photos/1/pexels-photo-1.jpeg"'),
+    );
+
+    const escapeCfg = {
+      ...GALLERY_TEMPLATE_LIST[0],
+      heroImage: '/gallery-photos/"><script>alert(1)</script>.webp',
+    };
+    const escapedHtml = renderIndustryPage(escapeCfg, { live: true });
+    check(
+      "safe URL escaping still applies after origin resolution -- a hostile-looking path is HTML-escaped, not injected raw",
+      !escapedHtml.includes("<script>alert(1)</script>") && escapedHtml.includes("&quot;&gt;&lt;script&gt;"),
+    );
+  }
+
   // 14 & 15. Gallery uses thumbnail derivatives; full previews use hero derivatives.
   const thumbComponentSrc = src("src/components/gallery-thumb-image.tsx");
   check("GalleryThumbImage prefers thumbnailImage over heroImage", /const src = thumbnailImage \?\? heroImage/.test(thumbComponentSrc));
@@ -176,7 +264,8 @@ async function main() {
   const homePageSrc = src("src/app/page.tsx");
   check("homepage Examples section passes thumbnailImage into GalleryThumbImage", /<GalleryThumbImage heroImage=\{template\.heroImage\} thumbnailImage=\{template\.thumbnailImage\}/.test(homePageSrc));
   const renderPageSrc = src("src/lib/renderIndustryPage.ts");
-  check("renderIndustryPage()'s hero background still uses cfg.heroImage (the full derivative), never thumbnailImage", /<img src=\"\$\{escapeHtml\(cfg\.heroImage\)\}\"/.test(renderPageSrc) && !/cfg\.thumbnailImage/.test(renderPageSrc));
+  check("renderIndustryPage()'s hero background still resolves cfg.heroImage (the full derivative), never thumbnailImage", /<img src=\"\$\{escapeHtml\(resolveAssetUrl\(cfg\.heroImage, opts\.live\)\)\}\"/.test(renderPageSrc) && !/cfg\.thumbnailImage/.test(renderPageSrc));
+  check("generateGallerySite() (published sites + downloadable demo export) passes live:true through to renderIndustryPage()", /renderIndustryPage\(cfg, \{[\s\S]{0,40}live: true/.test(src("src/lib/sitegen/gallery-site.ts")));
 
   // 16 & 17. Public Gallery stays thumbnail-only; authenticated behavior untouched.
   check("this branch did not touch /api/gallery-preview (the server-side auth gate)", (() => {

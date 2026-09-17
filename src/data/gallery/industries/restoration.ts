@@ -15,7 +15,6 @@ import {
   Search,
 } from 'lucide-react';
 import type { IndustryConfig } from '../types';
-import { SITE_ORIGIN } from '@/lib/site-url';
 
 export const restorationConfig: IndustryConfig = {
   id: 'restoration',
@@ -54,8 +53,8 @@ export const restorationConfig: IndustryConfig = {
     { label: 'Contact', href: '#contact' },
   ],
 
-  heroImage: `${SITE_ORIGIN}/gallery-photos/restoration-water-damage.webp`,
-  thumbnailImage: `${SITE_ORIGIN}/gallery-photos/thumbs/restoration-water-damage.webp`,
+  heroImage: '/gallery-photos/restoration-water-damage.webp',
+  thumbnailImage: '/gallery-photos/thumbs/restoration-water-damage.webp',
   heroImagePosition: 'center',
   heroBadge: 'IICRC Certified • 24/7 Emergency Response',
   ctaPrimary: 'Call 24/7 Emergency Line',
